@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "mahjong-ai"
+version = "0.1.0"
+description = "Research platform for four-player Japanese riichi mahjong AI"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[tool.maturin]
+manifest-path = "bindings/python/Cargo.toml"
+python-source = "python"
+module-name = "mahjong_ai._core"
+features = ["pyo3/extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]

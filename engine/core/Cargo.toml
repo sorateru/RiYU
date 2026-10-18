@@ -1,0 +1,12 @@
+[package]
+name = "mahjong-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Rule-independent state and event foundation for mahjong-ai"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
