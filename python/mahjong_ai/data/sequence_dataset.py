@@ -34,6 +34,7 @@ class SequenceDecisionRecord:
     final_rank: int
     final_score: int
     round_score_delta: int
+    all_round_score_deltas: str
     all_player_shanten: str
     opponent_tenpai: str
     opponent_waits: str
@@ -92,6 +93,7 @@ def build_sequence_decision_records(
                     final_rank=record.final_rank,
                     final_score=record.final_score,
                     round_score_delta=int(log.round_score_deltas[observer]),
+                    all_round_score_deltas=canonical_json(log.round_score_deltas),
                     all_player_shanten=canonical_json(shanten),
                     opponent_tenpai=canonical_json(
                         [tenpai[player] if player != observer else False for player in range(4)]
@@ -147,18 +149,51 @@ def _hidden_labels(
         fixed_melds = len(state["players"][player]["melds"])
         current = _shanten(counts, fixed_melds)
         shanten.append(current)
-        tenpai.append(current <= 0)
-        player_waits: list[int] = []
-        if current == 0:
-            for tile in range(34):
-                if counts[tile] >= 4:
-                    continue
-                candidate = list(counts)
-                candidate[tile] += 1
-                if _shanten(candidate, fixed_melds) == -1:
-                    player_waits.append(tile)
+        player_waits = _winning_tiles(counts, fixed_melds)
+        tenpai.append(bool(player_waits) or current == -1)
         waits.append(player_waits)
     return shanten, tenpai, waits
+
+
+def _winning_tiles(counts: list[int], fixed_melds: int) -> list[int]:
+    """Return waits for either a 13-tile or pre-discard 14-tile state.
+
+    Decision records also occur immediately before a discard/riichi, where the
+    player has a drawn tile.  In that case the useful oracle target is the union
+    of winning tiles after every discard that leaves the hand in tenpai.
+    """
+
+    concealed = sum(counts)
+    maximum = 14 - fixed_melds * 3
+    if concealed == maximum - 1:
+        bases = [counts]
+    elif concealed == maximum:
+        bases = []
+        seen: set[tuple[int, ...]] = set()
+        for discarded, amount in enumerate(counts):
+            if amount <= 0:
+                continue
+            base = list(counts)
+            base[discarded] -= 1
+            key = tuple(base)
+            if key not in seen and _shanten(base, fixed_melds) == 0:
+                seen.add(key)
+                bases.append(base)
+    else:
+        return []
+
+    waits: set[int] = set()
+    for base in bases:
+        if _shanten(base, fixed_melds) != 0:
+            continue
+        for tile in range(34):
+            if base[tile] >= 4:
+                continue
+            candidate = list(base)
+            candidate[tile] += 1
+            if _shanten(candidate, fixed_melds) == -1:
+                waits.add(tile)
+    return sorted(waits)
 
 
 def _shanten(counts: list[int], fixed_melds: int) -> int:
@@ -204,4 +239,3 @@ def _public_event_tokens(state: dict[str, Any], maximum: int = 96) -> list[dict[
             token["meld_tiles"] = [tile_index(tile) for tile in event["meld"]["tiles"]]
         tokens.append(token)
     return tokens
-
