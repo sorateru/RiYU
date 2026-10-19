@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{MahjongError, Result};
 
+use crate::MatchLength;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KazoeLimit {
@@ -19,6 +21,9 @@ pub struct RuleConfig {
     /// Number of red fives in manzu, pinzu and souzu respectively.
     pub red_fives: [u8; 3],
     pub open_tanyao: bool,
+    /// A pair that is both seat and round wind is worth four fu when true.
+    #[serde(default = "default_true")]
+    pub double_wind_pair_fu: bool,
     pub kiriage_mangan: bool,
     pub kazoe_limit: KazoeLimit,
     pub allow_double_ron: bool,
@@ -26,6 +31,19 @@ pub struct RuleConfig {
     /// Count common double-yakuman variants and daisuushii as two units.
     #[serde(default = "default_true")]
     pub double_yakuman: bool,
+    #[serde(default = "default_match_length")]
+    pub match_length: MatchLength,
+    #[serde(default = "default_true")]
+    pub allow_west_extension: bool,
+    #[serde(default = "default_true")]
+    pub agari_yame: bool,
+    #[serde(default = "default_true")]
+    pub tenpai_yame: bool,
+    #[serde(default = "default_true")]
+    pub bankruptcy_ends_match: bool,
+    /// Permit kokushi musou to rob a concealed kan.
+    #[serde(default = "default_true")]
+    pub allow_kokushi_ankan_chankan: bool,
 }
 
 impl Default for RuleConfig {
@@ -36,17 +54,28 @@ impl Default for RuleConfig {
             target_score: 30_000,
             red_fives: [1, 1, 1],
             open_tanyao: true,
+            double_wind_pair_fu: true,
             kiriage_mangan: false,
             kazoe_limit: KazoeLimit::Yakuman,
             allow_double_ron: true,
             triple_ron_is_draw: true,
             double_yakuman: true,
+            match_length: MatchLength::EastSouth,
+            allow_west_extension: true,
+            agari_yame: true,
+            tenpai_yame: true,
+            bankruptcy_ends_match: true,
+            allow_kokushi_ankan_chankan: true,
         }
     }
 }
 
 const fn default_true() -> bool {
     true
+}
+
+const fn default_match_length() -> MatchLength {
+    MatchLength::EastSouth
 }
 
 impl RuleConfig {

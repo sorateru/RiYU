@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Action, EventKind, GameState, KanAction, MahjongError, MeldKind, PlayerId,
-    RiichiDeclaration, RiichiState, Result, RoundWind, Tile, TileCounts, TileType, TurnPhase,
-    WinContext, WinMethod, calculate_shanten, is_winning_hand, score_hand,
+    Action, DrawGameReason, EventKind, GameState, KanAction, MahjongError, MeldKind, PlayerId,
+    Result, RiichiDeclaration, RiichiState, RoundWind, Tile, TileCounts, TileType, TurnPhase,
+    WinContext, WinMethod, Yaku, calculate_shanten, is_winning_hand, score_hand,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +29,13 @@ pub fn legal_actions(state: &GameState) -> Result<LegalActionReport> {
         TurnPhase::AwaitingResponse { discarder, tile } if discarder != observer => {
             legal_response_actions(state, discarder, tile, discard_furiten)?
         }
+        TurnPhase::AwaitingKanResponse {
+            declarer,
+            tile,
+            ankan,
+        } if declarer != observer => {
+            legal_chankan_actions(state, declarer, tile, ankan, discard_furiten)?
+        }
         _ => Vec::new(),
     };
     actions.sort_by_key(action_sort_key);
@@ -41,9 +48,79 @@ pub fn legal_actions(state: &GameState) -> Result<LegalActionReport> {
     })
 }
 
+/// Score the observer's currently legal ron/tsumo using only their observation.
+pub fn score_observer_win(state: &GameState, method: WinMethod) -> Result<crate::ScoreEvaluation> {
+    state.validate()?;
+    let observer = state.observer();
+    let winning_tile = match method {
+        WinMethod::Tsumo => state.drawn_tile.ok_or_else(|| {
+            MahjongError::InvalidAction("tsumo scoring requires an observer draw".into())
+        })?,
+        WinMethod::Ron => match state.phase {
+            TurnPhase::AwaitingResponse { discarder, tile } if discarder != observer => tile,
+            TurnPhase::AwaitingKanResponse { declarer, tile, .. } if declarer != observer => tile,
+            _ => {
+                return Err(MahjongError::InvalidAction(
+                    "ron scoring requires an opponent response window".into(),
+                ));
+            }
+        },
+    };
+    let mut concealed = state.hand.clone();
+    if method == WinMethod::Tsumo {
+        concealed.extend(state.drawn_tile);
+    } else {
+        concealed.push(winning_tile);
+    }
+    score_hand(
+        &concealed,
+        &state.players[observer.index()].melds,
+        winning_tile,
+        &win_context(state, method)?,
+        &state.rules,
+    )
+}
+
+fn legal_chankan_actions(
+    state: &GameState,
+    declarer: PlayerId,
+    tile: Tile,
+    ankan: bool,
+    discard_furiten: bool,
+) -> Result<Vec<Action>> {
+    let mut actions = vec![Action::Pass];
+    if discard_furiten || state.observer_furiten.temporary || state.observer_furiten.riichi {
+        return Ok(actions);
+    }
+    if ankan && !state.rules.allow_kokushi_ankan_chankan {
+        return Ok(actions);
+    }
+    let observer = state.observer();
+    let mut concealed = state.hand.clone();
+    concealed.push(tile);
+    if let Ok(evaluation) = score_hand(
+        &concealed,
+        &state.players[observer.index()].melds,
+        tile,
+        &win_context(state, WinMethod::Ron)?,
+        &state.rules,
+    ) {
+        let kokushi = evaluation.yaku.iter().any(|entry| {
+            matches!(
+                entry.yaku,
+                Yaku::KokushiMusou | Yaku::KokushiMusouThirteenWait
+            )
+        });
+        if !ankan || kokushi {
+            actions.push(Action::Ron { target: declarer });
+        }
+    }
+    Ok(actions)
+}
+
 fn legal_turn_actions(state: &GameState, fixed: &[crate::Meld]) -> Result<Vec<Action>> {
     let observer = state.observer();
-    let riichi = state.players[observer.index()].riichi == RiichiState::Accepted;
+    let riichi = state.players[observer.index()].riichi.is_accepted();
     let mut actions = Vec::new();
     let discard_actions = discard_actions(state, riichi);
     actions.extend(discard_actions.iter().cloned());
@@ -60,6 +137,15 @@ fn legal_turn_actions(state: &GameState, fixed: &[crate::Meld]) -> Result<Vec<Ac
         .is_ok()
         {
             actions.push(Action::Tsumo);
+        }
+        actions.extend(ankan_actions(state, fixed, riichi)?);
+        if !riichi {
+            actions.extend(shouminkan_actions(state, fixed));
+        }
+        if can_declare_nine_terminals(state)? {
+            actions.push(Action::AbortiveDraw {
+                reason: DrawGameReason::NineTerminals,
+            });
         }
     }
 
@@ -80,12 +166,22 @@ fn legal_turn_actions(state: &GameState, fixed: &[crate::Meld]) -> Result<Vec<Ac
         }
     }
 
-        actions.extend(ankan_actions(state, fixed, riichi)?);
-        if !riichi {
-            actions.extend(shouminkan_actions(state, fixed));
-        }
-    }
     Ok(actions)
+}
+
+fn can_declare_nine_terminals(state: &GameState) -> Result<bool> {
+    let observer = state.observer();
+    if !state.players[observer.index()].discards.is_empty()
+        || state.players.iter().any(|player| !player.melds.is_empty())
+    {
+        return Ok(false);
+    }
+    let counts = TileCounts::from_tiles(observer_tiles(state))?;
+    let distinct = counts
+        .iter()
+        .filter(|(kind, count)| *count > 0 && kind.is_terminal_or_honor())
+        .count();
+    Ok(distinct >= 9)
 }
 
 fn legal_response_actions(
@@ -97,7 +193,7 @@ fn legal_response_actions(
     let observer = state.observer();
     let mut actions = vec![Action::Pass];
     let hand = &state.hand;
-    let own_riichi = state.players[observer.index()].riichi == RiichiState::Accepted;
+    let own_riichi = state.players[observer.index()].riichi.is_accepted();
 
     if !own_riichi {
         if discarder.next() == observer {
@@ -126,10 +222,7 @@ fn legal_response_actions(
         }
     }
 
-    if !discard_furiten
-        && !state.observer_furiten.temporary
-        && !state.observer_furiten.riichi
-    {
+    if !discard_furiten && !state.observer_furiten.temporary && !state.observer_furiten.riichi {
         let mut concealed = state.hand.clone();
         concealed.push(called_tile);
         let fixed = &state.players[observer.index()].melds;
@@ -185,11 +278,7 @@ fn can_declare_riichi(state: &GameState, fixed: &[crate::Meld]) -> bool {
         && state.players[state.observer().index()].riichi == RiichiState::None
 }
 
-fn ankan_actions(
-    state: &GameState,
-    fixed: &[crate::Meld],
-    riichi: bool,
-) -> Result<Vec<Action>> {
+fn ankan_actions(state: &GameState, fixed: &[crate::Meld], riichi: bool) -> Result<Vec<Action>> {
     let all_tiles = observer_tiles(state);
     let counts = TileCounts::from_tiles(all_tiles.iter().copied())?;
     let before_waits = if riichi {
@@ -388,7 +477,7 @@ fn win_context(state: &GameState, method: WinMethod) -> Result<WinContext> {
         RoundWind::West => TileType::West,
         RoundWind::North => TileType::North,
     };
-    let own_riichi = state.players[observer.index()].riichi == RiichiState::Accepted;
+    let own_riichi = state.players[observer.index()].riichi.is_accepted();
     let no_calls = state.players.iter().all(|player| player.melds.is_empty());
     let first_own_turn = state.players[observer.index()].discards.is_empty();
     let rinshan = method == WinMethod::Tsumo
@@ -400,14 +489,17 @@ fn win_context(state: &GameState, method: WinMethod) -> Result<WinContext> {
         method,
         seat_wind,
         round_wind,
-        riichi: if own_riichi {
+        riichi: if state.players[observer.index()].riichi.is_double() {
+            RiichiDeclaration::DoubleRiichi
+        } else if own_riichi {
             RiichiDeclaration::Riichi
         } else {
             RiichiDeclaration::None
         },
-        ippatsu: false,
+        ippatsu: state.ippatsu_eligible[observer.index()],
         rinshan,
-        chankan: false,
+        chankan: method == WinMethod::Ron
+            && matches!(state.phase, TurnPhase::AwaitingKanResponse { .. }),
         haitei: method == WinMethod::Tsumo && state.remaining_tiles == 0,
         houtei: method == WinMethod::Ron && state.remaining_tiles == 0,
         tenhou: method == WinMethod::Tsumo
@@ -430,14 +522,12 @@ fn action_sort_key(action: &Action) -> (u8, usize, bool) {
     match action {
         Action::Tsumo => (0, 0, false),
         Action::Ron { .. } => (1, 0, false),
-        Action::Riichi {
-            discard,
-            tsumogiri,
-        } => (2, discard.kind.index(), *tsumogiri),
+        Action::Riichi { discard, tsumogiri } => (2, discard.kind.index(), *tsumogiri),
         Action::Kan { .. } => (3, 0, false),
         Action::Pon { called_tile, .. } => (4, called_tile.kind.index(), false),
         Action::Chi { called_tile, .. } => (5, called_tile.kind.index(), false),
         Action::Discard { tile, tsumogiri } => (6, tile.kind.index(), *tsumogiri),
-        Action::Pass => (7, 0, false),
+        Action::AbortiveDraw { .. } => (7, 0, false),
+        Action::Pass => (8, 0, false),
     }
 }

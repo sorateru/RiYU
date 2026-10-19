@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{MahjongError, PlayerId, Result, Tile};
+use crate::{DrawGameReason, MahjongError, PlayerId, Result, Tile};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -176,6 +176,9 @@ pub enum Action {
         target: PlayerId,
     },
     Tsumo,
+    AbortiveDraw {
+        reason: DrawGameReason,
+    },
     Pass,
 }
 
@@ -231,6 +234,12 @@ impl Action {
                 KanAction::Shouminkan { tile, .. } => tile.validate(),
             },
             Self::Ron { target } => target.validate(),
+            Self::AbortiveDraw { reason } => match reason {
+                DrawGameReason::NineTerminals => Ok(()),
+                _ => Err(MahjongError::InvalidAction(
+                    "only nine_terminals is a player-declared abortive draw".into(),
+                )),
+            },
             Self::Tsumo | Self::Pass => Ok(()),
         }
     }

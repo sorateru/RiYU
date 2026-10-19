@@ -13,9 +13,24 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Rust",
 ]
+dependencies = [
+    "numpy>=2,<3",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+dev = ["pytest>=8,<10", "httpx2>=2,<3"]
+reference-tests = ["mahjong==1.4.0"]
+learning = ["torch>=2.7,<3", "pyarrow>=18,<24", "mlflow>=3,<4"]
+vision = ["opencv-python-headless>=4.10,<5"]
+service = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+all = [
+    "torch>=2.7,<3",
+    "pyarrow>=18,<24",
+    "mlflow>=3,<4",
+    "opencv-python-headless>=4.10,<5",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+]
 
 [tool.maturin]
 manifest-path = "bindings/python/Cargo.toml"

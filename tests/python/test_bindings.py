@@ -25,3 +25,17 @@ def test_rejects_invalid_observer() -> None:
     else:
         raise AssertionError("invalid observer was accepted")
 
+
+def test_analysis_never_presents_missing_model_values_as_probabilities() -> None:
+    state_json = mahjong_ai.replay_events_json(0, "[]")
+    analysis = json.loads(mahjong_ai.analyze_state_json(state_json))
+
+    assert analysis["shanten"]["status"] == "unavailable"
+    assert analysis["legal_actions"] == {
+        "status": "exact",
+        "value": [],
+        "reason": None,
+    }
+    assert analysis["model_policy"]["status"] == "unavailable"
+    assert analysis["model_policy"]["value"] is None
+    assert analysis["estimated_win_rate"]["status"] == "unavailable"

@@ -1,0 +1,10440 @@
+{
+  "config": {
+    "base_seed": 20261019,
+    "execution_backend": "thread_fallback",
+    "hands": 256,
+    "policy": "greedy_argmax",
+    "seat_patterns": [
+      [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      [
+        "a",
+        "b",
+        "b",
+        "a"
+      ]
+    ],
+    "seed_blocks": 64,
+    "unit": "single_kyoku",
+    "workers": 2
+  },
+  "format": "mahjong-ai-arena/v1",
+  "hands": [
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261019,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 28,
+          "pass": 77,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 28,
+          "pass": 79
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        25000,
+        17000,
+        33000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261019,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 28,
+          "pass": 79,
+          "pon": 1,
+          "tsumo": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 29,
+          "pass": 81,
+          "pon": 3
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        21100,
+        23000,
+        32900,
+        23000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        1,
+        3
+      ],
+      "result_type": "tsumo",
+      "seed": 20261019,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 34,
+          "pass": 91,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 33,
+          "pass": 95,
+          "pon": 2
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        27900,
+        25000,
+        22100,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261019,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 15,
+          "pass": 35
+        },
+        "b": {
+          "chi": 2,
+          "discard": 11,
+          "pass": 35,
+          "pon": 3,
+          "ron": 1
+        }
+      },
+      "block": 1,
+      "final_scores": [
+        25000,
+        24000,
+        25000,
+        26000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261020,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 39,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 43,
+          "pass": 115,
+          "pon": 5
+        }
+      },
+      "block": 1,
+      "final_scores": [
+        22000,
+        26000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261020,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 117,
+          "pon": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 1,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261020,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 112,
+          "pon": 5
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 120
+        }
+      },
+      "block": 1,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261020,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 114,
+          "pon": 5
+        },
+        "b": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 119
+        }
+      },
+      "block": 2,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261021,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 2,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261021,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 37,
+          "pass": 102,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 36,
+          "pass": 105
+        }
+      },
+      "block": 2,
+      "final_scores": [
+        25000,
+        25000,
+        26000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261021,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 115,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 2,
+      "final_scores": [
+        26500,
+        25000,
+        23500,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261021,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 16,
+          "pass": 48,
+          "riichi": 1,
+          "tsumo": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 16,
+          "pass": 47
+        }
+      },
+      "block": 3,
+      "final_scores": [
+        17000,
+        41000,
+        21000,
+        21000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "tsumo",
+      "seed": 20261022,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 111,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 117
+        }
+      },
+      "block": 3,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261022,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "discard": 13,
+          "pass": 39,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 14,
+          "pass": 39
+        }
+      },
+      "block": 3,
+      "final_scores": [
+        24000,
+        25000,
+        25000,
+        26000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261022,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 15,
+          "pass": 36,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "discard": 12,
+          "pass": 42
+        }
+      },
+      "block": 3,
+      "final_scores": [
+        24000,
+        25000,
+        25000,
+        26000
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261022,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 4,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261023,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 33,
+          "pass": 91,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 33,
+          "pass": 96
+        }
+      },
+      "block": 4,
+      "final_scores": [
+        25000,
+        26000,
+        25000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261023,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 115
+        }
+      },
+      "block": 4,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261023,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 42,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 4,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261023,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 112,
+          "pon": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 117
+        }
+      },
+      "block": 5,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261024,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 114,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 5,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261024,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 5,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261024,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 21,
+          "pass": 66,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 24,
+          "pass": 64,
+          "pon": 1
+        }
+      },
+      "block": 5,
+      "final_scores": [
+        28900,
+        25000,
+        25000,
+        21100
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261024,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 6,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261025,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 8,
+          "discard": 41,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 41,
+          "pass": 119,
+          "pon": 3
+        }
+      },
+      "block": 6,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261025,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 111,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 112,
+          "pon": 1
+        }
+      },
+      "block": 6,
+      "final_scores": [
+        23000,
+        25000,
+        25000,
+        27000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261025,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 6,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261025,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 7,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261026,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 121,
+          "pon": 3
+        },
+        "b": {
+          "chi": 5,
+          "discard": 44,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 7,
+      "final_scores": [
+        26500,
+        23500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        3,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261026,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 109,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 114,
+          "pon": 1
+        }
+      },
+      "block": 7,
+      "final_scores": [
+        25000,
+        24000,
+        25000,
+        26000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261026,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 43,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 1,
+          "discard": 39,
+          "pass": 121,
+          "pon": 3
+        }
+      },
+      "block": 7,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261026,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 114,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 8,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261027,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 113,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 8,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261027,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 37,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 42,
+          "pass": 113,
+          "pon": 2
+        }
+      },
+      "block": 8,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261027,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 117,
+          "pon": 3
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 117
+        }
+      },
+      "block": 8,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261027,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 111,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 38,
+          "kan": 1,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 9,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261028,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 35,
+          "pass": 92,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 33,
+          "pass": 99
+        }
+      },
+      "block": 9,
+      "final_scores": [
+        25000,
+        25000,
+        26000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261028,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 116,
+          "pon": 4
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 118
+        }
+      },
+      "block": 9,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261028,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 28,
+          "pass": 77,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 28,
+          "pass": 80,
+          "pon": 1
+        }
+      },
+      "block": 9,
+      "final_scores": [
+        21100,
+        25000,
+        25000,
+        28900
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261028,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 10,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261029,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 118,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 117,
+          "pon": 4
+        }
+      },
+      "block": 10,
+      "final_scores": [
+        26000,
+        26000,
+        26000,
+        22000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261029,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 119,
+          "pon": 1
+        },
+        "b": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 10,
+      "final_scores": [
+        26000,
+        22000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261029,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 17,
+          "pass": 55,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 20,
+          "pass": 50,
+          "pon": 1
+        }
+      },
+      "block": 10,
+      "final_scores": [
+        36600,
+        25000,
+        13400,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261029,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 30,
+          "pass": 86,
+          "pon": 1,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 30,
+          "pass": 90,
+          "pon": 1
+        }
+      },
+      "block": 11,
+      "final_scores": [
+        27900,
+        22100,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261030,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 42,
+          "pass": 118,
+          "pon": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 11,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261030,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 115,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 118
+        }
+      },
+      "block": 11,
+      "final_scores": [
+        25000,
+        23000,
+        27000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261030,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 11,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261030,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 120,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 44,
+          "pass": 118,
+          "pon": 3
+        }
+      },
+      "block": 12,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261031,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 29,
+          "pass": 84,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 31,
+          "pass": 84,
+          "pon": 1
+        }
+      },
+      "block": 12,
+      "final_scores": [
+        24000,
+        25000,
+        26000,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        2,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261031,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 36,
+          "pass": 96,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 34,
+          "pass": 100,
+          "pon": 2
+        }
+      },
+      "block": 12,
+      "final_scores": [
+        23000,
+        25000,
+        25000,
+        27000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261031,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 118,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 120,
+          "pon": 3
+        }
+      },
+      "block": 12,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261031,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 112,
+          "pon": 5
+        },
+        "b": {
+          "chi": 1,
+          "discard": 39,
+          "pass": 117,
+          "pon": 3
+        }
+      },
+      "block": 13,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261032,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 38,
+          "pass": 114,
+          "pon": 2,
+          "riichi": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 112,
+          "pon": 2
+        }
+      },
+      "block": 13,
+      "final_scores": [
+        23500,
+        25500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        2,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261032,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 32,
+          "pass": 89,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 33,
+          "pass": 92,
+          "pon": 1
+        }
+      },
+      "block": 13,
+      "final_scores": [
+        25000,
+        24000,
+        26000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261032,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 115,
+          "pon": 5
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 13,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261032,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 43,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 121,
+          "pon": 1
+        }
+      },
+      "block": 14,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261033,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 119,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 119,
+          "pon": 3
+        }
+      },
+      "block": 14,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261033,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 113,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 14,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261033,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 8,
+          "discard": 40,
+          "pass": 116
+        },
+        "b": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 14,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261033,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 15,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261034,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 112,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 15,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261034,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 15,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261034,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 113,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 15,
+      "final_scores": [
+        26000,
+        22000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261034,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 114,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 16,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261035,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 16,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261035,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 32,
+          "pass": 94,
+          "pon": 3,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 33,
+          "pass": 94,
+          "pon": 2
+        }
+      },
+      "block": 16,
+      "final_scores": [
+        25000,
+        25000,
+        22400,
+        27600
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261035,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "kan": 1,
+          "pass": 118,
+          "pon": 4
+        }
+      },
+      "block": 16,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261035,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 17,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261036,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 31,
+          "pass": 80,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 28,
+          "pass": 87,
+          "pon": 1
+        }
+      },
+      "block": 17,
+      "final_scores": [
+        25000,
+        25000,
+        30200,
+        19800
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261036,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 113,
+          "pon": 6
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 17,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261036,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 112,
+          "pon": 3
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 115,
+          "pon": 2
+        }
+      },
+      "block": 17,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261036,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 37,
+          "pass": 104,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 37,
+          "pass": 107,
+          "pon": 2
+        }
+      },
+      "block": 18,
+      "final_scores": [
+        25000,
+        32700,
+        25000,
+        17300
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261037,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 29,
+          "pass": 78,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 28,
+          "pass": 81,
+          "pon": 3
+        }
+      },
+      "block": 18,
+      "final_scores": [
+        25000,
+        25000,
+        27000,
+        23000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261037,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 117,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 43,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 18,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261037,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 113,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 18,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261037,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 113,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 19,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261038,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 18,
+          "pass": 35,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 12,
+          "pass": 45,
+          "pon": 1
+        }
+      },
+      "block": 19,
+      "final_scores": [
+        25000,
+        26000,
+        24000,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261038,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 19,
+          "pass": 55,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 20,
+          "pass": 54,
+          "pon": 3
+        }
+      },
+      "block": 19,
+      "final_scores": [
+        25000,
+        25000,
+        26000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261038,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 19,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261038,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "discard": 23,
+          "pass": 65,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 23,
+          "pass": 66,
+          "pon": 1
+        }
+      },
+      "block": 20,
+      "final_scores": [
+        25000,
+        26000,
+        25000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261039,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 20,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261039,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 115,
+          "pon": 5
+        },
+        "b": {
+          "chi": 1,
+          "discard": 42,
+          "pass": 118,
+          "pon": 3
+        }
+      },
+      "block": 20,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261039,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 20,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261039,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 20,
+          "pass": 47,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 17,
+          "kan": 1,
+          "pass": 54
+        }
+      },
+      "block": 21,
+      "final_scores": [
+        25000,
+        26000,
+        25000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261040,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 37,
+          "pass": 106,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "kan": 1,
+          "pass": 107,
+          "pon": 2
+        }
+      },
+      "block": 21,
+      "final_scores": [
+        25000,
+        25000,
+        26000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261040,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 112,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 38,
+          "pass": 118
+        }
+      },
+      "block": 21,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261040,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 21,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261040,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 119
+        }
+      },
+      "block": 22,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261041,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 43,
+          "pass": 119,
+          "pon": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 121,
+          "pon": 2
+        }
+      },
+      "block": 22,
+      "final_scores": [
+        22000,
+        26000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261041,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 119,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 43,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 22,
+      "final_scores": [
+        25000,
+        23000,
+        27000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261041,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 117,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 22,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261041,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 23,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261042,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 112,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 23,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261042,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 115,
+          "pon": 3
+        }
+      },
+      "block": 23,
+      "final_scores": [
+        25000,
+        25000,
+        25000,
+        25000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261042,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 23,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261042,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 26,
+          "pass": 73
+        },
+        "b": {
+          "chi": 6,
+          "discard": 25,
+          "pass": 68,
+          "pon": 2,
+          "ron": 1
+        }
+      },
+      "block": 24,
+      "final_scores": [
+        25000,
+        25000,
+        27000,
+        23000
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261043,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 31,
+          "pass": 96,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 33,
+          "pass": 95
+        }
+      },
+      "block": 24,
+      "final_scores": [
+        19800,
+        25000,
+        30200,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        2,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261043,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 116
+        }
+      },
+      "block": 24,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261043,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 117
+        }
+      },
+      "block": 24,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261043,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 26,
+          "pass": 70,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 26,
+          "pass": 74,
+          "pon": 1
+        }
+      },
+      "block": 25,
+      "final_scores": [
+        25000,
+        28900,
+        25000,
+        21100
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261044,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 118,
+          "pon": 3
+        }
+      },
+      "block": 25,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261044,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 112,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 112,
+          "pon": 1
+        }
+      },
+      "block": 25,
+      "final_scores": [
+        25000,
+        25000,
+        25000,
+        25000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261044,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 114,
+          "pon": 4
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 116
+        }
+      },
+      "block": 25,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261044,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 25,
+          "pass": 58,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 19,
+          "pass": 65,
+          "pon": 1
+        }
+      },
+      "block": 26,
+      "final_scores": [
+        32700,
+        17300,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261045,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 43,
+          "pass": 117,
+          "pon": 6
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 121,
+          "pon": 3
+        }
+      },
+      "block": 26,
+      "final_scores": [
+        26000,
+        26000,
+        26000,
+        22000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261045,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 117,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 117,
+          "pon": 4
+        }
+      },
+      "block": 26,
+      "final_scores": [
+        26000,
+        22000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261045,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 33,
+          "pass": 89,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 32,
+          "pass": 94,
+          "pon": 2
+        }
+      },
+      "block": 26,
+      "final_scores": [
+        37000,
+        13000,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261045,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 117,
+          "pon": 3
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 27,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261046,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 36,
+          "pass": 101,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 36,
+          "pass": 102,
+          "pon": 3
+        }
+      },
+      "block": 27,
+      "final_scores": [
+        25000,
+        26300,
+        25000,
+        23700
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261046,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 39,
+          "pass": 113
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 115,
+          "pon": 2
+        }
+      },
+      "block": 27,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261046,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 114,
+          "pon": 2
+        }
+      },
+      "block": 27,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261046,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 114,
+          "pon": 2
+        }
+      },
+      "block": 28,
+      "final_scores": [
+        25000,
+        25000,
+        25000,
+        25000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261047,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 112,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 28,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261047,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 20,
+          "pass": 58,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "discard": 22,
+          "pass": 61,
+          "pon": 1
+        }
+      },
+      "block": 28,
+      "final_scores": [
+        25000,
+        24000,
+        25000,
+        26000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261047,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 115,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 28,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261047,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 116
+        }
+      },
+      "block": 29,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261048,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 116
+        }
+      },
+      "block": 29,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261048,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 117,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 29,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261048,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 115,
+          "pon": 2
+        }
+      },
+      "block": 29,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261048,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 116,
+          "pon": 2
+        }
+      },
+      "block": 30,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261049,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 39,
+          "pass": 115
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 115,
+          "pon": 2
+        }
+      },
+      "block": 30,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261049,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 20,
+          "pass": 58,
+          "pon": 1,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 20,
+          "pass": 60,
+          "pon": 1
+        }
+      },
+      "block": 30,
+      "final_scores": [
+        25000,
+        25000,
+        22400,
+        27600
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261049,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 30,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261049,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 29,
+          "pass": 75,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 27,
+          "pass": 81,
+          "pon": 1
+        }
+      },
+      "block": 31,
+      "final_scores": [
+        37000,
+        13000,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261050,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 117,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 31,
+      "final_scores": [
+        26000,
+        26000,
+        26000,
+        22000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261050,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 31,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261050,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 120,
+          "pon": 2
+        }
+      },
+      "block": 31,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261050,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 38,
+          "pass": 109,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 37,
+          "pass": 111
+        }
+      },
+      "block": 32,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261051,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 111,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 117
+        }
+      },
+      "block": 32,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261051,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 116,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 32,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261051,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "discard": 25,
+          "pass": 68,
+          "pon": 3,
+          "tsumo": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 23,
+          "pass": 70,
+          "pon": 1
+        }
+      },
+      "block": 32,
+      "final_scores": [
+        37000,
+        21000,
+        21000,
+        21000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "tsumo",
+      "seed": 20261051,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 114,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 120
+        }
+      },
+      "block": 33,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261052,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 42,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 120
+        }
+      },
+      "block": 33,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261052,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 39,
+          "pass": 112
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 116
+        }
+      },
+      "block": 33,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261052,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 40,
+          "pass": 117
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 33,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261052,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 115,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 34,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261053,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 26,
+          "pass": 84,
+          "pon": 1,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 30,
+          "pass": 80,
+          "pon": 1
+        }
+      },
+      "block": 34,
+      "final_scores": [
+        25000,
+        37000,
+        25000,
+        13000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261053,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 34,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261053,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 37,
+          "pass": 108,
+          "ron": 1
+        },
+        "b": {
+          "discard": 39,
+          "kan": 1,
+          "pass": 110,
+          "pon": 2
+        }
+      },
+      "block": 34,
+      "final_scores": [
+        27900,
+        25000,
+        25000,
+        22100
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261053,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 43,
+          "pass": 113,
+          "pon": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 120
+        }
+      },
+      "block": 35,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261054,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 35,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261054,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 33,
+          "pass": 92,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 34,
+          "pass": 96,
+          "pon": 1
+        }
+      },
+      "block": 35,
+      "final_scores": [
+        23000,
+        25000,
+        27000,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261054,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 35,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261054,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 38,
+          "pass": 109,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 113,
+          "pon": 1
+        }
+      },
+      "block": 36,
+      "final_scores": [
+        23000,
+        27000,
+        25000,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261055,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 43,
+          "pass": 117,
+          "pon": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 121,
+          "pon": 1
+        }
+      },
+      "block": 36,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261055,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 36,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261055,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 39,
+          "pass": 119,
+          "pon": 3
+        }
+      },
+      "block": 36,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261055,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 119
+        }
+      },
+      "block": 37,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261056,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 6,
+          "discard": 40,
+          "kan": 1,
+          "pass": 113
+        }
+      },
+      "block": 37,
+      "final_scores": [
+        26500,
+        23500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        3,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261056,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 111,
+          "pon": 5
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "kan": 1,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 37,
+      "final_scores": [
+        26000,
+        22000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261056,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 38,
+          "pass": 110,
+          "pon": 4
+        },
+        "b": {
+          "discard": 39,
+          "kan": 1,
+          "pass": 113,
+          "pon": 1
+        }
+      },
+      "block": 37,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261056,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 41,
+          "pass": 110,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 37,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 38,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261057,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 112,
+          "pon": 3
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 38,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261057,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 116,
+          "pon": 5
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 116,
+          "pon": 2
+        }
+      },
+      "block": 38,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261057,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 113
+        }
+      },
+      "block": 38,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261057,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 39,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261058,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 39,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261058,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 115,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 118
+        }
+      },
+      "block": 39,
+      "final_scores": [
+        25000,
+        25000,
+        19800,
+        30200
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261058,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 44,
+          "pass": 114,
+          "pon": 6
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 122,
+          "pon": 2
+        }
+      },
+      "block": 39,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261058,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 40,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261059,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 115,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 40,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261059,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 40,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261059,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 40,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261059,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 18,
+          "pass": 54,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 20,
+          "pass": 53,
+          "pon": 1
+        }
+      },
+      "block": 41,
+      "final_scores": [
+        25000,
+        27000,
+        25000,
+        23000
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261060,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 29,
+          "pass": 83,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 29,
+          "pass": 84,
+          "pon": 1
+        }
+      },
+      "block": 41,
+      "final_scores": [
+        25000,
+        27000,
+        25000,
+        23000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261060,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 41,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261060,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 116,
+          "pon": 2
+        }
+      },
+      "block": 41,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261060,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 120
+        }
+      },
+      "block": 42,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261061,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 118,
+          "pon": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 42,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261061,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 41,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 119
+        }
+      },
+      "block": 42,
+      "final_scores": [
+        26000,
+        22000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261061,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 42,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261061,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 112,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 114
+        }
+      },
+      "block": 43,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261062,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 24,
+          "pass": 64,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 24,
+          "pass": 68,
+          "pon": 1
+        }
+      },
+      "block": 43,
+      "final_scores": [
+        25000,
+        26000,
+        25000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261062,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 115,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 114,
+          "pon": 2
+        }
+      },
+      "block": 43,
+      "final_scores": [
+        25000,
+        25000,
+        25000,
+        25000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261062,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 30,
+          "pass": 84,
+          "pon": 1,
+          "tsumo": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 30,
+          "pass": 88
+        }
+      },
+      "block": 43,
+      "final_scores": [
+        31000,
+        23000,
+        23000,
+        23000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "tsumo",
+      "seed": 20261062,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 8,
+          "discard": 24,
+          "pass": 63,
+          "pon": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 24,
+          "pass": 65,
+          "pon": 2,
+          "ron": 1
+        }
+      },
+      "block": 44,
+      "final_scores": [
+        25000,
+        24000,
+        25000,
+        26000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261063,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 19,
+          "pass": 61,
+          "riichi": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 22,
+          "pass": 59,
+          "pon": 1
+        }
+      },
+      "block": 44,
+      "final_scores": [
+        25000,
+        26300,
+        25000,
+        23700
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261063,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 118
+        }
+      },
+      "block": 44,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261063,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 41,
+          "pass": 115,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 44,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261063,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 120,
+          "pon": 2
+        }
+      },
+      "block": 45,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261064,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 42,
+          "pass": 113,
+          "pon": 4
+        },
+        "b": {
+          "chi": 4,
+          "discard": 38,
+          "pass": 116,
+          "pon": 2
+        }
+      },
+      "block": 45,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261064,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 115,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "kan": 1,
+          "pass": 113,
+          "pon": 3
+        }
+      },
+      "block": 45,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261064,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "discard": 24,
+          "pass": 64,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 22,
+          "kan": 1,
+          "pass": 65,
+          "pon": 1
+        }
+      },
+      "block": 45,
+      "final_scores": [
+        17300,
+        25000,
+        25000,
+        32700
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261064,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 42,
+          "pass": 115,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 119,
+          "pon": 2
+        }
+      },
+      "block": 46,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261065,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 112,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "kan": 1,
+          "pass": 117
+        }
+      },
+      "block": 46,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261065,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 111,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 39,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 46,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261065,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 112,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 46,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261065,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 30,
+          "pass": 86,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 32,
+          "pass": 87,
+          "pon": 3
+        }
+      },
+      "block": 47,
+      "final_scores": [
+        25000,
+        27000,
+        23000,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261066,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 38,
+          "pass": 106,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 38,
+          "pass": 110,
+          "pon": 2
+        }
+      },
+      "block": 47,
+      "final_scores": [
+        25000,
+        26000,
+        25000,
+        24000
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261066,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 42,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 47,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261066,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 47,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261066,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 21,
+          "pass": 57,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 21,
+          "pass": 60,
+          "pon": 1
+        }
+      },
+      "block": 48,
+      "final_scores": [
+        25000,
+        27000,
+        23000,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261067,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 118,
+          "pon": 4
+        },
+        "b": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 120,
+          "pon": 1
+        }
+      },
+      "block": 48,
+      "final_scores": [
+        26000,
+        26000,
+        26000,
+        22000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261067,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 117,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 48,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261067,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 43,
+          "pass": 115,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 121,
+          "pon": 2
+        }
+      },
+      "block": 48,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261067,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 113,
+          "pon": 4
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 49,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261068,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 28,
+          "pass": 73,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 26,
+          "pass": 79,
+          "pon": 2
+        }
+      },
+      "block": 49,
+      "final_scores": [
+        25000,
+        28900,
+        21100,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261068,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 113,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 114,
+          "pon": 1
+        }
+      },
+      "block": 49,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261068,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 116,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 49,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261068,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 38,
+          "pass": 115,
+          "pon": 4
+        }
+      },
+      "block": 50,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261069,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 50,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261069,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 30,
+          "pass": 89,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 32,
+          "pass": 86,
+          "pon": 1
+        }
+      },
+      "block": 50,
+      "final_scores": [
+        25000,
+        22400,
+        25000,
+        27600
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261069,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 114,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 50,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261069,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 111,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 118,
+          "pon": 1
+        }
+      },
+      "block": 51,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261070,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 37,
+          "pass": 107,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 108,
+          "pon": 1
+        }
+      },
+      "block": 51,
+      "final_scores": [
+        21100,
+        25000,
+        28900,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        2,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261070,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 40,
+          "pass": 118,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 51,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261070,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 40,
+          "pass": 118,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 117,
+          "pon": 3
+        }
+      },
+      "block": 51,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261070,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 44,
+          "pass": 109,
+          "pon": 4
+        },
+        "b": {
+          "chi": 2,
+          "discard": 36,
+          "pass": 120,
+          "pon": 2
+        }
+      },
+      "block": 52,
+      "final_scores": [
+        28000,
+        24000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261071,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 41,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 119,
+          "pon": 1
+        }
+      },
+      "block": 52,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261071,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 37,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 112,
+          "pon": 2
+        }
+      },
+      "block": 52,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261071,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 24,
+          "pass": 67,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 6,
+          "discard": 25,
+          "pass": 67
+        }
+      },
+      "block": 52,
+      "final_scores": [
+        26500,
+        23500,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261071,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 44,
+          "pass": 113,
+          "pon": 5
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 122,
+          "pon": 2
+        }
+      },
+      "block": 53,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261072,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 39,
+          "pass": 121,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 46,
+          "pass": 117,
+          "pon": 4
+        }
+      },
+      "block": 53,
+      "final_scores": [
+        22000,
+        26000,
+        26000,
+        26000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261072,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 113,
+          "pon": 5
+        },
+        "b": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 53,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261072,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 30,
+          "pass": 77,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 28,
+          "pass": 83,
+          "pon": 1
+        }
+      },
+      "block": 53,
+      "final_scores": [
+        27900,
+        25000,
+        22100,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261072,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 42,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "pass": 120,
+          "pon": 3
+        }
+      },
+      "block": 54,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261073,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 111,
+          "pon": 5
+        },
+        "b": {
+          "chi": 1,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 54,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261073,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 39,
+          "pass": 113,
+          "pon": 2
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 113
+        }
+      },
+      "block": 54,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261073,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 37,
+          "pass": 92,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 32,
+          "pass": 102,
+          "pon": 1
+        }
+      },
+      "block": 54,
+      "final_scores": [
+        26500,
+        23500,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261073,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 114,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 114,
+          "pon": 1
+        }
+      },
+      "block": 55,
+      "final_scores": [
+        24000,
+        28000,
+        24000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261074,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 38,
+          "pass": 104,
+          "pon": 4,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 37,
+          "pass": 109
+        }
+      },
+      "block": 55,
+      "final_scores": [
+        25000,
+        25000,
+        26300,
+        23700
+      ],
+      "loser": 3,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261074,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 114,
+          "pon": 2
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 55,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261074,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 110,
+          "pon": 1
+        },
+        "b": {
+          "discard": 38,
+          "pass": 114,
+          "pon": 2
+        }
+      },
+      "block": 55,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261074,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 40,
+          "pass": 112,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 39,
+          "kan": 1,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 56,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261075,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 116,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 41,
+          "pass": 117,
+          "pon": 2
+        }
+      },
+      "block": 56,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261075,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 115,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 113,
+          "pon": 2
+        }
+      },
+      "block": 56,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261075,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 31,
+          "pass": 88,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 33,
+          "kan": 1,
+          "pass": 92
+        }
+      },
+      "block": 56,
+      "final_scores": [
+        25000,
+        17300,
+        25000,
+        32700
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261075,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 20,
+          "pass": 53,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 19,
+          "kan": 1,
+          "pass": 55,
+          "pon": 2
+        }
+      },
+      "block": 57,
+      "final_scores": [
+        27900,
+        25000,
+        22100,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261076,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 41,
+          "pass": 115,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 41,
+          "kan": 1,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 57,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261076,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 28,
+          "pass": 81,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 30,
+          "pass": 83,
+          "pon": 2
+        }
+      },
+      "block": 57,
+      "final_scores": [
+        23000,
+        25000,
+        25000,
+        27000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261076,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 118,
+          "pon": 2
+        }
+      },
+      "block": 57,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261076,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 103,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 36,
+          "pass": 109,
+          "pon": 3
+        }
+      },
+      "block": 58,
+      "final_scores": [
+        27900,
+        25000,
+        22100,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261077,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 112,
+          "pon": 2
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 116
+        }
+      },
+      "block": 58,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261077,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 21,
+          "pass": 54,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 21,
+          "pass": 60
+        }
+      },
+      "block": 58,
+      "final_scores": [
+        25000,
+        21100,
+        28900,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        1,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261077,
+      "winners": [
+        2
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 28,
+          "pass": 71,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 26,
+          "pass": 79,
+          "pon": 1
+        }
+      },
+      "block": 58,
+      "final_scores": [
+        25000,
+        25000,
+        23000,
+        27000
+      ],
+      "loser": 2,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261077,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 43,
+          "pass": 115,
+          "pon": 4
+        },
+        "b": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 121,
+          "pon": 1
+        }
+      },
+      "block": 59,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261078,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 108,
+          "pon": 3,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 39,
+          "pass": 112,
+          "pon": 2
+        }
+      },
+      "block": 59,
+      "final_scores": [
+        23000,
+        27000,
+        25000,
+        25000
+      ],
+      "loser": 0,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261078,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 36,
+          "pass": 105,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 39,
+          "pass": 108,
+          "pon": 2
+        }
+      },
+      "block": 59,
+      "final_scores": [
+        25000,
+        21100,
+        25000,
+        28900
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261078,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 29,
+          "pass": 77,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 27,
+          "pass": 81,
+          "pon": 2
+        }
+      },
+      "block": 59,
+      "final_scores": [
+        23000,
+        25000,
+        25000,
+        27000
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261078,
+      "winners": [
+        3
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 29,
+          "pass": 81,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 4,
+          "discard": 29,
+          "pass": 82,
+          "pon": 1
+        }
+      },
+      "block": 60,
+      "final_scores": [
+        25000,
+        28900,
+        25000,
+        21100
+      ],
+      "loser": 3,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        3,
+        4
+      ],
+      "result_type": "ron",
+      "seed": 20261079,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 38,
+          "pass": 111,
+          "pon": 2
+        },
+        "b": {
+          "chi": 1,
+          "discard": 41,
+          "pass": 115,
+          "pon": 1
+        }
+      },
+      "block": 60,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261079,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 116,
+          "pon": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 116
+        }
+      },
+      "block": 60,
+      "final_scores": [
+        24000,
+        24000,
+        24000,
+        28000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        4,
+        1
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261079,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 113,
+          "pon": 3
+        },
+        "b": {
+          "chi": 4,
+          "discard": 39,
+          "pass": 119
+        }
+      },
+      "block": 60,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261079,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 37,
+          "pass": 98,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 34,
+          "pass": 103,
+          "pon": 2
+        }
+      },
+      "block": 61,
+      "final_scores": [
+        27900,
+        22100,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261080,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 43,
+          "pass": 115,
+          "pon": 5
+        },
+        "b": {
+          "chi": 3,
+          "discard": 40,
+          "pass": 121,
+          "pon": 2
+        }
+      },
+      "block": 61,
+      "final_scores": [
+        23500,
+        26500,
+        26500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261080,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 41,
+          "pass": 119,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 43,
+          "pass": 119,
+          "pon": 4
+        }
+      },
+      "block": 61,
+      "final_scores": [
+        23500,
+        23500,
+        26500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        3,
+        4,
+        1,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261080,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 3,
+          "discard": 23,
+          "pass": 69,
+          "pon": 2,
+          "ron": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 26,
+          "pass": 68,
+          "pon": 2
+        }
+      },
+      "block": 61,
+      "final_scores": [
+        26500,
+        23500,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261080,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 43,
+          "pass": 115,
+          "pon": 1
+        },
+        "b": {
+          "chi": 5,
+          "discard": 40,
+          "pass": 121
+        }
+      },
+      "block": 62,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261081,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 18,
+          "pass": 42,
+          "pon": 1,
+          "ron": 1
+        },
+        "b": {
+          "chi": 1,
+          "discard": 15,
+          "pass": 50
+        }
+      },
+      "block": 62,
+      "final_scores": [
+        25000,
+        27000,
+        23000,
+        25000
+      ],
+      "loser": 2,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261081,
+      "winners": [
+        1
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 6,
+          "discard": 40,
+          "pass": 113,
+          "pon": 1
+        },
+        "b": {
+          "chi": 2,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        }
+      },
+      "block": 62,
+      "final_scores": [
+        24000,
+        24000,
+        28000,
+        24000
+      ],
+      "loser": null,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        2,
+        3,
+        1,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261081,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 7,
+          "discard": 39,
+          "pass": 116
+        },
+        "b": {
+          "chi": 3,
+          "discard": 42,
+          "pass": 116,
+          "pon": 1
+        }
+      },
+      "block": 62,
+      "final_scores": [
+        26500,
+        23500,
+        23500,
+        26500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        1,
+        3,
+        4,
+        2
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261081,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 42,
+          "pass": 109,
+          "pon": 3
+        },
+        "b": {
+          "chi": 3,
+          "discard": 37,
+          "pass": 118
+        }
+      },
+      "block": 63,
+      "final_scores": [
+        26500,
+        26500,
+        23500,
+        23500
+      ],
+      "loser": null,
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "result_type": "exhaustive",
+      "seed": 20261082,
+      "winners": []
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 4,
+          "discard": 40,
+          "pass": 117,
+          "pon": 1
+        },
+        "b": {
+          "chi": 3,
+          "discard": 41,
+          "pass": 114,
+          "pon": 3,
+          "ron": 1
+        }
+      },
+      "block": 63,
+      "final_scores": [
+        36600,
+        13400,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261082,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 39,
+          "pass": 115,
+          "pon": 3
+        },
+        "b": {
+          "chi": 2,
+          "discard": 42,
+          "pass": 115,
+          "pon": 2,
+          "ron": 1
+        }
+      },
+      "block": 63,
+      "final_scores": [
+        36600,
+        13400,
+        25000,
+        25000
+      ],
+      "loser": 1,
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        1,
+        4,
+        2,
+        3
+      ],
+      "result_type": "ron",
+      "seed": 20261082,
+      "winners": [
+        0
+      ]
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 35,
+          "pass": 91,
+          "pon": 5,
+          "ron": 1
+        },
+        "b": {
+          "chi": 6,
+          "discard": 32,
+          "pass": 96
+        }
+      },
+      "block": 63,
+      "final_scores": [
+        23000,
+        25000,
+        25000,
+        27000
+      ],
+      "loser": 0,
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        4,
+        2,
+        3,
+        1
+      ],
+      "result_type": "ron",
+      "seed": 20261082,
+      "winners": [
+        3
+      ]
+    }
+  ],
+  "models": {
+    "a": {
+      "metadata": {
+        "dataset_fingerprint": "7cf7748a62730b161cca26e63eef4fb9c6fb7c2b12f40c16ffc0d5451c135c67",
+        "encoder_version": "observable-planes-v1",
+        "model_id": "tenhou-phoenix-2020-200k",
+        "policy_calibrated": false,
+        "trained": true,
+        "validated": false
+      },
+      "model_config": {
+        "action_dim": 128,
+        "auxiliary_heads": [],
+        "channels": 96,
+        "representation_dim": 256,
+        "residual_blocks": 4
+      },
+      "path": "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/checkpoints/tenhou-phoenix-2020-200k.pt",
+      "sha256": "82f03cc7e404090fb1ce69e692045d17b251d9c744db27a2561f35904b5fc963"
+    },
+    "b": {
+      "metadata": {
+        "dataset_fingerprint": "16cfba84bb3686318307d191b762ae2ad5c831f69a967bbb8fdfc310988d0774",
+        "encoder_version": "observable-planes-v1",
+        "model_id": "ppo-baseline-unvalidated",
+        "policy_calibrated": false,
+        "trained": true,
+        "validated": false
+      },
+      "model_config": {
+        "action_dim": 128,
+        "auxiliary_heads": [],
+        "channels": 96,
+        "representation_dim": 256,
+        "residual_blocks": 4
+      },
+      "path": "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/checkpoints/ppo-baseline-unvalidated.pt",
+      "sha256": "e8bc1be2103ee7b757df6ed3543ed5ecfb4a1396f165dfa5fca2a3657da76cfa"
+    }
+  },
+  "paired": {
+    "average_rank_difference_a_minus_b": -1.33203125,
+    "average_rank_difference_a_minus_b_95ci": [
+      -1.4400962346486736,
+      -1.2239662653513264
+    ],
+    "average_score_delta_difference_a_minus_b": 2409.375,
+    "average_score_delta_difference_a_minus_b_95ci": [
+      2188.725166647846,
+      2630.024833352154
+    ],
+    "block_rank_differences": [
+      -1.0,
+      -1.25,
+      -1.25,
+      -0.75,
+      -1.25,
+      -1.5,
+      -1.75,
+      -1.25,
+      -1.5,
+      -1.25,
+      -0.75,
+      -1.25,
+      -1.75,
+      -1.75,
+      -2.0,
+      -1.75,
+      -1.5,
+      -1.25,
+      -1.75,
+      -1.0,
+      -2.0,
+      -1.75,
+      -1.75,
+      -0.75,
+      -1.0,
+      -0.75,
+      -0.25,
+      -1.25,
+      -1.75,
+      -2.0,
+      -1.0,
+      -1.0,
+      -1.5,
+      -1.5,
+      -0.75,
+      -1.75,
+      -1.5,
+      -0.5,
+      -1.0,
+      -1.5,
+      -2.0,
+      -1.25,
+      -1.25,
+      -0.25,
+      -1.0,
+      -1.0,
+      -2.0,
+      -1.75,
+      -1.5,
+      -1.5,
+      -1.75,
+      -2.0,
+      -1.25,
+      -1.75,
+      -1.25,
+      -1.25,
+      -1.25,
+      -1.75,
+      -1.5,
+      -1.25,
+      -1.5,
+      -1.25,
+      -1.0,
+      -0.25
+    ],
+    "block_score_differences": [
+      2950.0,
+      1750.0,
+      1875.0,
+      3000.0,
+      2250.0,
+      2000.0,
+      2750.0,
+      1750.0,
+      2500.0,
+      1500.0,
+      4650.0,
+      2000.0,
+      2250.0,
+      2125.0,
+      3000.0,
+      2500.0,
+      2000.0,
+      3300.0,
+      3925.0,
+      1250.0,
+      2250.0,
+      2000.0,
+      2500.0,
+      1750.0,
+      2550.0,
+      2225.0,
+      4000.0,
+      2325.0,
+      1750.0,
+      2500.0,
+      2000.0,
+      2000.0,
+      4250.0,
+      2750.0,
+      4250.0,
+      2750.0,
+      2250.0,
+      1750.0,
+      2500.0,
+      2250.0,
+      3000.0,
+      2250.0,
+      2500.0,
+      2000.0,
+      1575.0,
+      2000.0,
+      2750.0,
+      2250.0,
+      2500.0,
+      2250.0,
+      2900.0,
+      3225.0,
+      2125.0,
+      2725.0,
+      2375.0,
+      1825.0,
+      3675.0,
+      2725.0,
+      2700.0,
+      2225.0,
+      2975.0,
+      1875.0,
+      2000.0,
+      -2150.0
+    ],
+    "blocks": 64
+  },
+  "summary": {
+    "a": {
+      "action_counts": {
+        "chi": 1070,
+        "discard": 9524,
+        "pass": 26654,
+        "pon": 613,
+        "riichi": 9,
+        "ron": 70,
+        "tsumo": 4
+      },
+      "average_rank": 1.833984375,
+      "average_rank_95ci_unblocked": [
+        1.7504805160812111,
+        1.9174882339187889
+      ],
+      "average_score_delta": 1203.7109375,
+      "deal_in_rate_per_seat_hand": 0.046875,
+      "first_rate": 0.46484375,
+      "fourth_rate": 0.095703125,
+      "seat_results": 512,
+      "win_rate_per_seat_hand": 0.14453125
+    },
+    "b": {
+      "action_counts": {
+        "chi": 744,
+        "discard": 9436,
+        "kan": 15,
+        "pass": 27395,
+        "pon": 345,
+        "ron": 5
+      },
+      "average_rank": 3.166015625,
+      "average_rank_95ci_unblocked": [
+        3.09423697026026,
+        3.23779427973974
+      ],
+      "average_score_delta": -1205.6640625,
+      "deal_in_rate_per_seat_hand": 0.099609375,
+      "first_rate": 0.03515625,
+      "fourth_rate": 0.404296875,
+      "seat_results": 512,
+      "win_rate_per_seat_hand": 0.009765625
+    }
+  },
+  "verdict": "a_better"
+}

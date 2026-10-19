@@ -128,6 +128,169 @@ fn json_round_trip_is_validated_and_contains_no_oracle_fields() {
 }
 
 #[test]
+fn concealed_kan_is_pending_until_rinshan_draw() {
+    let mut start = round_start(0);
+    let EventKind::RoundStart { initial_hand, .. } = &mut start.kind else {
+        unreachable!()
+    };
+    *initial_hand = [
+        TileType::M1,
+        TileType::M1,
+        TileType::M1,
+        TileType::M1,
+        TileType::M2,
+        TileType::M3,
+        TileType::M4,
+        TileType::P2,
+        TileType::P3,
+        TileType::P4,
+        TileType::S2,
+        TileType::S3,
+        TileType::S4,
+    ]
+    .into_iter()
+    .map(tile)
+    .collect();
+    let mut state = replay_events(player(0), RuleConfig::default(), [start]).unwrap();
+    state
+        .apply_event(GameEvent {
+            sequence: 1,
+            kind: EventKind::Draw {
+                player: player(0),
+                tile: Some(tile(TileType::P9)),
+                rinshan: false,
+            },
+        })
+        .unwrap();
+    state
+        .apply_event(GameEvent {
+            sequence: 2,
+            kind: EventKind::Kan {
+                player: player(0),
+                meld: Meld {
+                    kind: MeldKind::Ankan,
+                    tiles: vec![tile(TileType::M1); 4],
+                    called_tile: None,
+                    from: None,
+                },
+            },
+        })
+        .unwrap();
+    assert!(state.players[0].melds.is_empty());
+    assert!(state.pending_kan.is_some());
+    assert!(matches!(state.phase, TurnPhase::AwaitingKanResponse { .. }));
+
+    let before = state.clone();
+    assert!(
+        state
+            .apply_event(GameEvent {
+                sequence: 3,
+                kind: EventKind::Draw {
+                    player: player(0),
+                    tile: Some(tile(TileType::S9)),
+                    rinshan: false,
+                },
+            })
+            .is_err()
+    );
+    assert_eq!(state, before);
+
+    state
+        .apply_event(GameEvent {
+            sequence: 3,
+            kind: EventKind::Draw {
+                player: player(0),
+                tile: Some(tile(TileType::S9)),
+                rinshan: true,
+            },
+        })
+        .unwrap();
+    assert!(state.pending_kan.is_none());
+    assert_eq!(state.players[0].melds[0].kind, MeldKind::Ankan);
+}
+
+#[test]
+fn first_uninterrupted_riichi_is_double_and_tracks_ippatsu() {
+    let mut state = replay_events(
+        player(0),
+        RuleConfig::default(),
+        [
+            round_start(0),
+            GameEvent {
+                sequence: 1,
+                kind: EventKind::Draw {
+                    player: player(0),
+                    tile: Some(tile(TileType::P9)),
+                    rinshan: false,
+                },
+            },
+            GameEvent {
+                sequence: 2,
+                kind: EventKind::Riichi {
+                    player: player(0),
+                    step: RiichiStep::Declared,
+                },
+            },
+            GameEvent {
+                sequence: 3,
+                kind: EventKind::Discard {
+                    player: player(0),
+                    tile: tile(TileType::P9),
+                    tsumogiri: true,
+                    riichi_declaration: true,
+                },
+            },
+            GameEvent {
+                sequence: 4,
+                kind: EventKind::Riichi {
+                    player: player(0),
+                    step: RiichiStep::Accepted,
+                },
+            },
+        ],
+    )
+    .unwrap();
+    assert_eq!(
+        state.players[0].riichi,
+        mahjong_core::RiichiState::DoubleAccepted
+    );
+    assert!(state.ippatsu_eligible[0]);
+
+    state
+        .apply_event(GameEvent {
+            sequence: 5,
+            kind: EventKind::Draw {
+                player: player(1),
+                tile: None,
+                rinshan: false,
+            },
+        })
+        .unwrap();
+    state
+        .apply_event(GameEvent {
+            sequence: 6,
+            kind: EventKind::Discard {
+                player: player(1),
+                tile: tile(TileType::S9),
+                tsumogiri: true,
+                riichi_declaration: false,
+            },
+        })
+        .unwrap();
+    state
+        .apply_event(GameEvent {
+            sequence: 7,
+            kind: EventKind::Draw {
+                player: player(2),
+                tile: None,
+                rinshan: false,
+            },
+        })
+        .unwrap();
+    assert!(state.ippatsu_eligible[0]);
+}
+
+#[test]
 fn rejects_non_contiguous_event_sequence_without_mutation() {
     let mut state = replay_events(player(0), RuleConfig::default(), [round_start(0)]).unwrap();
     let before = state.clone();

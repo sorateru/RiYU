@@ -1,0 +1,72 @@
+"""Deterministic OpenCV template classifier for offline screenshots."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+from mahjong_ai.schema import TILE_TO_INDEX
+
+
+@dataclass(frozen=True)
+class Classification:
+    tile: dict[str, object] | None
+    confidence: float
+    runner_up_confidence: float
+    reason: str | None = None
+
+
+class TemplateTileClassifier:
+    def __init__(
+        self,
+        template_directory: str | Path,
+        image_size: tuple[int, int] = (40, 60),
+        minimum_confidence: float = 0.72,
+        minimum_margin: float = 0.05,
+    ) -> None:
+        self.image_size = image_size
+        self.minimum_confidence = minimum_confidence
+        self.minimum_margin = minimum_margin
+        self.templates: list[tuple[dict[str, object], np.ndarray]] = []
+        for path in sorted(Path(template_directory).glob("*.png")):
+            stem = path.stem
+            red = stem.endswith("_red")
+            kind = stem.removesuffix("_red")
+            if kind not in TILE_TO_INDEX:
+                continue
+            image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+            if image is None:
+                continue
+            self.templates.append(({"kind": kind, "red": red}, self._prepare(image)))
+        if not self.templates:
+            raise ValueError("template directory contains no recognized tile PNG files")
+
+    def classify(self, crop: np.ndarray) -> Classification:
+        query = self._prepare(crop)
+        scores = sorted(
+            ((self._similarity(query, template), tile) for tile, template in self.templates),
+            key=lambda item: item[0],
+            reverse=True,
+        )
+        best_score, best_tile = scores[0]
+        runner_up = scores[1][0] if len(scores) > 1 else 0.0
+        if best_score < self.minimum_confidence:
+            return Classification(None, best_score, runner_up, "confidence_below_threshold")
+        if best_score - runner_up < self.minimum_margin:
+            return Classification(None, best_score, runner_up, "ambiguous_templates")
+        return Classification(best_tile, best_score, runner_up)
+
+    def _prepare(self, image: np.ndarray) -> np.ndarray:
+        if image.ndim == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(image, self.image_size, interpolation=cv2.INTER_AREA)
+        normalized = cv2.equalizeHist(resized)
+        return normalized.astype(np.float32) / 255.0
+
+    @staticmethod
+    def _similarity(left: np.ndarray, right: np.ndarray) -> float:
+        mse = float(np.mean((left - right) ** 2))
+        return max(0.0, 1.0 - mse)

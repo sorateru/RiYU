@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "mahjong-ai reviewer",
+  "version": "0.1.0",
+  "identifier": "dev.mahjong-ai.reviewer",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "mahjong-ai ローカル卓・オフライン解析", "width": 1240, "height": 900 }],
+    "security": { "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000" }
+  },
+  "bundle": { "active": true, "targets": "all" }
+}

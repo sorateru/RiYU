@@ -58,7 +58,7 @@ pub fn calculate_points(
             "a winning hand needs at least one han or yakuman".into(),
         ));
     }
-    if yakuman_multiplier == 0 && (fu < 20 || fu > 110 || (fu != 25 && fu % 10 != 0)) {
+    if yakuman_multiplier == 0 && (!(20..=110).contains(&fu) || (fu != 25 && fu % 10 != 0)) {
         return Err(MahjongError::InvalidAction(format!(
             "invalid fu value {fu}"
         )));

@@ -207,3 +207,48 @@ fn dora_without_yaku_is_rejected() {
     .unwrap_err();
     assert!(matches!(error, mahjong_core::MahjongError::NoYaku));
 }
+
+#[test]
+fn open_tanyao_obeys_rule_configuration() {
+    use TileType::*;
+    let concealed = tiles(&[
+        (M2, 1),
+        (M3, 1),
+        (M4, 2),
+        (M5, 1),
+        (M6, 1),
+        (P5, 2),
+        (S6, 1),
+        (S7, 1),
+        (S8, 1),
+    ]);
+    let open_pon = Meld {
+        kind: MeldKind::Pon,
+        tiles: vec![tile(P2), tile(P2), tile(P2)],
+        called_tile: Some(tile(P2)),
+        from: Some(mahjong_core::PlayerId::new(1).unwrap()),
+    };
+    let enabled = score_hand(
+        &concealed,
+        std::slice::from_ref(&open_pon),
+        tile(S8),
+        &context(WinMethod::Ron),
+        &RuleConfig::default(),
+    )
+    .unwrap();
+    assert!(enabled.yaku.iter().any(|entry| entry.yaku == Yaku::Tanyao));
+
+    let disabled_rules = RuleConfig {
+        open_tanyao: false,
+        ..RuleConfig::default()
+    };
+    let error = score_hand(
+        &concealed,
+        &[open_pon],
+        tile(S8),
+        &context(WinMethod::Ron),
+        &disabled_rules,
+    )
+    .unwrap_err();
+    assert!(matches!(error, mahjong_core::MahjongError::NoYaku));
+}

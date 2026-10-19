@@ -12,9 +12,13 @@ mod event;
 mod legal;
 mod player;
 mod points;
+mod progression;
+mod review;
 mod rules;
 mod scoring;
+mod settlement;
 mod shanten;
+mod simulator;
 mod state;
 mod tile;
 
@@ -26,18 +30,24 @@ pub use analysis::{
 pub use counts::TileCounts;
 pub use error::{MahjongError, Result};
 pub use event::{DrawGameReason, EventKind, GameEvent, RiichiStep, RoundEndReason};
-pub use legal::{LegalActionReport, legal_actions, winning_tile_types};
+pub use legal::{LegalActionReport, legal_actions, score_observer_win, winning_tile_types};
 pub use player::PlayerId;
 pub use points::{Payment, ScoreLimit, WinMethod, calculate_points};
+pub use progression::{MatchLength, RoundOutcome, RoundTransition, next_round, noten_penalty};
+pub use review::{AnalysisValue, MetricStatus, ModelActionScore, StateAnalysis, analyze_state};
 pub use rules::{KazoeLimit, RuleConfig};
 pub use scoring::{
     FuBreakdown, RiichiDeclaration, ScoreEvaluation, WaitType, WinContext, Yaku, YakuEntry,
     score_hand,
 };
+pub use settlement::{
+    Responsibility, RonClaim, detect_automatic_abortive_draw, settle_ron, settle_tsumo,
+};
 pub use shanten::{ShantenResult, calculate_shanten};
+pub use simulator::FourPlayerSimulator;
 pub use state::{
-    CompleteGameState, DiscardRecord, FuritenState, GameState, InformationScope,
-    PlayerPublicState, PrivateGameState, RiichiState, RoundState, RoundWind, TurnPhase,
+    CompleteGameState, DiscardRecord, FuritenState, GameState, InformationScope, PlayerPublicState,
+    PrivateGameState, RiichiState, RoundState, RoundWind, TurnPhase,
 };
 pub use tile::{Tile, TileType};
 

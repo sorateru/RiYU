@@ -44,7 +44,23 @@ impl RoundState {
 pub enum RiichiState {
     None,
     Declared,
+    DoubleDeclared,
     Accepted,
+    DoubleAccepted,
+}
+
+impl RiichiState {
+    pub const fn is_declared(self) -> bool {
+        matches!(self, Self::Declared | Self::DoubleDeclared)
+    }
+
+    pub const fn is_accepted(self) -> bool {
+        matches!(self, Self::Accepted | Self::DoubleAccepted)
+    }
+
+    pub const fn is_double(self) -> bool {
+        matches!(self, Self::DoubleDeclared | Self::DoubleAccepted)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -88,11 +104,38 @@ impl Default for PlayerPublicState {
 #[serde(tag = "phase", rename_all = "snake_case")]
 pub enum TurnPhase {
     NotStarted,
-    AwaitingDraw { player: PlayerId },
-    AwaitingDiscard { player: PlayerId },
-    AwaitingResponse { discarder: PlayerId, tile: Tile },
-    AwaitingRoundEnd { reason: RoundEndReason },
+    AwaitingDraw {
+        player: PlayerId,
+    },
+    AwaitingRinshanDraw {
+        player: PlayerId,
+    },
+    AwaitingDiscard {
+        player: PlayerId,
+    },
+    AwaitingResponse {
+        discarder: PlayerId,
+        tile: Tile,
+    },
+    AwaitingKanResponse {
+        declarer: PlayerId,
+        tile: Tile,
+        ankan: bool,
+    },
+    AwaitingRoundEnd {
+        reason: RoundEndReason,
+    },
     Ended,
+}
+
+/// A concealed/added kan remains provisional until the chankan response
+/// window closes.  `replace_meld_index` is set only for shouminkan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PendingKan {
+    pub player: PlayerId,
+    pub meld: Meld,
+    pub replace_meld_index: Option<usize>,
 }
 
 /// Explicit declaration of what this state may know.
@@ -145,6 +188,9 @@ pub struct GameState {
     pub drawn_tile: Option<Tile>,
     pub dora_indicators: Vec<Tile>,
     pub players: [PlayerPublicState; 4],
+    /// Public eligibility for ippatsu after an accepted riichi.
+    #[serde(default)]
+    pub ippatsu_eligible: [bool; 4],
     /// Non-river furiten belongs to the observer and is not public opponent data.
     #[serde(default)]
     pub observer_furiten: FuritenState,
@@ -153,6 +199,8 @@ pub struct GameState {
     pub turn: u16,
     pub current_actor: Option<PlayerId>,
     pub phase: TurnPhase,
+    #[serde(default)]
+    pub pending_kan: Option<PendingKan>,
     pub last_event: Option<GameEvent>,
     pub event_history: Vec<GameEvent>,
     pub next_event_sequence: u64,
@@ -173,11 +221,13 @@ impl GameState {
             drawn_tile: None,
             dora_indicators: Vec::new(),
             players: array::from_fn(|_| PlayerPublicState::default()),
+            ippatsu_eligible: [false; 4],
             observer_furiten: FuritenState::default(),
             remaining_tiles: 0,
             turn: 0,
             current_actor: None,
             phase: TurnPhase::NotStarted,
+            pending_kan: None,
             last_event: None,
             event_history: Vec::new(),
             next_event_sequence: 0,
@@ -226,8 +276,8 @@ impl GameState {
             EventKind::Draw {
                 player,
                 tile,
-                rinshan: _,
-            } => self.apply_draw(*player, *tile),
+                rinshan,
+            } => self.apply_draw(*player, *tile, *rinshan),
             EventKind::Discard {
                 player,
                 tile,
@@ -262,13 +312,17 @@ impl GameState {
                 score_deltas,
             } => self.apply_tsumo(*winner, *score_deltas),
             EventKind::DrawGame {
-                reason: _,
+                reason,
                 score_deltas,
             } => {
                 self.require_active_round()?;
                 self.add_score_deltas(*score_deltas);
                 self.phase = TurnPhase::AwaitingRoundEnd {
-                    reason: RoundEndReason::Draw,
+                    reason: if *reason == crate::DrawGameReason::Exhaustive {
+                        RoundEndReason::Draw
+                    } else {
+                        RoundEndReason::AbortiveDraw
+                    },
                 };
                 self.current_actor = None;
                 Ok(())
@@ -334,20 +388,30 @@ impl GameState {
         self.drawn_tile = None;
         self.dora_indicators = vec![dora_indicator];
         self.players = array::from_fn(|_| PlayerPublicState::default());
+        self.ippatsu_eligible = [false; 4];
         self.observer_furiten = FuritenState::default();
         self.remaining_tiles = remaining_tiles;
         self.turn = 0;
         self.current_actor = Some(dealer);
         self.phase = TurnPhase::AwaitingDraw { player: dealer };
+        self.pending_kan = None;
         Ok(())
     }
 
-    fn apply_draw(&mut self, player: PlayerId, tile: Option<Tile>) -> Result<()> {
+    fn apply_draw(&mut self, player: PlayerId, tile: Option<Tile>, rinshan: bool) -> Result<()> {
         self.require_active_round()?;
         player.validate()?;
+        let closes_pending_kan = matches!(
+            self.phase,
+            TurnPhase::AwaitingKanResponse { declarer, .. } if declarer == player && rinshan
+        );
         match self.phase {
-            TurnPhase::AwaitingDraw { player: expected } if expected == player => {}
-            TurnPhase::AwaitingResponse { discarder, .. } if discarder.next() == player => {}
+            TurnPhase::AwaitingDraw { player: expected } if expected == player && !rinshan => {}
+            TurnPhase::AwaitingRinshanDraw { player: expected }
+                if expected == player && rinshan => {}
+            TurnPhase::AwaitingResponse { discarder, .. }
+                if discarder.next() == player && !rinshan => {}
+            TurnPhase::AwaitingKanResponse { declarer, .. } if declarer == player && rinshan => {}
             _ => {
                 return Err(MahjongError::InvalidEvent(format!(
                     "player {} cannot draw in phase {:?}",
@@ -355,6 +419,9 @@ impl GameState {
                     self.phase
                 )));
             }
+        }
+        if closes_pending_kan {
+            self.finalize_pending_kan()?;
         }
         if self.remaining_tiles == 0 {
             return Err(MahjongError::InvalidEvent(
@@ -396,7 +463,7 @@ impl GameState {
     ) -> Result<()> {
         self.require_discard_turn(player)?;
         tile.validate()?;
-        if riichi_declaration && self.players[player.index()].riichi != RiichiState::Declared {
+        if riichi_declaration && !self.players[player.index()].riichi.is_declared() {
             return Err(MahjongError::InvalidEvent(
                 "riichi discard requires a preceding riichi declaration".into(),
             ));
@@ -410,6 +477,9 @@ impl GameState {
             riichi_declaration,
             called_by: None,
         });
+        if self.players[player.index()].riichi.is_accepted() && !riichi_declaration {
+            self.ippatsu_eligible[player.index()] = false;
+        }
         self.current_actor = None;
         self.phase = TurnPhase::AwaitingResponse {
             discarder: player,
@@ -456,6 +526,7 @@ impl GameState {
         }
         self.mark_latest_discard_called(discarder, player)?;
         self.players[player.index()].melds.push(meld);
+        self.cancel_all_ippatsu();
         self.current_actor = Some(player);
         self.phase = TurnPhase::AwaitingDiscard { player };
         Ok(())
@@ -464,6 +535,7 @@ impl GameState {
     fn apply_kan(&mut self, player: PlayerId, meld: Meld) -> Result<()> {
         player.validate()?;
         meld.validate()?;
+        let mut pending_kan = None;
         match meld.kind {
             MeldKind::Daiminkan => {
                 let (discarder, tile) = self.response_context()?;
@@ -487,7 +559,8 @@ impl GameState {
                         self.remove_observer_tile(*tile)?;
                     }
                 }
-                self.players[player.index()].melds.push(meld);
+                let robbed_tile = meld.tiles[0];
+                pending_kan = Some((meld, None, robbed_tile, true));
             }
             MeldKind::Shouminkan => {
                 self.require_discard_turn(player)?;
@@ -528,7 +601,25 @@ impl GameState {
                         })?;
                     self.remove_observer_tile(added)?;
                 }
-                self.players[player.index()].melds[position] = meld;
+                let robbed_tile = *meld
+                    .tiles
+                    .iter()
+                    .find(|tile| {
+                        self.players[player.index()].melds[position]
+                            .tiles
+                            .iter()
+                            .filter(|existing| *existing == *tile)
+                            .count()
+                            < meld
+                                .tiles
+                                .iter()
+                                .filter(|candidate| *candidate == *tile)
+                                .count()
+                    })
+                    .ok_or_else(|| {
+                        MahjongError::InvalidEvent("cannot identify added kan tile".into())
+                    })?;
+                pending_kan = Some((meld, Some(position), robbed_tile, false));
             }
             MeldKind::Chi | MeldKind::Pon => {
                 return Err(MahjongError::InvalidEvent(
@@ -536,9 +627,67 @@ impl GameState {
                 ));
             }
         }
+        self.cancel_all_ippatsu();
         self.merge_drawn_tile_into_hand();
-        self.current_actor = Some(player);
-        self.phase = TurnPhase::AwaitingDraw { player };
+        if let Some((meld, replace_meld_index, tile, ankan)) = pending_kan {
+            self.pending_kan = Some(PendingKan {
+                player,
+                meld,
+                replace_meld_index,
+            });
+            self.current_actor = None;
+            self.phase = TurnPhase::AwaitingKanResponse {
+                declarer: player,
+                tile,
+                ankan,
+            };
+        } else {
+            self.current_actor = Some(player);
+            self.phase = TurnPhase::AwaitingRinshanDraw { player };
+        }
+        Ok(())
+    }
+
+    fn finalize_pending_kan(&mut self) -> Result<()> {
+        let pending = self.pending_kan.take().ok_or_else(|| {
+            MahjongError::InvalidState("kan response phase lacks pending kan".into())
+        })?;
+        let melds = &mut self.players[pending.player.index()].melds;
+        if let Some(position) = pending.replace_meld_index {
+            let slot = melds.get_mut(position).ok_or_else(|| {
+                MahjongError::InvalidState("pending shouminkan pon no longer exists".into())
+            })?;
+            if slot.kind != MeldKind::Pon {
+                return Err(MahjongError::InvalidState(
+                    "pending shouminkan must replace a pon".into(),
+                ));
+            }
+            *slot = pending.meld;
+        } else {
+            melds.push(pending.meld);
+        }
+        Ok(())
+    }
+
+    fn cancel_pending_kan_after_ron(&mut self, robbed_tile: Tile) -> Result<()> {
+        let Some(pending) = self.pending_kan.take() else {
+            return Ok(());
+        };
+        if pending.replace_meld_index.is_none() && pending.player == self.observer() {
+            let mut skipped_robbed = false;
+            for tile in pending.meld.tiles {
+                if !skipped_robbed && tile == robbed_tile {
+                    skipped_robbed = true;
+                } else {
+                    self.hand.push(tile);
+                }
+            }
+            if !skipped_robbed {
+                return Err(MahjongError::InvalidState(
+                    "robbed tile is absent from pending concealed kan".into(),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -552,11 +701,17 @@ impl GameState {
                         "riichi was already declared".into(),
                     ));
                 }
-                self.players[player.index()].riichi = RiichiState::Declared;
+                let double = self.players[player.index()].discards.is_empty()
+                    && self.players.iter().all(|state| state.melds.is_empty());
+                self.players[player.index()].riichi = if double {
+                    RiichiState::DoubleDeclared
+                } else {
+                    RiichiState::Declared
+                };
             }
             RiichiStep::Accepted => {
                 if !matches!(self.phase, TurnPhase::AwaitingResponse { discarder, .. } if discarder == player)
-                    || self.players[player.index()].riichi != RiichiState::Declared
+                    || !self.players[player.index()].riichi.is_declared()
                 {
                     return Err(MahjongError::InvalidEvent(
                         "riichi acceptance requires that player's declaration discard".into(),
@@ -569,7 +724,13 @@ impl GameState {
                 }
                 self.scores[player.index()] -= 1_000;
                 self.round.as_mut().expect("active round").riichi_sticks += 1;
-                self.players[player.index()].riichi = RiichiState::Accepted;
+                self.players[player.index()].riichi =
+                    if self.players[player.index()].riichi.is_double() {
+                        RiichiState::DoubleAccepted
+                    } else {
+                        RiichiState::Accepted
+                    };
+                self.ippatsu_eligible[player.index()] = true;
             }
         }
         Ok(())
@@ -581,7 +742,7 @@ impl GameState {
         loser: PlayerId,
         score_deltas: [i32; 4],
     ) -> Result<()> {
-        let (discarder, _) = self.response_context()?;
+        let (discarder, robbed_tile, chankan) = self.ron_response_context()?;
         loser.validate()?;
         if loser != discarder || winners.is_empty() {
             return Err(MahjongError::InvalidEvent(
@@ -591,6 +752,11 @@ impl GameState {
         if winners.len() > 2 && self.rules.triple_ron_is_draw {
             return Err(MahjongError::InvalidEvent(
                 "triple ron is configured as an abortive draw".into(),
+            ));
+        }
+        if winners.len() > 1 && !self.rules.allow_double_ron {
+            return Err(MahjongError::InvalidEvent(
+                "multiple ron is disabled by the rule configuration".into(),
             ));
         }
         for winner in winners {
@@ -608,6 +774,9 @@ impl GameState {
                 ));
             }
         }
+        if chankan {
+            self.cancel_pending_kan_after_ron(robbed_tile)?;
+        }
         self.add_score_deltas(score_deltas);
         self.phase = TurnPhase::AwaitingRoundEnd {
             reason: RoundEndReason::Ron,
@@ -617,7 +786,7 @@ impl GameState {
     }
 
     fn apply_pass(&mut self, player: PlayerId, ron_available: bool) -> Result<()> {
-        let (discarder, _) = self.response_context()?;
+        let (discarder, _, _) = self.ron_response_context()?;
         player.validate()?;
         if player == discarder {
             return Err(MahjongError::InvalidEvent(
@@ -625,7 +794,7 @@ impl GameState {
             ));
         }
         if player == self.observer() && ron_available {
-            if self.players[player.index()].riichi == RiichiState::Accepted {
+            if self.players[player.index()].riichi.is_accepted() {
                 self.observer_furiten.riichi = true;
             } else {
                 self.observer_furiten.temporary = true;
@@ -648,6 +817,10 @@ impl GameState {
         for (score, delta) in self.scores.iter_mut().zip(deltas) {
             *score += delta;
         }
+    }
+
+    fn cancel_all_ippatsu(&mut self) {
+        self.ippatsu_eligible = [false; 4];
     }
 
     fn require_active_round(&self) -> Result<()> {
@@ -681,6 +854,16 @@ impl GameState {
             TurnPhase::AwaitingResponse { discarder, tile } => Ok((discarder, tile)),
             _ => Err(MahjongError::InvalidEvent(
                 "event requires a response window after a discard".into(),
+            )),
+        }
+    }
+
+    fn ron_response_context(&self) -> Result<(PlayerId, Tile, bool)> {
+        match self.phase {
+            TurnPhase::AwaitingResponse { discarder, tile } => Ok((discarder, tile, false)),
+            TurnPhase::AwaitingKanResponse { declarer, tile, .. } => Ok((declarer, tile, true)),
+            _ => Err(MahjongError::InvalidEvent(
+                "ron/pass requires a discard or kan response window".into(),
             )),
         }
     }
@@ -784,12 +967,38 @@ impl GameState {
                 meld.validate()?;
             }
         }
+        match (&self.pending_kan, self.phase) {
+            (Some(pending), TurnPhase::AwaitingKanResponse { declarer, .. })
+                if pending.player == declarer =>
+            {
+                pending.player.validate()?;
+                pending.meld.validate()?;
+            }
+            (Some(_), _) => {
+                return Err(MahjongError::InvalidState(
+                    "pending kan is only valid during its response window".into(),
+                ));
+            }
+            (None, TurnPhase::AwaitingKanResponse { .. }) => {
+                return Err(MahjongError::InvalidState(
+                    "kan response phase requires a pending kan".into(),
+                ));
+            }
+            (None, _) => {}
+        }
         if self.observer_furiten.riichi
-            && self.players[self.observer().index()].riichi != RiichiState::Accepted
+            && !self.players[self.observer().index()].riichi.is_accepted()
         {
             return Err(MahjongError::InvalidState(
                 "riichi furiten requires accepted riichi".into(),
             ));
+        }
+        for (index, eligible) in self.ippatsu_eligible.iter().enumerate() {
+            if *eligible && !self.players[index].riichi.is_accepted() {
+                return Err(MahjongError::InvalidState(
+                    "ippatsu eligibility requires accepted riichi".into(),
+                ));
+            }
         }
         if self.remaining_tiles > 70 {
             return Err(MahjongError::InvalidState(
@@ -804,12 +1013,23 @@ impl GameState {
 
     fn validate_phase_actor(&self) -> Result<()> {
         let expected = match self.phase {
-            TurnPhase::AwaitingDraw { player } | TurnPhase::AwaitingDiscard { player } => {
+            TurnPhase::AwaitingDraw { player }
+            | TurnPhase::AwaitingRinshanDraw { player }
+            | TurnPhase::AwaitingDiscard { player } => {
                 player.validate()?;
                 Some(player)
             }
             TurnPhase::AwaitingResponse { discarder, tile } => {
                 discarder.validate()?;
+                tile.validate()?;
+                None
+            }
+            TurnPhase::AwaitingKanResponse {
+                declarer,
+                tile,
+                ankan: _,
+            } => {
+                declarer.validate()?;
                 tile.validate()?;
                 None
             }
@@ -885,6 +1105,39 @@ impl GameState {
             }
             for meld in &player.melds {
                 for tile in &meld.tiles {
+                    add(*tile)?;
+                }
+            }
+        }
+        if let Some(pending) = &self.pending_kan {
+            if pending.replace_meld_index.is_some() {
+                let existing = self.players[pending.player.index()]
+                    .melds
+                    .get(pending.replace_meld_index.expect("checked"))
+                    .ok_or_else(|| {
+                        MahjongError::InvalidState(
+                            "pending shouminkan references a missing pon".into(),
+                        )
+                    })?;
+                for tile in &pending.meld.tiles {
+                    let pending_count = pending
+                        .meld
+                        .tiles
+                        .iter()
+                        .filter(|candidate| *candidate == tile)
+                        .count();
+                    let existing_count = existing
+                        .tiles
+                        .iter()
+                        .filter(|candidate| *candidate == tile)
+                        .count();
+                    if pending_count > existing_count {
+                        add(*tile)?;
+                        break;
+                    }
+                }
+            } else {
+                for tile in &pending.meld.tiles {
                     add(*tile)?;
                 }
             }

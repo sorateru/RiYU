@@ -301,6 +301,7 @@ fn evaluate_interpretation(
             context,
             closed,
             wait,
+            rules,
         );
     }
     let yaku_han: u8 = yaku.iter().map(|entry| entry.han).sum();
@@ -321,7 +322,9 @@ fn evaluate_interpretation(
         .saturating_add(dora)
         .saturating_add(ura_dora)
         .saturating_add(aka_dora);
-    let fu = calculate_fu(&shape, completion, &groups, context, closed, wait, &yaku);
+    let fu = calculate_fu(
+        &shape, completion, &groups, context, closed, wait, &yaku, rules,
+    );
     let payment = calculate_points(
         total_han,
         fu.rounded_total,
@@ -473,6 +476,7 @@ fn sequence_start(meld: &Meld) -> TileType {
         .expect("validated chi")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn detect_regular_yaku(
     shape: &HandShape,
     completion: Completion,
@@ -481,6 +485,7 @@ fn detect_regular_yaku(
     context: &WinContext,
     closed: bool,
     wait: WaitType,
+    rules: &RuleConfig,
 ) -> Vec<YakuEntry> {
     let mut result = Vec::new();
     let mut add = |yaku, han| {
@@ -514,7 +519,8 @@ fn detect_regular_yaku(
     if context.chankan {
         add(Yaku::Chankan, 1);
     }
-    if all_tiles_match(counts, |tile| !tile.is_terminal_or_honor()) {
+    if (closed || rules.open_tanyao) && all_tiles_match(counts, |tile| !tile.is_terminal_or_honor())
+    {
         add(Yaku::Tanyao, 1);
     }
 
@@ -753,6 +759,7 @@ fn detect_yakuman(
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 fn calculate_fu(
     shape: &HandShape,
     completion: Completion,
@@ -761,6 +768,7 @@ fn calculate_fu(
     closed: bool,
     wait: WaitType,
     yaku: &[YakuEntry],
+    rules: &RuleConfig,
 ) -> FuBreakdown {
     if matches!(shape, HandShape::SevenPairs { .. }) {
         return FuBreakdown {
@@ -795,7 +803,7 @@ fn calculate_fu(
     if context.method == WinMethod::Tsumo {
         result.tsumo = 2;
     }
-    result.pair = pair_fu(*pair, context);
+    result.pair = pair_fu(*pair, context, rules);
     result.wait = if matches!(
         wait,
         WaitType::Kanchan | WaitType::Penchan | WaitType::Tanki
@@ -839,16 +847,20 @@ fn group_fu(group: &Group, completion: Completion, method: WinMethod) -> u16 {
     fu
 }
 
-fn pair_fu(pair: TileType, context: &WinContext) -> u16 {
+fn pair_fu(pair: TileType, context: &WinContext, rules: &RuleConfig) -> u16 {
     let mut fu = 0;
     if matches!(pair, TileType::White | TileType::Green | TileType::Red) {
         fu += 2;
     }
-    if pair == context.seat_wind {
-        fu += 2;
-    }
-    if pair == context.round_wind {
-        fu += 2;
+    if pair == context.seat_wind && pair == context.round_wind {
+        fu += if rules.double_wind_pair_fu { 4 } else { 2 };
+    } else {
+        if pair == context.seat_wind {
+            fu += 2;
+        }
+        if pair == context.round_wind {
+            fu += 2;
+        }
     }
     fu
 }

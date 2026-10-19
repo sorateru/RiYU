@@ -1,0 +1,1421 @@
+{
+  "config": {
+    "agari_yame": true,
+    "bankruptcy_ends_match": true,
+    "base_seed": 20261030,
+    "execution_backend": "inline",
+    "hands": 40,
+    "matches": 4,
+    "policy": "successor_expected_value_with_exact_shanten_ukeire",
+    "seat_patterns": [
+      [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      [
+        "a",
+        "b",
+        "b",
+        "a"
+      ]
+    ],
+    "seed_blocks": 1,
+    "starting_score": 25000,
+    "target_score": 30000,
+    "tenpai_yame": true,
+    "unit": "east_south_hanchan",
+    "west_extension": true,
+    "workers": 1
+  },
+  "format": "mahjong-ai-arena/v2",
+  "matches": [
+    {
+      "action_counts": {
+        "a": {
+          "chi": 9,
+          "discard": 259,
+          "pass": 777,
+          "pon": 4,
+          "riichi": 4,
+          "ron": 3
+        },
+        "b": {
+          "chi": 9,
+          "discard": 264,
+          "pass": 773,
+          "pon": 9,
+          "riichi": 1
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        24700,
+        34100,
+        17100,
+        23100
+      ],
+      "hand_results": [
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            19800,
+            30200,
+            25000,
+            25000
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            1,
+            0,
+            2,
+            1
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 9388252339126652503,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            18800,
+            29200,
+            24000,
+            27000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            3,
+            1,
+            0,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 461772467333725549,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            19800,
+            30200,
+            21000,
+            28000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            3,
+            1,
+            3
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 3900122040327042345,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            19800,
+            33100,
+            19100,
+            28000
+          ],
+          "loser": 2,
+          "open_meld_counts": [
+            0,
+            2,
+            1,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 2,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 10112162724828247446,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            18800,
+            35100,
+            18100,
+            27000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            0,
+            2,
+            2
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 7657319416219710842,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            22700,
+            35100,
+            18100,
+            24100
+          ],
+          "loser": 3,
+          "open_meld_counts": [
+            0,
+            2,
+            2,
+            2
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 1,
+            "riichi_sticks": 2,
+            "wind": "south"
+          },
+          "seed": 15852091328245655264,
+          "winners": [
+            0
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            24700,
+            34100,
+            17100,
+            23100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 8517753127437729493,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            24700,
+            34100,
+            17100,
+            23100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            1,
+            1,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 11719622601355199067,
+          "winners": []
+        }
+      ],
+      "pattern": [
+        "a",
+        "a",
+        "b",
+        "b"
+      ],
+      "ranks": [
+        2,
+        1,
+        4,
+        3
+      ],
+      "seed": 20261030
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 5,
+          "discard": 185,
+          "pass": 567,
+          "pon": 5,
+          "riichi": 4,
+          "ron": 4
+        },
+        "b": {
+          "chi": 5,
+          "discard": 195,
+          "pass": 562,
+          "pon": 5,
+          "riichi": 1,
+          "ron": 2
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        -1600,
+        30800,
+        32800,
+        38000
+      ],
+      "hand_results": [
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            24000,
+            25000,
+            25000,
+            26000
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            1,
+            1,
+            2,
+            2
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 9388252339126652503,
+          "winners": [
+            3
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            12000,
+            37000,
+            25000,
+            26000
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 461772467333725549,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            9100,
+            37000,
+            27900,
+            26000
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 3900122040327042345,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            9100,
+            29300,
+            35600,
+            26000
+          ],
+          "loser": 1,
+          "open_meld_counts": [
+            2,
+            2,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 10112162724828247446,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            9100,
+            29300,
+            35600,
+            26000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 1,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 7657319416219710842,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": true,
+          "final_scores": [
+            7600,
+            30800,
+            34100,
+            27500
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            0,
+            0,
+            2
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 2,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 15852091328245655264,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            7600,
+            30800,
+            23600,
+            38000
+          ],
+          "loser": 2,
+          "open_meld_counts": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 3,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 8517753127437729493,
+          "winners": [
+            3
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            -1600,
+            30800,
+            32800,
+            38000
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            0,
+            1,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 4,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 11719622601355199067,
+          "winners": [
+            2
+          ]
+        }
+      ],
+      "pattern": [
+        "b",
+        "a",
+        "a",
+        "b"
+      ],
+      "ranks": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "seed": 20261030
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 1,
+          "discard": 272,
+          "pass": 837,
+          "pon": 3,
+          "riichi": 6,
+          "ron": 1,
+          "tsumo": 3
+        },
+        "b": {
+          "chi": 9,
+          "discard": 281,
+          "pass": 817,
+          "pon": 11,
+          "riichi": 1,
+          "ron": 1,
+          "tsumo": 2
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        12700,
+        13500,
+        33600,
+        40200
+      ],
+      "hand_results": [
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            23000,
+            24000,
+            29000,
+            24000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 9388252339126652503,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            24500,
+            23300,
+            28600,
+            23600
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            0,
+            1,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 461772467333725549,
+          "winners": [
+            0
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            23500,
+            22300,
+            27600,
+            25600
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 3900122040327042345,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            23100,
+            24700,
+            27200,
+            25000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 10112162724828247446,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            23100,
+            26000,
+            25900,
+            25000
+          ],
+          "loser": 2,
+          "open_meld_counts": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 7657319416219710842,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            22100,
+            25000,
+            24900,
+            27000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            2,
+            1,
+            0,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 15852091328245655264,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            18100,
+            21000,
+            37900,
+            23000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            3,
+            0,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 1,
+            "riichi_sticks": 2,
+            "wind": "south"
+          },
+          "seed": 8517753127437729493,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            18100,
+            18900,
+            40000,
+            23000
+          ],
+          "loser": 1,
+          "open_meld_counts": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 2,
+            "riichi_sticks": 0,
+            "wind": "south"
+          },
+          "seed": 11719622601355199067,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            17100,
+            17900,
+            39000,
+            25000
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 3,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 10331397679683927580,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            12700,
+            13500,
+            33600,
+            40200
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 4,
+            "riichi_sticks": 3,
+            "wind": "south"
+          },
+          "seed": 7435496785582100097,
+          "winners": [
+            3
+          ]
+        }
+      ],
+      "pattern": [
+        "b",
+        "b",
+        "a",
+        "a"
+      ],
+      "ranks": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "seed": 20261030
+    },
+    {
+      "action_counts": {
+        "a": {
+          "chi": 2,
+          "discard": 406,
+          "pass": 1230,
+          "pon": 9,
+          "riichi": 5,
+          "ron": 4
+        },
+        "b": {
+          "chi": 22,
+          "discard": 415,
+          "pass": 1202,
+          "pon": 14,
+          "riichi": 2,
+          "ron": 1,
+          "tsumo": 4
+        }
+      },
+      "block": 0,
+      "final_scores": [
+        28500,
+        32300,
+        8500,
+        30700
+      ],
+      "hand_results": [
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            27000,
+            23000,
+            25000,
+            25000
+          ],
+          "loser": 1,
+          "open_meld_counts": [
+            0,
+            2,
+            0,
+            1
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 9388252339126652503,
+          "winners": [
+            0
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            45300,
+            23000,
+            25000,
+            6700
+          ],
+          "loser": 3,
+          "open_meld_counts": [
+            2,
+            3,
+            2,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 1,
+            "riichi_sticks": 0,
+            "wind": "east"
+          },
+          "seed": 461772467333725549,
+          "winners": [
+            0
+          ]
+        },
+        {
+          "dealer_tenpai": true,
+          "final_scores": [
+            46300,
+            24000,
+            22000,
+            6700
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            3,
+            1,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 2,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 3900122040327042345,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            43400,
+            22400,
+            29100,
+            5100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            1,
+            0,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 3,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 10112162724828247446,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            42400,
+            25400,
+            28100,
+            4100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 7657319416219710842,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            41400,
+            24400,
+            27100,
+            6100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            1,
+            0,
+            0
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 15852091328245655264,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            40400,
+            23400,
+            26100,
+            9100
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            2,
+            3,
+            1
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 2,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 8517753127437729493,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": true,
+          "final_scores": [
+            41900,
+            21900,
+            24600,
+            10600
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            0,
+            2,
+            1
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 3,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 11719622601355199067,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": false,
+          "final_scores": [
+            41900,
+            21900,
+            24600,
+            10600
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            1,
+            0,
+            1
+          ],
+          "result_type": "exhaustive",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 4,
+            "riichi_sticks": 1,
+            "wind": "east"
+          },
+          "seed": 10331397679683927580,
+          "winners": []
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            41900,
+            21900,
+            11100,
+            25100
+          ],
+          "loser": 2,
+          "open_meld_counts": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 0,
+            "hand_number": 1,
+            "honba": 5,
+            "riichi_sticks": 2,
+            "wind": "south"
+          },
+          "seed": 7435496785582100097,
+          "winners": [
+            3
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            30300,
+            33500,
+            11100,
+            25100
+          ],
+          "loser": 0,
+          "open_meld_counts": [
+            0,
+            2,
+            0,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "wind": "south"
+          },
+          "seed": 1248546320367938514,
+          "winners": [
+            1
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            28900,
+            30800,
+            16600,
+            23700
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            1,
+            2,
+            0,
+            1
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 1,
+            "hand_number": 2,
+            "honba": 1,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 160528456769568161,
+          "winners": [
+            2
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            28900,
+            30800,
+            8900,
+            31400
+          ],
+          "loser": 2,
+          "open_meld_counts": [
+            0,
+            3,
+            2,
+            0
+          ],
+          "result_type": "ron",
+          "round_state": {
+            "dealer": 2,
+            "hand_number": 3,
+            "honba": 0,
+            "riichi_sticks": 1,
+            "wind": "south"
+          },
+          "seed": 13530258890746295555,
+          "winners": [
+            3
+          ]
+        },
+        {
+          "dealer_tenpai": null,
+          "final_scores": [
+            28500,
+            32300,
+            8500,
+            30700
+          ],
+          "loser": null,
+          "open_meld_counts": [
+            0,
+            3,
+            2,
+            0
+          ],
+          "result_type": "tsumo",
+          "round_state": {
+            "dealer": 3,
+            "hand_number": 4,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "wind": "south"
+          },
+          "seed": 7983240278690384641,
+          "winners": [
+            1
+          ]
+        }
+      ],
+      "pattern": [
+        "a",
+        "b",
+        "b",
+        "a"
+      ],
+      "ranks": [
+        3,
+        1,
+        4,
+        2
+      ],
+      "seed": 20261030
+    }
+  ],
+  "models": {
+    "a": {
+      "metadata": {
+        "dataset_fingerprint": "93dc264b6d96ccdd5d9d5abde1ac8fc97ce8cc6c74b52b14a17652d7cba22978",
+        "encoder_version": "observable-planes-v1",
+        "model_id": "tenhou-phoenix-2020-response-balanced-ev",
+        "policy_calibrated": false,
+        "trained": true,
+        "validated": false
+      },
+      "model_config": {
+        "action_dim": 128,
+        "auxiliary_heads": [],
+        "channels": 96,
+        "representation_dim": 256,
+        "residual_blocks": 4
+      },
+      "path": "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/checkpoints/tenhou-phoenix-2020-response-balanced-ev.pt",
+      "sha256": "3a778000c2ae7d4746c521d3f14ae6e549d4096c8bbc217a4a455867c2db4700"
+    },
+    "b": {
+      "metadata": {
+        "dataset_fingerprint": "5e7782b4936fc58f024f07aaeacf15ff4768b4f5d52c129d9f4eaa631b64f10a",
+        "encoder_version": "observable-planes-v1",
+        "model_id": "tenhou-phoenix-2020-corrected-ev",
+        "policy_calibrated": false,
+        "trained": true,
+        "validated": false
+      },
+      "model_config": {
+        "action_dim": 128,
+        "auxiliary_heads": [],
+        "channels": 96,
+        "representation_dim": 256,
+        "residual_blocks": 4
+      },
+      "path": "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/checkpoints/tenhou-phoenix-2020-corrected-ev.pt",
+      "sha256": "850ef9660b656d94620e1fb9f24e99a9a48ad9699f31efa08429bf304291b471"
+    }
+  },
+  "paired": {
+    "average_rank_difference_a_minus_b": -1.0,
+    "average_rank_difference_a_minus_b_95ci": [
+      -1.0,
+      -1.0
+    ],
+    "average_score_delta_difference_a_minus_b": 13975.0,
+    "average_score_delta_difference_a_minus_b_95ci": [
+      13975.0,
+      13975.0
+    ],
+    "block_rank_differences": [
+      -1.0
+    ],
+    "block_score_differences": [
+      13975.0
+    ],
+    "blocks": 1
+  },
+  "summary": {
+    "a": {
+      "action_counts": {
+        "chi": 17,
+        "discard": 1122,
+        "pass": 3411,
+        "pon": 21,
+        "riichi": 19,
+        "ron": 12,
+        "tsumo": 3
+      },
+      "average_final_score": 31925.0,
+      "average_open_melds_per_seat_hand": 0.475,
+      "average_rank": 2.0,
+      "average_rank_95ci_unblocked": [
+        1.4761679658516482,
+        2.5238320341483518
+      ],
+      "average_score_delta": 6925.0,
+      "deal_in_rate_per_seat_hand": 0.075,
+      "first_rate": 0.25,
+      "fourth_rate": 0.0,
+      "furo_rate_per_seat_hand": 0.3625,
+      "seat_hand_results": 80,
+      "seat_match_results": 8,
+      "win_rate_per_seat_hand": 0.1875
+    },
+    "b": {
+      "action_counts": {
+        "chi": 45,
+        "discard": 1155,
+        "pass": 3354,
+        "pon": 39,
+        "riichi": 5,
+        "ron": 4,
+        "tsumo": 6
+      },
+      "average_final_score": 17950.0,
+      "average_open_melds_per_seat_hand": 1.05,
+      "average_rank": 3.0,
+      "average_rank_95ci_unblocked": [
+        2.0926963022228997,
+        3.9073036977771003
+      ],
+      "average_score_delta": -7050.0,
+      "deal_in_rate_per_seat_hand": 0.125,
+      "first_rate": 0.25,
+      "fourth_rate": 0.5,
+      "furo_rate_per_seat_hand": 0.625,
+      "seat_hand_results": 80,
+      "seat_match_results": 8,
+      "win_rate_per_seat_hand": 0.125
+    }
+  },
+  "verdict": "inconclusive"
+}

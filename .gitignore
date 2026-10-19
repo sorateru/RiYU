@@ -1,4 +1,5 @@
 /target/
+**/target/
 /.cargo-home/
 /.rustup-home/
 /.venv/
@@ -12,3 +13,9 @@ __pycache__/
 *.egg-info/
 .DS_Store
 mlruns/
+/artifacts/checkpoints/
+/data/
+/third_party/
+.pnpm-store/
+node_modules/
+dist/

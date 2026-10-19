@@ -8,6 +8,8 @@ use crate::{MahjongError, Result};
 pub struct PlayerId(u8);
 
 impl PlayerId {
+    pub const ALL: [Self; 4] = [Self(0), Self(1), Self(2), Self(3)];
+
     pub fn new(value: u8) -> Result<Self> {
         if value < 4 {
             Ok(Self(value))

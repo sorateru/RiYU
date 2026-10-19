@@ -1,0 +1,70 @@
+{
+  "by_expert_action": {
+    "chi": {
+      "action_type_accuracy": 0.20382165605095542,
+      "count": 314,
+      "exact_accuracy": 0.16878980891719744,
+      "predicted_types": {
+        "chi": 64,
+        "pass": 250
+      }
+    },
+    "discard": {
+      "action_type_accuracy": 0.993049971280873,
+      "count": 17410,
+      "exact_accuracy": 0.5890292935094773,
+      "predicted_types": {
+        "discard": 17289,
+        "riichi": 120,
+        "tsumo": 1
+      }
+    },
+    "pass": {
+      "action_type_accuracy": 0.8871794871794871,
+      "count": 1170,
+      "exact_accuracy": 0.8871794871794871,
+      "predicted_types": {
+        "chi": 43,
+        "pass": 1038,
+        "pon": 89
+      }
+    },
+    "pon": {
+      "action_type_accuracy": 0.6172248803827751,
+      "count": 418,
+      "exact_accuracy": 0.6172248803827751,
+      "predicted_types": {
+        "pass": 160,
+        "pon": 258
+      }
+    },
+    "riichi": {
+      "action_type_accuracy": 0.7230215827338129,
+      "count": 278,
+      "exact_accuracy": 0.6115107913669064,
+      "predicted_types": {
+        "discard": 77,
+        "riichi": 201
+      }
+    },
+    "ron": {
+      "action_type_accuracy": 1.0,
+      "count": 62,
+      "exact_accuracy": 1.0,
+      "predicted_types": {
+        "ron": 62
+      }
+    },
+    "tsumo": {
+      "action_type_accuracy": 1.0,
+      "count": 41,
+      "exact_accuracy": 1.0,
+      "predicted_types": {
+        "tsumo": 41
+      }
+    }
+  },
+  "checkpoint": "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/checkpoints/tenhou-phoenix-2020-corrected-ev.pt",
+  "overall_exact_accuracy": 0.6031077032448078,
+  "validation_decisions": 19693
+}

@@ -5,13 +5,13 @@
 `mahjong-ai` は、局面の事実を扱う決定論的な麻雀エンジンと、事実から評価値を推定するAIを分離する。AIは状態を直接変更せず、候補の `Action` を返す。ルールエンジンだけが合法性を判定し、確定した `GameEvent` を `GameState` に適用する。
 
 ```text
-牌譜 / Simulator / Perception
-            │ 観測イベント
-            ▼
-  Rust event/state engine ── JSON/PyO3 ── Python encoder/model
-            │                                  │
-            │ 合法手                           │ logits/value
-            └──────── policy mask ─────────────┘
+牌譜 / Simulator / 保存画像 / 許諾済みAdapter
+                   │ 観測イベントまたは正規化GameState
+                   ▼
+         Rust event/state engine ── JSON/PyO3 ── Python encoder/model
+                   │                                  │
+                   │ 合法手                           │ logits/value
+                   └──────── policy mask ─────────────┘
 ```
 
 ## 正本と依存方向
@@ -24,7 +24,7 @@ Rustの `mahjong-core` を局面データ契約の正本とする。Python、UI�
 2. `action` / `event`: 意思決定と確定事実
 3. `state`: イベント適用、状態不変条件
 4. `bindings/python`: Rust APIの薄い公開層
-5. 将来の `data` / `ai` / `analysis`: バインディングの利用側
+5. `data` / `ai` / `analysis` / `perception`: バインディングの利用側
 
 AI、OpenCV、WebSocket、React/Tauriをコアへ依存させない。これによりルールテストはGPUやUIなしで高速に実行できる。
 
@@ -45,7 +45,7 @@ AI、OpenCV、WebSocket、React/Tauriをコアへ依存させない。これに�
 
 これにより、不正イベントが途中まで状態を書き換えることを防ぐ。状態はイベント履歴を保持し、同じ観測者・ルール・イベント列から再現できる。
 
-`Draw.tile` は観測者自身なら必須、他家なら必ず `null` とする。同じ完全情報イベントを各プレイヤー向けの観測イベントへ投影する処理は、Phase 2以降のSimulator境界に置く。
+`Draw.tile` は観測者自身なら必須、他家なら必ず `null` とする。同じ完全情報イベントを各プレイヤー向けの観測イベントへ投影する処理は `FourPlayerSimulator` 境界に置き、4つの `GameState` へ自家ツモだけを開示する。
 
 ## ActionとEvent
 
@@ -53,16 +53,18 @@ AI、OpenCV、WebSocket、React/Tauriをコアへ依存させない。これに�
 
 Phase 2では `legal_actions(state)` が動的な `Vec<Action>` を生成する。Policy Headは固定IDを直接実行せず、この配列に対するlogitを返す。選択後もルールエンジンで再検証する。
 
-## 将来の主要コンポーネント
+## 実装済み主要コンポーネント
 
-- `engine/rules`, `engine/shanten`, `engine/scoring`: 厳密計算
-- `data`: 牌譜を正規化イベントへ変換しParquetへ保存
-- `ai`: Feature Encoder、Residual Network、Policy/Value/Auxiliary Head
-- `training`: 教師あり、自己対戦、Oracle、蒸留
+- `engine/core`: 厳密ルール、点数、観測投影、四人Simulator
+- `data`: 観測者別牌譜を正規化しParquetへ保存
+- `ai`: Feature Encoder、Residual Network、動的Policy/Value/Auxiliary Head
+- `training`: 教師あり、MLflow、自己対戦、Replay Buffer、PPO部品、Oracle蒸留
 - `evaluation`: 固定条件Arena、信頼区間、回帰ベンチマーク
-- `analysis`: 厳密値とモデル推定値を区別した構造化JSON
-- `perception`: 画像から候補観測を作る。確信度と不明値を保持する
-- `ui`: APIの表示層。未学習値や算出不能値は `N/A` とする
+- `analysis`: 厳密値とモデル推定値を区別した構造化JSON、順序付きリアルタイムセッション
+- `perception`: 保存画像から候補観測を作り、確信度と不明値を保持する
+- `apps/reviewer`: FastAPI HTTP/WebSocket + React/Tauri。未学習値や算出不能値は `N/A` とする
+
+WebSocket境界は取得元から独立している。入力元は観測者向けに正規化された `GameState` のみを送信し、サービス側は観測者番号、可視性フラグ、連番を再検証する。画面キャプチャ、通信傍受、サービス固有API、入力操作はこの境界より外側であり、本リポジトリには実装しない。詳細は `docs/realtime_protocol.md` に定める。
 
 ## バージョニング
 
@@ -71,4 +73,3 @@ JSONには `schema_version` を必須とする。破壊的変更では値を増�
 ## 性能方針
 
 Phase 1は正確性を優先してイベント適用時に状態を複製する。自己対戦のプロファイルで支配的と判明した場合だけ、検証済みトランザクションや差分更新へ置換する。計測なしに安全性を落とす最適化は行わない。
-
