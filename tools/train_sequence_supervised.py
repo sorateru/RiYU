@@ -11,7 +11,7 @@ from pathlib import Path
 
 import torch
 
-from mahjong_ai.ai import SequenceMahjongNetwork, SequenceModelConfig
+from mahjong_ai.ai import MahjongNetwork, ModelConfig, SequenceMahjongNetwork, SequenceModelConfig
 from mahjong_ai.training import (
     ParquetSequenceDataset,
     SequenceTrainer,
@@ -28,6 +28,10 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=48)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--warm-start")
+    parser.add_argument(
+        "--legacy-warm-start",
+        help="initialize snapshot/policy/value layers from an observable-planes-v1 checkpoint",
+    )
     parser.add_argument("--validation-fraction", type=float, default=0.1)
     parser.add_argument(
         "--preset", choices=("tiny", "base"), default="base",
@@ -36,6 +40,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.epochs <= 0 or args.batch_size <= 0:
         parser.error("epochs and batch size must be positive")
+    if args.warm_start and args.legacy_warm_start:
+        parser.error("--warm-start and --legacy-warm-start are mutually exclusive")
     dataset_paths = [Path(value) for value in args.datasets]
     digest = hashlib.sha256()
     for dataset_path in sorted(dataset_paths):
@@ -50,6 +56,23 @@ def main() -> None:
             raise ValueError("warm-start checkpoint is not sequence-transformer-v2")
         model = SequenceMahjongNetwork(SequenceModelConfig(**warm["model_config"]))
         model.load_state_dict(warm["model_state"])
+    elif args.legacy_warm_start:
+        legacy_checkpoint = torch.load(
+            args.legacy_warm_start, map_location=args.device, weights_only=False
+        )
+        legacy_config = ModelConfig(**legacy_checkpoint["model_config"])
+        legacy = MahjongNetwork(legacy_config)
+        legacy.load_state_dict(legacy_checkpoint["model_state"])
+        model = SequenceMahjongNetwork(
+            SequenceModelConfig(
+                snapshot_channels=legacy_config.channels,
+                snapshot_blocks=legacy_config.residual_blocks,
+                snapshot_dim=legacy_config.representation_dim,
+                fused_dim=legacy_config.representation_dim,
+                action_dim=legacy_config.action_dim,
+            )
+        )
+        _transfer_legacy_weights(model, legacy)
     elif args.preset == "tiny":
         model = SequenceMahjongNetwork(
             SequenceModelConfig(
@@ -90,6 +113,11 @@ def main() -> None:
         "decisions": len(dataset),
         "epochs": args.epochs,
         "warm_start": str(Path(args.warm_start).resolve()) if args.warm_start else None,
+        "legacy_warm_start": (
+            str(Path(args.legacy_warm_start).resolve())
+            if args.legacy_warm_start
+            else None
+        ),
         "history": history,
     }
     Path(args.checkpoint).with_suffix(".training.json").write_text(
@@ -98,6 +126,32 @@ def main() -> None:
     )
     print(json.dumps(history[-1], ensure_ascii=False, sort_keys=True))
     print("checkpoint remains unapproved until an explicit arena/calibration review")
+
+
+def _transfer_legacy_weights(
+    model: SequenceMahjongNetwork, legacy: MahjongNetwork
+) -> None:
+    """Preserve the V1 snapshot policy while allowing event features to grow in."""
+
+    model.snapshot_stem.load_state_dict(legacy.stem.state_dict())
+    model.snapshot_backbone.load_state_dict(legacy.backbone.state_dict())
+    model.snapshot_representation.load_state_dict(legacy.representation.state_dict())
+    model.action_encoder.load_state_dict(legacy.action_encoder.state_dict())
+    model.policy_query.load_state_dict(legacy.policy_query.state_dict())
+    model.policy_bias.load_state_dict(legacy.policy_bias.state_dict())
+    model.rank_head.load_state_dict(legacy.rank_head.state_dict())
+    model.score_head.load_state_dict(legacy.score_head.state_dict())
+    fusion = model.fusion[0]
+    if not isinstance(fusion, torch.nn.Linear):
+        raise TypeError("unexpected fusion layer")
+    if model.config.fused_dim != model.config.snapshot_dim:
+        raise ValueError("legacy transfer requires fused_dim == snapshot_dim")
+    with torch.no_grad():
+        fusion.weight.zero_()
+        fusion.bias.zero_()
+        fusion.weight[:, : model.config.snapshot_dim].copy_(
+            torch.eye(model.config.snapshot_dim)
+        )
 
 
 if __name__ == "__main__":

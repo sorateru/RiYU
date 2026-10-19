@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -198,6 +199,11 @@ def _winning_tiles(counts: list[int], fixed_melds: int) -> list[int]:
 
 
 def _shanten(counts: list[int], fixed_melds: int) -> int:
+    return _cached_shanten(tuple(counts), fixed_melds)
+
+
+@lru_cache(maxsize=500_000)
+def _cached_shanten(counts: tuple[int, ...], fixed_melds: int) -> int:
     return int(
         json.loads(calculate_shanten_json(canonical_json(counts), fixed_melds))["minimum"]
     )
