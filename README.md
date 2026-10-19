@@ -9,7 +9,7 @@
 - Rust: `GameState`、イベント再生、動的合法手、シャンテン・受け入れ、役・符・翻・点数、フリテン、搶槓、流局、局進行
 - Rust Simulator: 136牌生成、4人別観測投影、ツモ・打牌・鳴き・和了・流局
 - Data: 観測者別イベントログ、厳密再生検証、教師データParquet
-- AI: 49×34 Encoder、動的Action、PyTorch Residual Policy/Value/Auxiliary model
+- AI: 49×34 Encoder、動的Action、Residual Policy/Value、公開捨て牌順Transformer、他家聴牌・待ち・局収支Head
 - Training: Dataset/DataLoader、学習・validation、checkpoint、MLflow、Self Play、Replay Buffer、PPO部品
 - Oracle/Opponent: 完全情報Teacherの型分離、蒸留、テンパイ・待ち・打点Head、Brier/Log Loss
 - Perception: 保存PNG向けOpenCVテンプレート分類、レイアウト設定、確信度・不明値
@@ -67,6 +67,8 @@ pnpm dev
 python tools/build_dataset.py logs/*.json --output decisions.parquet
 python tools/train_supervised.py decisions.parquet --checkpoint baseline.pt --epochs 3
 ```
+
+時系列V2（4視点同期、カン教師、局収支、他家手牌・将来自摸を目的変数だけに使用）の変換と学習は [sequence training](docs/sequence_training.md) を参照してください。
 
 生成されたcheckpointは既定で未承認です。独立validation、calibration、Arena評価、モデルカードが完了するまでUIは推奨として表示しません。
 

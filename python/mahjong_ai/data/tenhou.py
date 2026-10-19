@@ -360,8 +360,15 @@ def _round_result(elements: list[ET.Element], red_fives: bool) -> dict[str, Any]
             yaku = _csv_ints(element.attrib.get("yaku", ""))
             wins.append(
                 {
-                    "winner": int(element.attrib["who"]),
-                    "from": int(element.attrib["fromWho"]),
+                    # Minimal/synthetic archives may contain only ``owari``.
+                    # Keep the round convertible while preserving full fields
+                    # whenever a normal Tenhou AGARI tag provides them.
+                    "winner": int(element.attrib["who"])
+                    if "who" in element.attrib
+                    else None,
+                    "from": int(element.attrib["fromWho"])
+                    if "fromWho" in element.attrib
+                    else None,
                     "winning_tile": _tile(int(element.attrib["machi"]), red_fives)
                     if "machi" in element.attrib
                     else None,

@@ -39,12 +39,27 @@ class InferenceEngine:
         self.expected_value = ExpectedValuePolicy(self.model, device=device)
 
     @classmethod
-    def load(cls, path: str | Path, device: str = "cpu") -> "InferenceEngine":
+    def load(
+        cls,
+        path: str | Path,
+        device: str = "cpu",
+        belief_checkpoint: str | Path | None = None,
+    ) -> "InferenceEngine":
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         config = ModelConfig(**checkpoint["model_config"])
         model = MahjongNetwork(config)
         model.load_state_dict(checkpoint["model_state"])
-        return cls(model, ModelMetadata(**checkpoint["metadata"]), device)
+        engine = cls(model, ModelMetadata(**checkpoint["metadata"]), device)
+        if belief_checkpoint is not None:
+            from .sequence_inference import SequenceBeliefPredictor
+
+            predictor = SequenceBeliefPredictor.load(
+                belief_checkpoint, device=device, require_validated=True
+            )
+            engine.expected_value = ExpectedValuePolicy(
+                engine.model, device=device, belief_predictor=predictor
+            )
+        return engine
 
     def analyze(self, state: dict[str, Any]) -> dict[str, Any]:
         exact = json.loads(analyze_state_json(canonical_json(state)))

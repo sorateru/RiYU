@@ -13,6 +13,9 @@ import pyarrow.parquet as pq
 HUMAN_DATASET_FORMAT = "mahjong-ai-human-dataset/v1"
 ALLOWED_RIGHTS_BASES = frozenset({"user_owned", "explicit_permission", "open_license"})
 SOURCES_REQUIRING_EXPLICIT_PERMISSION = ("tenhou", "天鳳", "mahjong soul", "雀魂")
+SUPPORTED_DECISION_FORMATS = frozenset(
+    {b"decision/v1", b"mahjong-ai-sequence-decision/v2"}
+)
 
 
 @dataclass(frozen=True)
@@ -80,11 +83,17 @@ def load_human_dataset_manifest(path: str | Path) -> HumanDatasetManifest:
         if actual_hash != expected_hash:
             raise ValueError(f"human dataset hash mismatch: {relative}")
         schema_metadata = metadata.metadata or {}
-        if schema_metadata.get(b"mahjong_ai_dataset") != b"decision/v1":
-            raise ValueError(f"human dataset file {relative} is not decision/v1")
+        dataset_format = schema_metadata.get(b"mahjong_ai_dataset")
+        if dataset_format not in SUPPORTED_DECISION_FORMATS:
+            raise ValueError(f"human dataset file {relative} has an unsupported decision format")
         files.append(file_path)
         verified_entries.append(
-            {"path": relative, "sha256": actual_hash, "rows": metadata.num_rows}
+            {
+                "path": relative,
+                "sha256": actual_hash,
+                "rows": metadata.num_rows,
+                "decision_format": dataset_format.decode(),
+            }
         )
 
     fingerprint_source = {

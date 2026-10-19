@@ -1,0 +1,23 @@
+{
+  "completed_at": 1792379753.94502,
+  "dataset_fingerprint": "bc584fb7f0b63b22ab4f5825d78c9c0dc1f1e7a8b6c29edf7e5b387b84af5371",
+  "datasets": [
+    "/Users/ciel/Documents/ChatGPT/麻雀/artifacts/smoke/sequence-v2-data/part-00000.parquet"
+  ],
+  "decisions": 1706,
+  "epochs": 1,
+  "history": [
+    {
+      "epoch": 1.0,
+      "train_loss": 3.269304132090829,
+      "train_policy_accuracy": 0.20505344995140914,
+      "train_tenpai_accuracy": 0.6051182439885635,
+      "val_loss": 3.254952596244643,
+      "val_policy_accuracy": 0.30576070901033975,
+      "val_tenpai_accuracy": 0.7592319072261343
+    }
+  ],
+  "model_family": "sequence-transformer-v2",
+  "preset": "tiny",
+  "warm_start": null
+}

@@ -17,6 +17,10 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--checkpoint", help="validated model checkpoint; exact analysis works without it")
     parser.add_argument(
+        "--belief-checkpoint",
+        help="validated sequence-transformer-v2 checkpoint for opponent/wall priors",
+    )
+    parser.add_argument(
         "--play-checkpoint",
         help="model checkpoint for the separate local human-versus-AI mode",
     )
@@ -24,7 +28,13 @@ def main() -> None:
     args = parser.parse_args()
     if not 1 <= args.port <= 65_535:
         parser.error("--port must be between 1 and 65535")
-    engine = InferenceEngine.load(args.checkpoint, args.device) if args.checkpoint else None
+    if args.belief_checkpoint and not args.checkpoint:
+        parser.error("--belief-checkpoint requires --checkpoint")
+    engine = (
+        InferenceEngine.load(args.checkpoint, args.device, args.belief_checkpoint)
+        if args.checkpoint
+        else None
+    )
     play_manager = (
         LocalPlayManager.from_checkpoint(args.play_checkpoint, args.device)
         if args.play_checkpoint

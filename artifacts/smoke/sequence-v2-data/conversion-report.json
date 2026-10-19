@@ -1,0 +1,12 @@
+{
+  "complete": true,
+  "decisions": 1706,
+  "elapsed_seconds": 118.12511491775513,
+  "errors": {},
+  "format": "mahjong-ai-sequence-decision/v2",
+  "games_seen": 2,
+  "rounds_accepted": 28,
+  "rounds_rejected": 0,
+  "rounds_seen": 28,
+  "started_at": 1792379629.104439
+}

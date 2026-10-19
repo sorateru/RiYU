@@ -1,0 +1,16 @@
+{
+  "authorization_reference": "user-confirmed-permitted-2026-10-19",
+  "contains_personal_identifiers": false,
+  "dataset_id": "tenhou-phoenix-anonymized-sequence-v2",
+  "files": [
+    {
+      "path": "part-00000.parquet",
+      "sha256": "732a045b84e358fc926e0d577aedfe80024cda574d92ece2f30f01a8bb791c70"
+    }
+  ],
+  "format": "mahjong-ai-human-dataset/v1",
+  "machine_learning_allowed": true,
+  "redistribution_allowed": false,
+  "rights_basis": "explicit_permission",
+  "source": "Tenhou Phoenix offline archive (top room)"
+}

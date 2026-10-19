@@ -14,7 +14,7 @@ import math
 import random
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from mahjong_ai import calculate_shanten_json
 from mahjong_ai.schema import canonical_json, tile_index
@@ -35,6 +35,7 @@ class OpponentBelief:
     tenpai_probability: float
     expected_hand_value: float
     safe_tiles: frozenset[int]
+    wait_probabilities: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -66,10 +67,15 @@ class _Particle:
 class BeliefRolloutSearch:
     """Estimate action outcomes from public information only."""
 
-    def __init__(self, config: RolloutConfig = RolloutConfig()) -> None:
+    def __init__(
+        self,
+        config: RolloutConfig = RolloutConfig(),
+        belief_predictor: Callable[[dict[str, Any]], tuple[OpponentBelief, ...]] | None = None,
+    ) -> None:
         if config.samples <= 0 or config.depth <= 0 or config.max_candidates <= 0:
             raise ValueError("rollout samples, depth and max_candidates must be positive")
         self.config = config
+        self.belief_predictor = belief_predictor
 
     def evaluate(
         self, state: dict[str, Any], candidates: list[SearchCandidate]
@@ -120,6 +126,11 @@ class BeliefRolloutSearch:
         return estimates
 
     def opponent_beliefs(self, state: dict[str, Any]) -> tuple[OpponentBelief, ...]:
+        if self.belief_predictor is not None:
+            predicted = self.belief_predictor(state)
+            if len(predicted) != 4 or any(item.player != player for player, item in enumerate(predicted)):
+                raise ValueError("belief predictor must return players 0..3 in seat order")
+            return predicted
         observer = int(state["information"]["observer"])
         round_state = state.get("round") or {}
         dealer = int(round_state.get("dealer", 0))
@@ -175,13 +186,9 @@ class BeliefRolloutSearch:
                 target = 0
             else:
                 target = 1 if state.get("turn", 0) >= 32 else 2
-            hand, pool = _conditioned_hand(
-                pool,
-                size,
-                fixed_melds,
-                target,
-                _tile_weights(public),
-                rng,
+            hand, pool = _conditioned_hand_with_wait_prior(
+                pool, size, fixed_melds, target, _tile_weights(public),
+                belief.wait_probabilities, rng,
             )
             hands[player] = hand
             if _shanten(hand, fixed_melds) == 0:
@@ -344,6 +351,37 @@ def _conditioned_hand(
         available[added] -= 1
         current = _shanten(tuple(hand), fixed_melds)
     return tuple(hand), available
+
+
+def _conditioned_hand_with_wait_prior(
+    pool: list[int],
+    size: int,
+    fixed_melds: int,
+    target_shanten: int,
+    weights: tuple[float, ...],
+    wait_probabilities: tuple[float, ...] | None,
+    rng: random.Random,
+) -> tuple[tuple[int, ...], list[int]]:
+    """Choose among sampled hands using learned wait probabilities when available."""
+
+    trials = 3 if wait_probabilities is not None and target_shanten == 0 else 1
+    best: tuple[tuple[float, float], tuple[int, ...], list[int]] | None = None
+    for _ in range(trials):
+        hand, remaining = _conditioned_hand(
+            pool, size, fixed_melds, target_shanten, weights, rng
+        )
+        shanten = _shanten(hand, fixed_melds)
+        wait_score = 0.0
+        if wait_probabilities is not None and shanten == 0:
+            waits = _winning_tiles(hand, fixed_melds)
+            if waits:
+                wait_score = sum(wait_probabilities[tile] for tile in waits) / len(waits)
+        key = (-float(abs(shanten - target_shanten)), wait_score)
+        if best is None or key > best[0]:
+            best = (key, hand, remaining)
+    if best is None:
+        raise ValueError("failed to sample a concealed hand")
+    return best[1], best[2]
 
 
 def _weighted_pick(pool: list[int], weights: tuple[float, ...], rng: random.Random) -> int:

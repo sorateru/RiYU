@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import torch
@@ -20,7 +20,7 @@ from mahjong_ai.schema import canonical_json
 
 from .encoder import FeatureEncoder
 from .model import MahjongNetwork
-from .search import BeliefRolloutSearch, RolloutConfig, SearchCandidate
+from .search import BeliefRolloutSearch, OpponentBelief, RolloutConfig, SearchCandidate
 
 
 @dataclass(frozen=True)
@@ -83,11 +83,14 @@ class ExpectedValuePolicy:
         device: str = "cpu",
         rollout_config: RolloutConfig | None = None,
         enable_rollout: bool = True,
+        belief_predictor: Callable[[dict[str, Any]], tuple[OpponentBelief, ...]] | None = None,
     ) -> None:
         self.model = model
         self.device = device
         self.encoder = FeatureEncoder()
-        self.rollout = BeliefRolloutSearch(rollout_config or RolloutConfig())
+        self.rollout = BeliefRolloutSearch(
+            rollout_config or RolloutConfig(), belief_predictor=belief_predictor
+        )
         self.enable_rollout = enable_rollout
 
     def choose(self, state: dict[str, Any], legal: list[dict[str, Any]]) -> int:

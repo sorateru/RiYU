@@ -14,6 +14,7 @@ from typing import Any, Iterable
 
 from mahjong_ai import apply_event_json, calculate_shanten_json, replay_events_json
 from mahjong_ai.schema import canonical_json, tile_index
+from mahjong_ai.ai.sequence import public_event_tokens
 
 from .dataset import DecisionRecord, build_decision_records
 from .log import EventLog
@@ -87,7 +88,7 @@ def build_sequence_decision_records(
                     observer=observer,
                     event_sequence=index,
                     observation=record.observation,
-                    public_events=canonical_json(_public_event_tokens(public)),
+                    public_events=canonical_json(public_event_tokens(public)),
                     legal_actions=record.legal_actions,
                     expert_action=record.expert_action,
                     final_rank=record.final_rank,
@@ -218,24 +219,3 @@ def _future_draws(
         if len(output) >= horizon:
             break
     return output
-
-
-def _public_event_tokens(state: dict[str, Any], maximum: int = 96) -> list[dict[str, Any]]:
-    observer = int(state["information"]["observer"])
-    tokens: list[dict[str, Any]] = []
-    for event in state.get("event_history", [])[-maximum:]:
-        token: dict[str, Any] = {"type": event["type"]}
-        player = event.get("player", event.get("winner", event.get("loser")))
-        if player is not None:
-            token["relative_player"] = (int(player) - observer) % 4
-        tile = event.get("tile") or event.get("dora_indicator")
-        if tile is not None:
-            token["tile"] = tile_index(tile)
-        token["tsumogiri"] = bool(event.get("tsumogiri", False))
-        token["riichi_declaration"] = bool(event.get("riichi_declaration", False))
-        token["rinshan"] = bool(event.get("rinshan", False))
-        if event["type"] in {"chi", "pon", "kan"}:
-            token["meld_kind"] = event["meld"]["kind"]
-            token["meld_tiles"] = [tile_index(tile) for tile in event["meld"]["tiles"]]
-        tokens.append(token)
-    return tokens
