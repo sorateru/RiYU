@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://riyu.local/schemas/replay-bundle-v1.schema.json",
+  "title": "RiYU offline replay bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "source", "logs"],
+  "properties": {
+    "format": {
+      "const": "mahjong-ai-replay-bundle/v1"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "acquisition", "authorization", "converter"],
+      "properties": {
+        "platform": {
+          "enum": ["mahjong_soul", "tenhou", "local", "other"]
+        },
+        "acquisition": {
+          "enum": ["user_export", "manual_conversion", "authorized_adapter", "generated"]
+        },
+        "authorization": {
+          "enum": ["user_owned", "explicit_permission", "open_license", "generated"]
+        },
+        "converter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 80},
+            "version": {"type": "string", "minLength": 1, "maxLength": 80}
+          }
+        },
+        "reference": {"type": "string", "minLength": 1, "maxLength": 256},
+        "share_url": {"type": "string", "minLength": 1, "maxLength": 4096}
+      }
+    },
+    "logs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {"$ref": "#/$defs/eventLog"}
+    }
+  },
+  "$defs": {
+    "eventLog": {
+      "type": "object",
+      "required": ["format", "observations", "result"],
+      "properties": {
+        "format": {"const": "mahjong-ai-event-log/v1"},
+        "log_id": {"type": "string"},
+        "rules": {},
+        "observations": {
+          "type": "object",
+          "required": ["0", "1", "2", "3"],
+          "properties": {
+            "0": {"type": "array"},
+            "1": {"type": "array"},
+            "2": {"type": "array"},
+            "3": {"type": "array"}
+          }
+        },
+        "result": {
+          "type": "object",
+          "required": ["final_scores"]
+        },
+        "provenance": {"type": "object"}
+      }
+    }
+  }
+}

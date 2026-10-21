@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
-import { analyzeReplay } from "./api"
+import { analyzeReplay, loadExtensionImport } from "./api"
 import AnalysisPage from "./pages/AnalysisPage"
 import HomePage from "./pages/HomePage"
 import type { ReplayAnalysis } from "./types/analysis"
@@ -20,11 +20,26 @@ export default function App() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  async function handleAnalyze(documents: unknown[], observer: number) {
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("import")
+    if (!token) return
+    setLoading(true)
+    loadExtensionImport(token)
+      .then((analysis) => {
+        setPage({ name: "analysis", analysis })
+        window.history.replaceState({}, "", window.location.pathname)
+      })
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : "Extension import failed")
+      })
+      .finally(() => setLoading(false))
+  }, [])
+  async function handleAnalyze(input: unknown, observer: number) {
     setLoading(true)
     setError("")
     try {
-      const analysis = await analyzeReplay(documents, observer)
+      const analysis = await analyzeReplay(input, observer)
       setPage({ name: "analysis", analysis })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Analysis failed")

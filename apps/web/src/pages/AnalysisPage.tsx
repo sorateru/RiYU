@@ -115,6 +115,15 @@ export default function AnalysisPage({
           </p>
         </div>
 
+        <div className="analysis-header-meta">
+          {analysis.source && (
+            <span>{analysis.source.platform === "mahjong_soul" ? "雀魂" : analysis.source.platform}</span>
+          )}
+          <span>{analysis.rounds.length}局</span>
+          <span>{analysis.decisionCount ?? analysis.rounds.reduce((total, round) => total + round.turns.length, 0)}判断</span>
+          <span>{analysis.analysisMode === "model_estimate" ? "モデル推定" : "厳密牌効率"}</span>
+        </div>
+
         <button
           className="header-button"
           onClick={onBack}

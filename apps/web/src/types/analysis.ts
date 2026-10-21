@@ -46,6 +46,12 @@ export type RoundAnalysis = {
 
   label: string
 
+  honba?: number
+
+  riichiSticks?: number
+
+  decisionCount?: number
+
   turns: TurnAnalysis[]
 }
 
@@ -56,11 +62,22 @@ export type ReplayAnalysis = {
 
   sourceLogIds?: string[]
 
+  source?: {
+    platform: "mahjong_soul" | "tenhou" | "local" | "other"
+    acquisition: string
+    authorization: string
+    converterName: string
+    converterVersion: string
+    reference: string | null
+  }
+
   observer?: number
 
   analysisMode?:
     | "exact_tile_efficiency"
     | "model_estimate"
+
+  decisionCount?: number
 
   rounds: RoundAnalysis[]
 }

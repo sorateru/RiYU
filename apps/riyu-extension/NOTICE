@@ -1,0 +1,9 @@
+RiYU Mahjong Soul Review Extension
+
+This product includes modified portions of MahjongSoul-review-supporter:
+https://github.com/kbkn3/MahjongSoul-review-supporter
+Copyright its contributors, licensed under the Apache License 2.0.
+
+Imported and modified files are identified in their source headers. The
+upstream license is included at:
+third_party/MahjongSoul-review-supporter-LICENSE.txt

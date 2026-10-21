@@ -102,13 +102,26 @@ def build_web_replay_analysis(
     round_state = first_state.get("round") or {}
     wind = str(round_state.get("wind", "east"))
     number = int(round_state.get("hand_number", 1))
+    honba = int(round_state.get("honba", 0))
     label = f"{_WINDS.get(wind, wind)}{number}局"
+    if honba:
+        label += f" {honba}本場"
     return {
         "format": "riyu-replay-analysis/v1",
         "sourceLogId": log.log_id,
         "observer": observer,
         "analysisMode": "model_estimate" if model_used else "exact_tile_efficiency",
-        "rounds": [{"id": log.log_id, "label": label, "turns": turns}],
+        "decisionCount": len(turns),
+        "rounds": [
+            {
+                "id": log.log_id,
+                "label": label,
+                "honba": honba,
+                "riichiSticks": int(round_state.get("riichi_sticks", 0)),
+                "decisionCount": len(turns),
+                "turns": turns,
+            }
+        ],
     }
 
 
@@ -116,6 +129,8 @@ def build_web_replay_collection(
     logs: list[EventLog],
     observer: int,
     analyze: Callable[[dict[str, Any]], dict[str, Any]],
+    *,
+    source: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Analyze a bounded ordered collection of round logs as one replay."""
 
@@ -140,14 +155,19 @@ def build_web_replay_collection(
                 )
             rounds.append({**round_value, "id": f"{index}-{round_value['id']}"})
 
-    return {
+    result = {
         "format": "riyu-replay-analysis/v1",
-        "sourceLogId": source_ids[0] if len(source_ids) == 1 else None,
         "sourceLogIds": source_ids,
         "observer": observer,
         "analysisMode": "model_estimate" if model_used else "exact_tile_efficiency",
+        "decisionCount": decision_count,
         "rounds": rounds,
     }
+    if len(source_ids) == 1:
+        result["sourceLogId"] = source_ids[0]
+    if source is not None:
+        result["source"] = source
+    return result
 
 
 def _candidates(analysis: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]:

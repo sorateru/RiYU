@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
+
+const MAX_UPLOAD_BYTES = 16 * 1024 * 1024
+const MAX_UPLOAD_FILES = 64
 
 type HomePageProps = {
-  onAnalyze: (documents: unknown[], observer: number) => Promise<void>
+  onAnalyze: (input: unknown, observer: number) => Promise<void>
   loading: boolean
   error: string
 }
@@ -18,20 +21,18 @@ export default function HomePage({
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    const draft = localStorage.getItem("riyu.replayDraft")
-    if (draft) setSource(draft)
-  }, [])
-
-  function decodeDocuments(): unknown[] {
-    const parsed = JSON.parse(source) as unknown
-    if (Array.isArray(parsed)) return parsed
-    if (parsed && typeof parsed === "object" && "logs" in parsed) {
-      const logs = (parsed as { logs?: unknown }).logs
-      if (!Array.isArray(logs)) throw new Error("logs は配列で指定してください。")
-      return logs
+  function decodeInput(): unknown {
+    if (/^https:\/\//i.test(source.trim())) {
+      return source.trim()
     }
-    return [parsed]
+    if (/^http:\/\//i.test(source.trim())) {
+      throw new Error("共有リンクはHTTPS形式で入力してください。")
+    }
+    const parsed = JSON.parse(source) as unknown
+    if (Array.isArray(parsed) && parsed.length === 0) {
+      throw new Error("解析する局がありません。")
+    }
+    return parsed
   }
 
   function handleSubmit(
@@ -46,11 +47,9 @@ export default function HomePage({
     }
 
     try {
-      const documents = decodeDocuments()
-      if (documents.length === 0) throw new Error("解析する局がありません。")
+      const input = decodeInput()
       setInputError("")
-      localStorage.setItem("riyu.replayDraft", normalized)
-      void onAnalyze(documents, observer)
+      void onAnalyze(input, observer)
     } catch (caught) {
       setInputError(caught instanceof Error ? caught.message : "JSONを解析できません。")
     }
@@ -58,13 +57,39 @@ export default function HomePage({
 
   async function loadFiles(files: File[]) {
     if (!files.length) return
+    if (files.length > MAX_UPLOAD_FILES) {
+      setInputError(`一度に選択できるファイルは${MAX_UPLOAD_FILES}件までです。`)
+      return
+    }
+    const totalBytes = files.reduce((total, file) => total + file.size, 0)
+    if (totalBytes > MAX_UPLOAD_BYTES) {
+      setInputError("合計ファイルサイズは16 MiB以下にしてください。")
+      return
+    }
     try {
       const documents = await Promise.all(files.map(async (file) => JSON.parse(await file.text()) as unknown))
+      if (
+        documents.length > 1 &&
+        documents.some((document) =>
+          document != null &&
+          typeof document === "object" &&
+          [
+            "mahjong-ai-replay-bundle/v1",
+            "mahjong-soul-decoded-replay/v1",
+          ].includes(String((document as { format?: unknown }).format))
+        )
+      ) {
+        throw new Error("Replay Bundleとdecode済み雀魂JSONは単独で選択してください。")
+      }
       setSource(JSON.stringify(documents.length === 1 ? documents[0] : documents, null, 2))
       setSelectedFiles(files.map((file) => file.name))
       setInputError("")
-    } catch {
-      setInputError("選択したファイルに正しいJSONではないものがあります。")
+    } catch (caught) {
+      setInputError(
+        caught instanceof Error
+          ? caught.message
+          : "選択したファイルに正しいJSONではないものがあります。",
+      )
     }
   }
 
@@ -84,8 +109,8 @@ export default function HomePage({
           onSubmit={handleSubmit}
         >
           <p className="landing-description">
-            正規化済み <code>mahjong-ai-event-log/v1</code> を読み込みます。
-            複数の局JSONをまとめて選択できます。
+            雀魂共有URL、EventLog、Replay Bundle、またはローカルdecode済みJSONを読み込みます。
+            複数の局JSONもまとめて選択できます。
           </p>
 
           <div
@@ -105,7 +130,7 @@ export default function HomePage({
                   event.target.value,
                 )
               }}
-              placeholder="正規化済み牌譜JSONを貼り付けるか、ファイルをドロップ"
+              placeholder="牌譜JSON / Replay Bundle / decode済み雀魂JSONを貼り付けるか、ファイルをドロップ"
               className="landing-input"
               autoComplete="off"
             />

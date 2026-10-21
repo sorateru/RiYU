@@ -20,3 +20,5 @@ mlruns/
 node_modules/
 dist/
 *.tsbuildinfo
+**/.output/
+**/.wxt/

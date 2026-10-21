@@ -30,4 +30,19 @@ def tile_index(tile: dict[str, Any]) -> int:
 
 
 def action_key(action: dict[str, Any]) -> str:
-    return canonical_json(action)
+    # Tile consumption is a multiset. Service logs and the rules engine may
+    # enumerate the same physical tiles in different orders (especially when a
+    # red five is involved), but they represent the same legal action.
+    normalized = json.loads(canonical_json(action))
+
+    def sort_tiles(container: dict[str, Any], key: str) -> None:
+        value = container.get(key)
+        if isinstance(value, list) and all(isinstance(tile, dict) for tile in value):
+            value.sort(key=lambda tile: (tile_index(tile), bool(tile.get("red", False))))
+
+    sort_tiles(normalized, "consume")
+    kan = normalized.get("action")
+    if isinstance(kan, dict):
+        sort_tiles(kan, "consume")
+        sort_tiles(kan, "tiles")
+    return canonical_json(normalized)

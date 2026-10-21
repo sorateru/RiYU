@@ -98,6 +98,10 @@ def test_reviewer_api_returns_exact_ranked_discards() -> None:
     assert body["model_policy"]["status"] == "unavailable"
     assert body["safety_scope"] == "offline_saved_log_or_local_simulator_only"
 
+    capabilities = TestClient(create_app()).get("/api/health").json()["replay_import"]
+    assert "mahjong-ai-replay-bundle/v1" in capabilities["formats"]
+    assert capabilities["direct_mahjong_soul_fetch"] is False
+
 
 def test_local_hanchan_play_is_separate_from_analysis_and_hides_opponent_hands() -> None:
     torch.manual_seed(41)
@@ -468,6 +472,29 @@ def test_web_replay_api_analyzes_uploaded_normalized_log() -> None:
         "web-upload-fixture-2",
     ]
 
+    bundle = {
+        "format": "mahjong-ai-replay-bundle/v1",
+        "source": {
+            "platform": "mahjong_soul",
+            "acquisition": "user_export",
+            "authorization": "user_owned",
+            "converter": {"name": "test-adapter", "version": "1"},
+            "share_url": "https://game.mahjongsoul.com/?paipu=fixture-secret",
+        },
+        "logs": [document],
+    }
+    bundled = client.post(
+        "/api/replay-analysis",
+        json={"bundle": bundle, "observer": 0},
+    )
+    assert bundled.status_code == 200
+    bundled_body = bundled.json()
+    assert bundled_body["source"]["platform"] == "mahjong_soul"
+    assert bundled_body["source"]["reference"].startswith("url-sha256:")
+    assert "fixture-secret" not in str(bundled_body)
+    assert bundled_body["decisionCount"] == 1
+    assert bundled_body["rounds"][0]["honba"] == 0
+
 
 def test_web_replay_api_requires_exactly_one_input_shape() -> None:
     client = TestClient(create_app())
@@ -476,6 +503,12 @@ def test_web_replay_api_requires_exactly_one_input_shape() -> None:
         "/api/replay-analysis",
         json={"log": {}, "logs": [], "observer": 0},
     ).status_code == 422
+    too_large = client.post(
+        "/api/replay-analysis",
+        content=b"{}",
+        headers={"content-type": "application/json", "content-length": str(16 * 1024 * 1024 + 1)},
+    )
+    assert too_large.status_code == 413
 
 
 def test_tenhou_nested_archive_streams_xml_without_extracting(tmp_path) -> None:

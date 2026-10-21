@@ -77,6 +77,24 @@ button {
   font-size: 12px;
 }
 
+.analysis-header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-left: auto;
+  margin-right: 16px;
+}
+
+.analysis-header-meta span {
+  padding: 5px 8px;
+  border: 1px solid #34404d;
+  border-radius: 999px;
+  color: #9facb9;
+  background: #1d242c;
+  font-size: 10px;
+}
+
 .header-button {
   padding: 9px 14px;
 
@@ -1052,6 +1070,7 @@ button:disabled {
 @media (max-width: 760px) {
   .analysis-header { height: 64px; padding: 0 16px; }
   .analysis-header h1 { font-size: 22px; }
+  .analysis-header-meta { display: none; }
   .board-area { padding: 10px; overflow-x: auto; }
   .board-card, .timeline-card { min-width: 680px; }
   .score-summary { display: none; }
