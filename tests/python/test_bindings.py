@@ -45,7 +45,7 @@ def test_legal_actions_binding_matches_full_analysis() -> None:
     state_json = mahjong_ai.replay_events_json(0, "[]")
     analysis = json.loads(mahjong_ai.analyze_state_json(state_json))
     legal = json.loads(mahjong_ai.legal_actions_json(state_json))
-    assert legal == analysis["legal_actions"]
+    assert legal == analysis["legal_actions"]["value"]
 
 
 def test_stateful_replayer_matches_stateless_replay() -> None:

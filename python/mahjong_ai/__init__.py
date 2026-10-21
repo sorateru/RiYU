@@ -17,7 +17,7 @@ try:
 except ImportError:  # Compatibility with an extension built before this API.
     def legal_actions_json(state_json: str) -> str:
         analysis = json.loads(analyze_state_json(state_json))
-        return json.dumps(analysis["legal_actions"], separators=(",", ":"))
+        return json.dumps(analysis["legal_actions"]["value"] or [], separators=(",", ":"))
 
     class ObservationReplayer:
         def __init__(self, observer: int, rules_json: str | None = None) -> None:

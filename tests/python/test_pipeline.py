@@ -421,6 +421,63 @@ def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None
     }
 
 
+def test_web_replay_api_analyzes_uploaded_normalized_log() -> None:
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(
+        '<mjloggm><GO type="169"/><INIT seed="0,0,0,1,2,100" ten="250,250,250,250" '
+        'oya="0" hai0="0,1,2,3,4,5,6,7,8,9,10,11,12" '
+        'hai1="20,21,22,23,24,25,26,27,28,29,30,31,32" '
+        'hai2="40,41,42,43,44,45,46,47,48,49,50,51,53" '
+        'hai3="60,61,62,63,64,65,66,67,68,69,70,71,72"/>'
+        '<T52/><D52/><AGARI owari="260,10,250,0,240,-10,250,0"/></mjloggm>'
+    )
+    log = convert_document(root, "web-upload-fixture")[0].log
+    document = {
+        "format": "mahjong-ai-event-log/v1",
+        "log_id": log.log_id,
+        "rules": log.rules,
+        "observations": {str(seat): events for seat, events in log.observations.items()},
+        "result": {
+            "final_scores": list(log.final_scores),
+            "round_score_deltas": list(log.round_score_deltas),
+        },
+        "provenance": {"source": log.source, "converter_version": log.converter_version},
+    }
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/replay-analysis",
+        json={"log": document, "observer": 0},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["format"] == "riyu-replay-analysis/v1"
+    assert body["analysisMode"] == "exact_tile_efficiency"
+    assert body["rounds"][0]["turns"][0]["candidates"]
+    assert body["rounds"][0]["turns"][0]["candidates"][0]["dealInRisk"] is None
+
+    collection = client.post(
+        "/api/replay-analysis",
+        json={"logs": [document, {**document, "log_id": "web-upload-fixture-2"}], "observer": 0},
+    )
+    assert collection.status_code == 200
+    collection_body = collection.json()
+    assert len(collection_body["rounds"]) == 2
+    assert collection_body["sourceLogIds"] == [
+        log.log_id,
+        "web-upload-fixture-2",
+    ]
+
+
+def test_web_replay_api_requires_exactly_one_input_shape() -> None:
+    client = TestClient(create_app())
+    assert client.post("/api/replay-analysis", json={"observer": 0}).status_code == 422
+    assert client.post(
+        "/api/replay-analysis",
+        json={"log": {}, "logs": [], "observer": 0},
+    ).status_code == 422
+
+
 def test_tenhou_nested_archive_streams_xml_without_extracting(tmp_path) -> None:
     import io
     import lzma

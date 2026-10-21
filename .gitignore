@@ -19,3 +19,4 @@ mlruns/
 .pnpm-store/
 node_modules/
 dist/
+*.tsbuildinfo

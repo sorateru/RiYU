@@ -39,7 +39,7 @@ fn analyze_state_json(state_json: &str) -> PyResult<String> {
 fn legal_actions_json(state_json: &str) -> PyResult<String> {
     let state = game_state_from_json(state_json).map_err(value_error)?;
     let report = legal_actions(&state).map_err(value_error)?;
-    serde_json::to_string(&report).map_err(value_error)
+    serde_json::to_string(&report.actions).map_err(value_error)
 }
 
 /// Calculate exact standard/chiitoitsu/kokushi shanten from a 34-count array.
@@ -130,7 +130,7 @@ impl PyObservationReplayer {
 
     fn legal_actions_json(&self) -> PyResult<String> {
         let report = legal_actions(&self.inner).map_err(value_error)?;
-        serde_json::to_string(&report).map_err(value_error)
+        serde_json::to_string(&report.actions).map_err(value_error)
     }
 
     fn next_event_sequence(&self) -> u64 {

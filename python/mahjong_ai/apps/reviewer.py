@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import json
 import secrets
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from mahjong_ai import analyze_state_json, validate_state_json
 from mahjong_ai.ai.inference import InferenceEngine
 from mahjong_ai.analysis import RealtimeAnalysisSession, RealtimeProtocolError, explain_analysis
+from mahjong_ai.apps.replay_analysis import build_web_replay_collection
+from mahjong_ai.data import EventLogError, parse_event_log
 from mahjong_ai.schema import canonical_json
 
 from .local_play import LocalPlayError, LocalPlayManager, LocalPlayUnavailable
@@ -32,13 +36,29 @@ class LocalPlayActionRequest(BaseModel):
     action: dict[str, Any]
 
 
-ALLOWED_BROWSER_ORIGINS = frozenset({"http://127.0.0.1:1420", "http://127.0.0.1:4173"})
+class ReplayAnalysisRequest(BaseModel):
+    log: dict[str, Any] | None = None
+    logs: list[dict[str, Any]] | None = None
+    observer: int = 0
+
+
+ALLOWED_BROWSER_ORIGINS = frozenset(
+    {
+        "http://127.0.0.1:1420",
+        "http://localhost:1420",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    }
+)
 MAX_STREAM_MESSAGE_BYTES = 1_000_000
 
 
 def create_app(
     engine: InferenceEngine | None = None,
     local_play: LocalPlayManager | None = None,
+    web_dist: str | Path | None = None,
 ) -> FastAPI:
     app = FastAPI(title="mahjong-ai local analysis service", version="0.2.0")
     play_manager = local_play or LocalPlayManager()
@@ -102,6 +122,25 @@ def create_app(
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error
 
+    @app.get("/api/health")
+    def web_health() -> dict[str, Any]:
+        return health()
+
+    @app.post("/api/replay-analysis")
+    def analyze_replay(request: ReplayAnalysisRequest) -> dict[str, Any]:
+        try:
+            if (request.log is None) == (request.logs is None):
+                raise ValueError("provide exactly one of log or logs")
+            documents = request.logs if request.logs is not None else [request.log]
+            logs = [
+                parse_event_log(document, default_log_id=f"uploaded-round-{index + 1}")
+                for index, document in enumerate(documents)
+                if document is not None
+            ]
+            return build_web_replay_collection(logs, request.observer, run_analysis)
+        except (EventLogError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
     @app.websocket("/ws/lab")
     async def realtime_lab(websocket: WebSocket) -> None:
         origin = websocket.headers.get("origin")
@@ -139,6 +178,12 @@ def create_app(
                     await websocket.send_json(_stream_error(error.code, str(error)))
         except WebSocketDisconnect:
             return
+
+    if web_dist is not None:
+        distribution = Path(web_dist).resolve()
+        if not distribution.is_dir() or not (distribution / "index.html").is_file():
+            raise ValueError(f"web distribution is missing index.html: {distribution}")
+        app.mount("/", StaticFiles(directory=distribution, html=True), name="riyu-web")
 
     return app
 

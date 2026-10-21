@@ -1,21 +1,23 @@
 import { useState } from "react"
 
-import { mockAnalysis } from "../mock/analysis"
+import type { ReplayAnalysis } from "../types/analysis"
 
 import "../style.css"
 
 type AnalysisPageProps = {
   onBack: () => void
+  analysis: ReplayAnalysis
 }
 
 export default function AnalysisPage({
   onBack,
+  analysis,
 }: AnalysisPageProps) {
   const [roundIndex, setRoundIndex] = useState(0)
   const [turnIndex, setTurnIndex] = useState(0)
 
   const currentRound =
-    mockAnalysis.rounds[roundIndex]
+    analysis.rounds[roundIndex]
 
   const currentTurn =
     currentRound.turns[turnIndex]
@@ -54,7 +56,7 @@ export default function AnalysisPage({
         roundIndex - 1
 
       const previousRound =
-        mockAnalysis.rounds[
+        analysis.rounds[
           previousRoundIndex
         ]
 
@@ -82,7 +84,7 @@ export default function AnalysisPage({
 
     if (
       roundIndex <
-      mockAnalysis.rounds.length - 1
+      analysis.rounds.length - 1
     ) {
       setRoundIndex(
         (current) => current + 1,
@@ -98,7 +100,7 @@ export default function AnalysisPage({
 
   const isLastTurn =
     roundIndex ===
-      mockAnalysis.rounds.length - 1 &&
+      analysis.rounds.length - 1 &&
     turnIndex ===
       currentRound.turns.length - 1
 
@@ -125,7 +127,7 @@ export default function AnalysisPage({
         <aside className="round-sidebar">
           <h2>ROUND</h2>
 
-          {mockAnalysis.rounds.map(
+          {analysis.rounds.map(
             (round, index) => (
               <button
                 key={round.id}
@@ -366,9 +368,7 @@ export default function AnalysisPage({
             </div>
 
             <div className="recommended-score">
-              <span>
-                Recommendation
-              </span>
+              <span>{analysis.analysisMode === "model_estimate" ? "Recommendation" : "Tile efficiency"}</span>
 
               <strong>
                 {bestCandidate.score}%
@@ -465,10 +465,7 @@ export default function AnalysisPage({
                         </span>
 
                         <strong>
-                          {
-                            candidate.dealInRisk
-                          }
-                          %
+                          {candidate.dealInRisk == null ? "N/A" : `${candidate.dealInRisk}%`}
                         </strong>
                       </div>
 
@@ -478,14 +475,9 @@ export default function AnalysisPage({
                         </span>
 
                         <strong>
-                          {candidate.expectedValue >=
-                          0
-                            ? "+"
-                            : ""}
-
-                          {
-                            candidate.expectedValue
-                          }
+                          {candidate.expectedValue == null
+                            ? "N/A"
+                            : `${candidate.expectedValue >= 0 ? "+" : ""}${candidate.expectedValue}`}
                         </strong>
                       </div>
                     </div>
@@ -495,9 +487,6 @@ export default function AnalysisPage({
             </div>
           </div>
 
-          <button className="detail-button">
-            DETAILS
-          </button>
         </aside>
       </div>
     </div>

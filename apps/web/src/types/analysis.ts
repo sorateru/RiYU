@@ -3,8 +3,8 @@ export type CandidateAnalysis = {
   score: number
   shanten: number
   ukeire: number
-  dealInRisk: number
-  expectedValue: number
+  dealInRisk: number | null
+  expectedValue: number | null
 }
 
 export type HandTileAnalysis = {
@@ -37,6 +37,8 @@ export type TurnAnalysis = {
   remainingTiles: number
 
   dora: string
+
+  eventSequence?: number
 }
 
 export type RoundAnalysis = {
@@ -48,5 +50,17 @@ export type RoundAnalysis = {
 }
 
 export type ReplayAnalysis = {
+  format?: "riyu-replay-analysis/v1"
+
+  sourceLogId?: string
+
+  sourceLogIds?: string[]
+
+  observer?: number
+
+  analysisMode?:
+    | "exact_tile_efficiency"
+    | "model_estimate"
+
   rounds: RoundAnalysis[]
 }

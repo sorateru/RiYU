@@ -36,14 +36,20 @@ python -m pytest -q
 python tools/crosscheck_shanten.py
 ```
 
-局面解析UI:
+新RiYU Web UI（複数局の牌譜解析）:
 
 ```bash
-python -m uvicorn mahjong_ai.apps.reviewer:app --host 127.0.0.1 --port 8000
-cd apps/reviewer
-pnpm install
-pnpm dev
+cd apps/web
+npm install
+npm run build
+cd ../..
+PYTHONPATH=python .venv/bin/python tools/serve_analysis.py \
+  --port 8000 --web-dist apps/web/dist
 ```
+
+`http://127.0.0.1:8000/` を開き、許諾済み入力から生成した `mahjong-ai-event-log/v1` JSONを読み込む。複数局は複数ファイル、JSON配列、または `{"logs": [...]}` bundleでまとめて解析できる。UIとAPIは同一のloopbackサーバーから配信される。開発中は別ターミナルで `cd apps/web && npm run dev` を実行すると、`/api` が `127.0.0.1:8000` へproxyされる。
+
+既存のローカルAI対局と単一GameState解析のReact/Tauri UIは `apps/reviewer` に残している。
 
 ローカル解析サービス（HTTP `/analyze` とWebSocket `/ws/lab`）:
 

@@ -1,5 +1,5 @@
 from .dataset import DecisionRecord, build_decision_records, write_parquet
-from .log import EventLog, EventLogError, load_event_log
+from .log import EventLog, EventLogError, load_event_log, parse_event_log
 from .provenance import (
     HumanDatasetManifest,
     create_human_dataset_manifest,
@@ -31,6 +31,7 @@ __all__ = [
     "decode_archive_xml",
     "load_human_dataset_manifest",
     "load_event_log",
+    "parse_event_log",
     "write_parquet",
     "write_sequence_parquet",
 ]
