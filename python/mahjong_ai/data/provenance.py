@@ -14,7 +14,11 @@ HUMAN_DATASET_FORMAT = "mahjong-ai-human-dataset/v1"
 ALLOWED_RIGHTS_BASES = frozenset({"user_owned", "explicit_permission", "open_license"})
 SOURCES_REQUIRING_EXPLICIT_PERMISSION = ("tenhou", "天鳳", "mahjong soul", "雀魂")
 SUPPORTED_DECISION_FORMATS = frozenset(
-    {b"decision/v1", b"mahjong-ai-sequence-decision/v2"}
+    {
+        b"decision/v1",
+        b"mahjong-ai-sequence-decision/v2",
+        b"mahjong-ai-sequence-decision/v3",
+    }
 )
 
 

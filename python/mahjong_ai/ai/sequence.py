@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from .encoder import ACTION_FEATURES, ENCODER_PLANES
+from .encoder import ACTION_FEATURES, DANGER_FEATURES, ENCODER_PLANES
 from .model import ResidualBlock
 from mahjong_ai.schema import tile_index
 
@@ -124,6 +124,10 @@ class SequenceModelConfig:
     action_dim: int = 128
     maximum_events: int = MAX_SEQUENCE_EVENTS
     shanten_classes: int = 8
+    decision_heads: bool = False
+    opponent_dim: int = 128
+    deal_in_score_bins: int = 8
+    danger_features: int = DANGER_FEATURES
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -196,6 +200,32 @@ class SequenceMahjongNetwork(nn.Module):
             config.fused_dim, 4 * config.shanten_classes
         )
         self.future_draw_head = nn.Linear(config.fused_dim, 34)
+        if config.decision_heads:
+            self.opponent_seat_embedding = nn.Embedding(4, config.opponent_dim)
+            self.opponent_projection = nn.Sequential(
+                nn.Linear(config.fused_dim + config.opponent_dim, config.opponent_dim),
+                nn.GELU(),
+                nn.LayerNorm(config.opponent_dim),
+            )
+            self.deal_in_head = nn.Sequential(
+                nn.Linear(
+                    config.action_dim + config.opponent_dim + config.danger_features,
+                    config.opponent_dim,
+                ),
+                nn.GELU(),
+                nn.Linear(config.opponent_dim, 1),
+            )
+            self.deal_in_score_head = nn.Linear(
+                config.opponent_dim, config.deal_in_score_bins
+            )
+            self.outcome_action_projection = nn.Linear(
+                config.action_dim, config.fused_dim
+            )
+            self.action_outcome_head = nn.Sequential(
+                nn.Linear(config.fused_dim * 2, config.fused_dim),
+                nn.GELU(),
+                nn.Linear(config.fused_dim, 5),
+            )
 
     def forward(
         self,
@@ -207,6 +237,7 @@ class SequenceMahjongNetwork(nn.Module):
         event_flags: Tensor,
         event_mask: Tensor,
         action_mask: Tensor | None = None,
+        danger_features: Tensor | None = None,
     ) -> dict[str, Tensor]:
         snapshot = self.snapshot_representation(
             self.snapshot_backbone(self.snapshot_stem(planes))
@@ -234,7 +265,7 @@ class SequenceMahjongNetwork(nn.Module):
         if action_mask is not None:
             logits = logits.masked_fill(~action_mask, torch.finfo(logits.dtype).min)
         batch = planes.shape[0]
-        return {
+        output = {
             "policy_logits": logits,
             "rank_logits": self.rank_head(representation),
             "score_value": self.score_head(representation).squeeze(-1),
@@ -246,3 +277,42 @@ class SequenceMahjongNetwork(nn.Module):
             ),
             "future_draw_logits": self.future_draw_head(representation),
         }
+        if self.config.decision_heads:
+            seats = torch.arange(4, device=planes.device)
+            seat_features = self.opponent_seat_embedding(seats).unsqueeze(0).expand(
+                batch, -1, -1
+            )
+            repeated = representation.unsqueeze(1).expand(-1, 4, -1)
+            opponents = self.opponent_projection(
+                torch.cat((repeated, seat_features), dim=-1)
+            )
+            if danger_features is None:
+                danger_features = torch.zeros(
+                    batch,
+                    action_embedding.shape[1],
+                    4,
+                    self.config.danger_features,
+                    device=planes.device,
+                    dtype=planes.dtype,
+                )
+            if danger_features.shape != (
+                batch, action_embedding.shape[1], 4, self.config.danger_features
+            ):
+                raise ValueError("danger_features shape does not match candidates/opponents")
+            action_for_opponents = action_embedding.unsqueeze(2).expand(-1, -1, 4, -1)
+            opponent_for_actions = opponents.unsqueeze(1).expand(
+                -1, action_embedding.shape[1], -1, -1
+            )
+            output["deal_in_logits"] = self.deal_in_head(
+                torch.cat(
+                    (action_for_opponents, opponent_for_actions, danger_features), dim=-1
+                )
+            ).squeeze(-1)
+            output["deal_in_score_logits"] = self.deal_in_score_head(opponents)
+            outcome_action = self.outcome_action_projection(action_embedding)
+            outcome_state = representation.unsqueeze(1).expand(-1, action_embedding.shape[1], -1)
+            output["action_outcome_logits"] = self.action_outcome_head(
+                torch.cat((outcome_state, outcome_action), dim=-1)
+            )
+            output["opponent_latents"] = opponents
+        return output

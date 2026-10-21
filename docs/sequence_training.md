@@ -9,12 +9,14 @@
 - 局終了時の4人の実得失点
 - 各判断時点の4人のシャンテン、他家の聴牌、待ち牌
 - 判断後12自摸までに現れた牌種
+- 実際の候補打牌に対する相手別放銃、放銃時失点bin、5種の局終了事象
 
-`observation` と `public_events` は観測者に見える情報だけです。隠れ手牌、実牌山、未来自摸は目的変数にのみ入り、入力列へコピーしません。半荘単位でtrain/validationを分けるため、同じ半荘の別局が両側へ漏れることもありません。
+`observation` と `public_events` は観測者に見える情報だけです。隠れ手牌、実牌山、未来自摸は目的変数にのみ入り、入力列へコピーしません。半荘単位でtrain/validation/final-holdoutを固定分割し、final-holdoutは学習・checkpoint選択・較正に使いません。
 
 ## 変換
 
 既存の許諾確認済みオフラインDBからV2 shardを作ります。
+年別`tar.xz`を内包するユーザー提供ZIPは`tools/import_tenhou_xml_archives.py`で直接v3 shardへ変換できる。変換は二重アーカイブをストリームし、展開後の生XMLをディスクに残さない。
 
 ```bash
 PYTHONPATH=python .venv/bin/python tools/import_tenhou_sequence_db.py \
@@ -40,6 +42,18 @@ PYTHONPATH=python .venv/bin/python tools/train_sequence_supervised.py \
 
 出力checkpointは `validated=false` のため、そのまま解析サービスには接続できません。独立対局集合で方策一致率、聴牌Brier、待ち牌precision/recall、局収支誤差、Arena成績を評価して承認した後にだけ、次の形で探索の事前分布として使用します。
 
+放銃率は方策確率と独立に較正します。係数はvalidationのみで学習し、相手別Brier・Log Loss・ECEを記録します。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/calibrate_sequence_risk.py \
+  artifacts/checkpoints/sequence-unvalidated.pt data/sequence/part-*.parquet \
+  --output artifacts/checkpoints/sequence-risk-calibrated.pt
+
+# 通常はvalidation。final-holdoutを開くには2つの明示フラグが必要。
+PYTHONPATH=python .venv/bin/python tools/evaluate_sequence_checkpoint.py \
+  artifacts/checkpoints/sequence-risk-calibrated.pt data/sequence/part-*.parquet
+```
+
 ```bash
 PYTHONPATH=python .venv/bin/python tools/serve_analysis.py \
   --port 8000 \
@@ -52,3 +66,14 @@ V2の聴牌率・待ち分布は隠れ手牌サンプラーを誘導し、予測
 ## スモーク結果
 
 `artifacts/smoke/sequence-v2-data` は2半荘・28局・1,706判断の配線確認用データです。全28局が受理され、棄却0でした。`sequence-v2-tiny.pt` の1 epoch結果は検証方策一致率30.6%、他家聴牌二値精度75.9%です。データ量もモデル容量も小さく、強さの根拠にはなりません。
+
+## 53k転移学習結果
+
+許諾確認済みの128半荘からV2を53,459判断生成し、47,407判断をtrain、半荘単位で分離した6,052判断をvalidationに使用しました。局面Encoder・Residual backbone・動的Action・方策/価値Headは、既存V1の20万判断checkpointから移植しています。
+
+- 方策候補 `tenhou-sequence-v2-transfer-53k-best-unvalidated.pt`: 方策一致率67.61%、聴牌Brier 0.1045、局収支MAE 2,844点。
+- 条件付き聴牌候補 `tenhou-sequence-v2-transfer-53k-conditional-waits-unvalidated.pt`: 方策一致率66.75%、聴牌Brier 0.1006、聴牌recall 17.1%、局収支MAE 2,759点。
+- 待ち牌Top-1命中率は約6.6%で、探索priorとして承認できる水準には未到達。
+- 将来自摸Top-5 recallは約15.4%で、ランダム基準（5/34≒14.7%）に近い。
+
+いずれも同じvalidationでモデル選択・測定しているため、`validated=false`のままです。独立holdoutと半荘Arenaを通すまで実運用へ昇格しません。

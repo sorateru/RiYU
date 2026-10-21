@@ -83,3 +83,19 @@
 ## 性能目標
 
 NAGA級はコード量や単一accuracyでは宣言しない。固定ルール・固定相手・十分な対局数で平均順位、順位率、和了・放銃、順位点、calibrationと信頼区間を比較し、モデルカードで再現可能にする。
+
+## Phase 11 — 重み付きBeliefと押し引き（着手）
+
+- [x] 候補間で共通の粒子集合と乱数を共有
+- [x] 模倣Policyによる最新観測打牌の尤度と粒子重要度重み
+- [x] 相手別放銃確率、放銃時期待損失、和了/他家ツモ/横移動/流局/未解決の分離
+- [x] Policy/Valueの反事実秘密情報非依存CIテスト
+- [x] 公開イベントごとに遷移するstateful Particle FilterとESS resampling
+- [x] Rust厳密役・点数を各粒子へ接続
+- [x] 相手別危険度・打点分布Head、validation較正ツール、Brier/Log Loss/ECE評価
+- [ ] 大規模学習済みcheckpointでの最終holdout calibration合格
+- [x] 1〜4着確率を用いた半荘順位Utilityへの接続
+- [x] リーチ/ダマ、鳴き/パスを同一粒子で比較する候補beam
+- [x] Arenaの牌効率・模倣・探索あり/なしmodeと必要統計
+
+詳細な監査、依存関係、昇格指標は [NAGA級以降へ向けた実装監査](naga_development_audit.md) を参照する。

@@ -20,7 +20,14 @@ from mahjong_ai.schema import canonical_json
 
 from .encoder import FeatureEncoder
 from .model import MahjongNetwork
-from .search import BeliefRolloutSearch, OpponentBelief, RolloutConfig, SearchCandidate
+from .search import (
+    BeliefRolloutSearch,
+    DiscardLikelihood,
+    OpponentBelief,
+    ParticlePosterior,
+    RolloutConfig,
+    SearchCandidate,
+)
 
 
 @dataclass(frozen=True)
@@ -40,7 +47,22 @@ class ActionValue:
     win_probability: float | None = None
     deal_in_probability: float | None = None
     opponent_win_probability: float | None = None
+    horizontal_transfer_probability: float | None = None
+    exhaustive_draw_probability: float | None = None
+    unresolved_probability: float | None = None
+    expected_win_points: float | None = None
+    expected_deal_in_loss: float | None = None
+    deal_in_probability_by_opponent: tuple[float, ...] | None = None
+    expected_deal_in_loss_by_opponent: tuple[float, ...] | None = None
+    model_deal_in_probability_by_opponent: tuple[float, ...] | None = None
+    model_expected_deal_in_loss_by_opponent: tuple[float, ...] | None = None
+    model_outcome_probabilities: tuple[float, ...] | None = None
+    model_risk_adjustment: float = 0.0
+    rank_probabilities: tuple[float, float, float, float] | None = None
+    rank_utility: float | None = None
+    rank_utility_adjustment: float = 0.0
     rollout_samples: int = 0
+    rollout_effective_samples: float = 0.0
     rollout_depth: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,7 +82,26 @@ class ActionValue:
             "win_probability": self.win_probability,
             "deal_in_probability": self.deal_in_probability,
             "opponent_win_probability": self.opponent_win_probability,
+            "horizontal_transfer_probability": self.horizontal_transfer_probability,
+            "exhaustive_draw_probability": self.exhaustive_draw_probability,
+            "unresolved_probability": self.unresolved_probability,
+            "expected_win_points": self.expected_win_points,
+            "expected_deal_in_loss": self.expected_deal_in_loss,
+            "deal_in_probability_by_opponent": self.deal_in_probability_by_opponent,
+            "expected_deal_in_loss_by_opponent": self.expected_deal_in_loss_by_opponent,
+            "model_deal_in_probability_by_opponent": (
+                self.model_deal_in_probability_by_opponent
+            ),
+            "model_expected_deal_in_loss_by_opponent": (
+                self.model_expected_deal_in_loss_by_opponent
+            ),
+            "model_outcome_probabilities": self.model_outcome_probabilities,
+            "model_risk_adjustment": self.model_risk_adjustment,
+            "rank_probabilities": self.rank_probabilities,
+            "rank_utility": self.rank_utility,
+            "rank_utility_adjustment": self.rank_utility_adjustment,
             "rollout_samples": self.rollout_samples,
+            "rollout_effective_samples": self.rollout_effective_samples,
             "rollout_depth": self.rollout_depth,
         }
 
@@ -75,6 +116,10 @@ class ExpectedValuePolicy:
     # outcomes are supervised, avoid letting an untrained logit trigger one.
     UNSUPERVISED_KAN_PENALTY = 100_000.0
     TERMINAL_WIN_BONUS = 100_000.0
+    # Centered negative expected-rank utility. Its zero point is arbitrary;
+    # only candidate-to-current differences enter action comparison.
+    RANK_UTILITIES = (1.5, 0.5, -0.5, -1.5)
+    RANK_UTILITY_POINT_SCALE = 8_000.0
 
     def __init__(
         self,
@@ -84,25 +129,46 @@ class ExpectedValuePolicy:
         rollout_config: RolloutConfig | None = None,
         enable_rollout: bool = True,
         belief_predictor: Callable[[dict[str, Any]], tuple[OpponentBelief, ...]] | None = None,
+        action_likelihood: DiscardLikelihood | None = None,
+        risk_predictor: Callable[
+            [dict[str, Any], list[dict[str, Any]]], dict[str, dict[str, Any]]
+        ]
+        | None = None,
     ) -> None:
         self.model = model
         self.device = device
         self.encoder = FeatureEncoder()
         self.rollout = BeliefRolloutSearch(
-            rollout_config or RolloutConfig(), belief_predictor=belief_predictor
+            rollout_config or RolloutConfig(),
+            belief_predictor=belief_predictor,
+            action_likelihood=action_likelihood,
         )
         self.enable_rollout = enable_rollout
+        self.risk_predictor = risk_predictor
 
-    def choose(self, state: dict[str, Any], legal: list[dict[str, Any]]) -> int:
-        ranked = self.rank(state, legal)
+    def choose(
+        self,
+        state: dict[str, Any],
+        legal: list[dict[str, Any]],
+        *,
+        belief_posterior: ParticlePosterior | None = None,
+    ) -> int:
+        ranked = self.rank(state, legal, belief_posterior=belief_posterior)
         best_key = canonical_json(ranked[0].action)
         return next(index for index, action in enumerate(legal) if canonical_json(action) == best_key)
 
-    def rank(self, state: dict[str, Any], legal: list[dict[str, Any]]) -> list[ActionValue]:
+    def rank(
+        self,
+        state: dict[str, Any],
+        legal: list[dict[str, Any]],
+        *,
+        belief_posterior: ParticlePosterior | None = None,
+    ) -> list[ActionValue]:
         if not legal:
             return []
         current_analysis = json.loads(analyze_state_json(canonical_json(state)))
         policy_scores = self._policy_scores(state, legal)
+        risk_estimates = self.risk_predictor(state, legal) if self.risk_predictor else {}
         current_score = float(state["scores"][int(state["information"]["observer"])])
 
         successors: list[dict[str, Any] | None] = []
@@ -123,7 +189,10 @@ class ExpectedValuePolicy:
             metrics.append((shanten, ukeire, followup, False))
 
         scored_states = [candidate for candidate in successors if candidate is not None]
-        learned_scores = iter(self._state_values(scored_states))
+        current_prediction = self._state_predictions([state])[0]
+        current_rank_utility = self._rank_utility(current_prediction[1])
+        learned_predictions = iter(self._state_predictions(scored_states))
+        rank_weight = self._rank_phase_weight(state)
         values: list[ActionValue] = []
         for action, successor, policy_score, metric in zip(
             legal, successors, policy_scores, metrics, strict=True
@@ -133,8 +202,18 @@ class ExpectedValuePolicy:
                 model_score = current_score + self.TERMINAL_WIN_BONUS
                 adjustment = 0.0
                 policy_adjustment = 0.0
+                risk_adjustment = 0.0
+                rank_probabilities = None
+                rank_utility = None
+                rank_adjustment = 0.0
             else:
-                model_score = next(learned_scores)
+                model_score, rank_probabilities = next(learned_predictions)
+                rank_utility = self._rank_utility(rank_probabilities)
+                rank_adjustment = (
+                    self.RANK_UTILITY_POINT_SCALE
+                    * rank_weight
+                    * (rank_utility - current_rank_utility)
+                )
                 adjustment = self._efficiency_adjustment(shanten, ukeire)
                 # The supervised policy supplies the missing consequences that
                 # raw shanten cannot express: yaku loss, defense, placement and
@@ -145,10 +224,28 @@ class ExpectedValuePolicy:
                 )
                 if action["type"] == "kan":
                     policy_adjustment -= self.UNSUPERVISED_KAN_PENALTY
+                risk = risk_estimates.get(canonical_json(action))
+                risk_adjustment = 0.0
+                if risk is not None and bool(risk.get("calibrated", False)):
+                    risk_adjustment = -sum(
+                        float(probability) * float(loss)
+                        for probability, loss in zip(
+                            risk["deal_in_probability_by_opponent"],
+                            risk["expected_deal_in_loss_by_opponent"],
+                            strict=True,
+                        )
+                    )
+            risk = risk_estimates.get(canonical_json(action))
             values.append(
                 ActionValue(
                     action=action,
-                    estimated_action_value=model_score + adjustment + policy_adjustment,
+                    estimated_action_value=(
+                        model_score
+                        + adjustment
+                        + policy_adjustment
+                        + risk_adjustment
+                        + rank_adjustment
+                    ),
                     model_final_score=model_score,
                     tile_efficiency_adjustment=adjustment,
                     policy_prior_adjustment=policy_adjustment,
@@ -157,6 +254,25 @@ class ExpectedValuePolicy:
                     policy_score=policy_score,
                     followup_discard=followup,
                     terminal_win=terminal,
+                    model_deal_in_probability_by_opponent=(
+                        tuple(risk["deal_in_probability_by_opponent"])
+                        if risk is not None
+                        else None
+                    ),
+                    model_expected_deal_in_loss_by_opponent=(
+                        tuple(risk["expected_deal_in_loss_by_opponent"])
+                        if risk is not None
+                        else None
+                    ),
+                    model_outcome_probabilities=(
+                        tuple(risk["outcome_probabilities"])
+                        if risk is not None
+                        else None
+                    ),
+                    model_risk_adjustment=risk_adjustment,
+                    rank_probabilities=rank_probabilities,
+                    rank_utility=rank_utility,
+                    rank_utility_adjustment=rank_adjustment,
                 )
             )
         if self.enable_rollout:
@@ -171,7 +287,9 @@ class ExpectedValuePolicy:
                 if successor is not None and value.action["type"] != "kan"
             ]
             try:
-                estimates = self.rollout.evaluate(state, candidates)
+                estimates = self.rollout.evaluate(
+                    state, candidates, posterior=belief_posterior
+                )
             except (ValueError, RuntimeError):
                 # Search is an optional stochastic refinement.  A malformed or
                 # exhausted belief sample must never remove the deterministic
@@ -187,7 +305,17 @@ class ExpectedValuePolicy:
                     win_probability=estimate.win_probability,
                     deal_in_probability=estimate.deal_in_probability,
                     opponent_win_probability=estimate.opponent_win_probability,
+                    horizontal_transfer_probability=estimate.horizontal_transfer_probability,
+                    exhaustive_draw_probability=estimate.exhaustive_draw_probability,
+                    unresolved_probability=estimate.unresolved_probability,
+                    expected_win_points=estimate.expected_win_points,
+                    expected_deal_in_loss=estimate.expected_deal_in_loss,
+                    deal_in_probability_by_opponent=estimate.deal_in_probability_by_opponent,
+                    expected_deal_in_loss_by_opponent=(
+                        estimate.expected_deal_in_loss_by_opponent
+                    ),
                     rollout_samples=estimate.samples,
+                    rollout_effective_samples=estimate.effective_samples,
                     rollout_depth=estimate.depth,
                 )
                 if (estimate := estimates.get(canonical_json(value.action))) is not None
@@ -215,7 +343,9 @@ class ExpectedValuePolicy:
             logits = self.model(planes, actions)["policy_logits"][0]
             return torch.softmax(logits, dim=-1).cpu().tolist()
 
-    def _state_values(self, states: list[dict[str, Any]]) -> list[float]:
+    def _state_predictions(
+        self, states: list[dict[str, Any]]
+    ) -> list[tuple[float, tuple[float, float, float, float]]]:
         if not states:
             return []
         dummy = [{"type": "pass"}]
@@ -225,8 +355,42 @@ class ExpectedValuePolicy:
             self.device
         )
         with torch.inference_mode():
-            normalized = self.model(planes, actions)["score_value"].cpu().numpy()
-        return [25_000.0 + 10_000.0 * float(value) for value in normalized]
+            output = self.model(planes, actions)
+            normalized = output["score_value"].cpu().numpy()
+            ranks = torch.softmax(output["rank_logits"], dim=-1).cpu().numpy()
+        return [
+            (
+                25_000.0 + 10_000.0 * float(score),
+                tuple(float(value) for value in rank),
+            )
+            for score, rank in zip(normalized, ranks, strict=True)
+        ]
+
+    def _rank_utility(self, probabilities: tuple[float, ...]) -> float:
+        if len(probabilities) != 4:
+            raise ValueError("rank distribution must contain four probabilities")
+        return sum(
+            probability * utility
+            for probability, utility in zip(
+                probabilities, self.RANK_UTILITIES, strict=True
+            )
+        )
+
+    def _rank_phase_weight(self, state: dict[str, Any]) -> float:
+        """Increase placement sensitivity from East 1 toward South 4.
+
+        The rank head already conditions on scores, dealer, honba, sticks and
+        round context through observable planes. This factor only determines
+        how strongly its candidate-to-current utility difference competes with
+        short-horizon point EV.
+        """
+
+        round_state = state.get("round") or {}
+        wind = str(round_state.get("wind", "east"))
+        hand = min(max(int(round_state.get("hand_number", 1)), 1), 4)
+        wind_offset = {"east": 0, "south": 4, "west": 8, "north": 8}.get(wind, 0)
+        progress = min(wind_offset + hand - 1, 7) / 7.0
+        return 0.25 + 0.75 * progress
 
     def _successor(
         self,

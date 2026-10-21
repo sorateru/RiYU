@@ -339,7 +339,9 @@ def _meld_event(
 
 def _kind_index(tile: dict[str, Any]) -> int:
     kind = tile["kind"]
-    if kind[0] in "mps":
+    # Honor names such as ``south`` also begin with a suit letter.  Restrict
+    # the compact branch to canonical two-character suited kinds.
+    if len(kind) == 2 and kind[0] in "mps" and kind[1].isdigit():
         return {"m": 0, "p": 9, "s": 18}[kind[0]] + int(kind[1:]) - 1
     return {"east": 27, "south": 28, "west": 29, "north": 30, "white": 31, "green": 32, "red": 33}[kind]
 

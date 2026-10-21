@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert an offline Tenhou SQLite archive to sequence decision/v2 shards."""
+"""Convert an offline Tenhou SQLite archive to sequence decision/v3 shards."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def main() -> None:
     pending = []
     shards: list[Path] = []
     stats: dict = {
-        "format": "mahjong-ai-sequence-decision/v2",
+        "format": "mahjong-ai-sequence-decision/v3",
         "games_seen": 0,
         "rounds_seen": 0,
         "rounds_accepted": 0,
@@ -105,7 +105,7 @@ def main() -> None:
     create_human_dataset_manifest(
         output / "manifest.json",
         [str(path) for path in shards],
-        dataset_id="tenhou-phoenix-anonymized-sequence-v2",
+        dataset_id="tenhou-phoenix-anonymized-sequence-v3",
         source="Tenhou Phoenix offline archive (top room)",
         rights_basis="explicit_permission",
         authorization_reference=args.authorization_reference,

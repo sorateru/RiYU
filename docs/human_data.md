@@ -45,3 +45,17 @@ python tools/train_curriculum.py \
 ```
 
 `train_curriculum.py` は人間の行動を模倣する教師あり学習を行い、その重みだけをPPOへwarm startする。PPO optimizerは新規作成し、人間dataset fingerprintとwarm-start checkpoint hashをlineageとして最終checkpointへ残す。
+
+## Google Drive XML bundleの直接変換
+
+ユーザーが用意したZIPに年別の`tar.xz`が入っている場合は、中間ファイルを展開保存せずsequence decision/v3へストリーム変換できる。未完了の`.zip.download`はZIP中央ディレクトリがないため事前検査で拒否する。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/import_tenhou_xml_archives.py downloads/*.zip \
+  --output-dir data/tenhou-sequence-v3-200k \
+  --max-decisions 200000 \
+  --max-decisions-per-archive 50000 \
+  --authorization-reference permission-record-id
+```
+
+`--max-decisions-per-archive`で年代の異なる複数bundleから偏りなく取り込める。XMLの元パスと元牌譜IDは出力ず、変換時にSHA-256 IDへ匿名化する。

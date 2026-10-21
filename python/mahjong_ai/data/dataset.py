@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from mahjong_ai import (
-    analyze_state_json,
+    ObservationReplayer,
     apply_event_json,
     calculate_shanten_json,
-    replay_events_json,
+    legal_actions_json,
 )
 from mahjong_ai.schema import action_key, canonical_json, tile_index
 
@@ -40,21 +40,21 @@ def build_decision_records(
     records: list[DecisionRecord] = []
     rules_json = canonical_json(log.rules) if log.rules is not None else None
     for observer, events in log.observations.items():
-        state_json = replay_events_json(observer, "[]", rules_json)
+        replayer = ObservationReplayer(observer, rules_json)
         for index, event in enumerate(events):
-            state = json.loads(state_json)
-            phase = state["phase"]["phase"]
+            state_json: str | None = None
+            state: dict[str, Any] | None = None
 
             # Tenhou records successful calls but has no explicit tag for a
             # declined call.  A following normal draw proves that every player
             # declined the preceding response window, so it is an uncensored
             # and safe `pass` training label.  Responses lost to a higher
             # priority call are deliberately not labelled as pass.
-            if phase in {"awaiting_response", "awaiting_kan_response"} and event.get(
-                "type"
-            ) == "draw" and _may_have_non_pass_response(state):
-                legal = _legal_actions(state_json)
+            if event.get("type") == "draw":
+                legal = _replayer_legal_actions(replayer)
                 if any(candidate["type"] != "pass" for candidate in legal):
+                    state_json = replayer.state_json()
+                    state = json.loads(state_json)
                     _append_record(
                         records,
                         log,
@@ -74,14 +74,21 @@ def build_decision_records(
                             "player": observer,
                             "ron_available": True,
                         }
-                        state_json = apply_event_json(state_json, canonical_json(synthetic))
-                        state = json.loads(state_json)
+                        replayer.apply_event_json(canonical_json(synthetic))
+                    state_json = None
+                    state = None
 
+            if event.get("type") == "kan" and event.get("player") == observer:
+                state_json = replayer.state_json()
+                state = json.loads(state_json)
             action = _decision_for_event(events, index, observer, state)
             if supplemental_responses_only and event.get("type") not in {"ron", "tsumo"}:
                 action = None
             if action is not None:
-                legal = _legal_actions(state_json)
+                if state is None:
+                    state_json = replayer.state_json()
+                    state = json.loads(state_json)
+                legal = _replayer_legal_actions(replayer)
                 _append_record(
                     records,
                     log,
@@ -100,14 +107,19 @@ def build_decision_records(
                 break
 
             replay_event = dict(event)
-            replay_event["sequence"] = json.loads(state_json)["next_event_sequence"]
-            state_json = apply_event_json(state_json, canonical_json(replay_event))
+            replay_event["sequence"] = replayer.next_event_sequence()
+            replayer.apply_event_json(canonical_json(replay_event))
     return records
 
 
 def _legal_actions(state_json: str) -> list[dict[str, Any]]:
-    analysis = json.loads(analyze_state_json(state_json))
-    return analysis["legal_actions"]["value"] or []
+    report = json.loads(legal_actions_json(state_json))
+    return report["value"] or []
+
+
+def _replayer_legal_actions(replayer: ObservationReplayer) -> list[dict[str, Any]]:
+    report = json.loads(replayer.legal_actions_json())
+    return report["value"] or []
 
 
 def _may_have_non_pass_response(state: dict[str, Any]) -> bool:

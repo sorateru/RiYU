@@ -6,6 +6,7 @@ from .provenance import (
     load_human_dataset_manifest,
 )
 from .tenhou import TenhouRound, convert_document, decode_archive_xml
+from .tenhou_archive import iter_tenhou_archive_xml, validate_tenhou_archive
 from .sequence_dataset import (
     SEQUENCE_DATASET_FORMAT,
     SequenceDecisionRecord,
@@ -24,6 +25,8 @@ __all__ = [
     "build_decision_records",
     "build_sequence_decision_records",
     "convert_document",
+    "iter_tenhou_archive_xml",
+    "validate_tenhou_archive",
     "create_human_dataset_manifest",
     "decode_archive_xml",
     "load_human_dataset_manifest",

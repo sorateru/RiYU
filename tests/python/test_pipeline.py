@@ -18,7 +18,11 @@ from mahjong_ai.apps.reviewer import create_app
 from mahjong_ai.apps.local_play import LocalPlayManager
 from mahjong_ai.data.dataset import build_decision_records, write_parquet
 from mahjong_ai.data.log import EventLogError, load_event_log
-from mahjong_ai.data.tenhou import convert_document
+from mahjong_ai.data.tenhou import _kind_index, convert_document
+from mahjong_ai.data.tenhou_archive import (
+    iter_tenhou_archive_xml,
+    validate_tenhou_archive,
+)
 from mahjong_ai.evaluation import evaluate_checkpoints
 from mahjong_ai.data.provenance import (
     create_human_dataset_manifest,
@@ -415,6 +419,44 @@ def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None
         "tile": {"kind": "p5", "red": True},
         "tsumogiri": True,
     }
+
+
+def test_tenhou_nested_archive_streams_xml_without_extracting(tmp_path) -> None:
+    import io
+    import lzma
+    import tarfile
+    import zipfile
+
+    xml = b'<mjloggm><GO type="169"/></mjloggm>'
+    tar_buffer = io.BytesIO()
+    with tarfile.open(fileobj=tar_buffer, mode="w") as bundle:
+        info = tarfile.TarInfo("2017/fixture.mjlog")
+        info.size = len(xml)
+        bundle.addfile(info, io.BytesIO(xml))
+        readme = b"not xml"
+        info = tarfile.TarInfo("README")
+        info.size = len(readme)
+        bundle.addfile(info, io.BytesIO(readme))
+    archive = tmp_path / "logs.zip"
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as outer:
+        outer.writestr("xml/2017.tar.xz", lzma.compress(tar_buffer.getvalue()))
+
+    validate_tenhou_archive(archive)
+    documents = list(iter_tenhou_archive_xml(archive))
+    assert len(documents) == 1
+    assert documents[0][0].endswith(":2017/fixture.mjlog")
+    assert documents[0][1] == xml
+
+
+def test_tenhou_archive_rejects_incomplete_zip(tmp_path) -> None:
+    archive = tmp_path / "partial.zip"
+    archive.write_bytes(b"PK\x03\x04incomplete")
+    with pytest.raises(ValueError, match="incomplete or invalid ZIP"):
+        validate_tenhou_archive(archive)
+
+
+def test_tenhou_honor_kind_index_is_not_parsed_as_souzu() -> None:
+    assert _kind_index({"kind": "south", "red": False}) == 28
 
 
 def test_seat_balanced_arena_is_zero_for_identical_models(tmp_path) -> None:

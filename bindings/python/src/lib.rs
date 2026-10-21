@@ -1,6 +1,7 @@
 use mahjong_core::{
-    Action, FourPlayerSimulator, GameEvent, PlayerId, RoundState, RuleConfig, TileCounts,
-    analyze_state, calculate_shanten, game_state_from_json, game_state_to_json, replay_events,
+    Action, FourPlayerSimulator, GameEvent, GameState, Meld, PlayerId, RoundState, RuleConfig,
+    Tile, TileCounts, WinContext, analyze_state, calculate_shanten, game_state_from_json,
+    game_state_to_json, legal_actions, replay_events, score_hand,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -33,6 +34,14 @@ fn analyze_state_json(state_json: &str) -> PyResult<String> {
     serde_json::to_string_pretty(&analysis).map_err(value_error)
 }
 
+/// Return only authoritative legal actions without computing discard analysis.
+#[pyfunction]
+fn legal_actions_json(state_json: &str) -> PyResult<String> {
+    let state = game_state_from_json(state_json).map_err(value_error)?;
+    let report = legal_actions(&state).map_err(value_error)?;
+    serde_json::to_string(&report).map_err(value_error)
+}
+
 /// Calculate exact standard/chiitoitsu/kokushi shanten from a 34-count array.
 #[pyfunction]
 #[pyo3(signature = (counts_json, fixed_melds=0))]
@@ -40,6 +49,32 @@ fn calculate_shanten_json(counts_json: &str, fixed_melds: u8) -> PyResult<String
     let counts: TileCounts = serde_json::from_str(counts_json).map_err(value_error)?;
     let result = calculate_shanten(&counts, fixed_melds).map_err(value_error)?;
     serde_json::to_string(&result).map_err(value_error)
+}
+
+/// Score a complete hypothetical hand with the authoritative Rust rules.
+///
+/// This accepts an explicit hand rather than GameState so belief particles can
+/// be evaluated without ever copying their hidden tiles into an observation.
+#[pyfunction]
+#[pyo3(signature = (concealed_json, melds_json, winning_tile_json, context_json, rules_json=None))]
+fn score_hand_json(
+    concealed_json: &str,
+    melds_json: &str,
+    winning_tile_json: &str,
+    context_json: &str,
+    rules_json: Option<&str>,
+) -> PyResult<String> {
+    let concealed: Vec<Tile> = serde_json::from_str(concealed_json).map_err(value_error)?;
+    let melds: Vec<Meld> = serde_json::from_str(melds_json).map_err(value_error)?;
+    let winning_tile: Tile = serde_json::from_str(winning_tile_json).map_err(value_error)?;
+    let context: WinContext = serde_json::from_str(context_json).map_err(value_error)?;
+    let rules = match rules_json {
+        Some(json) => serde_json::from_str(json).map_err(value_error)?,
+        None => RuleConfig::default(),
+    };
+    let evaluation =
+        score_hand(&concealed, &melds, winning_tile, &context, &rules).map_err(value_error)?;
+    serde_json::to_string(&evaluation).map_err(value_error)
 }
 
 /// Replay an event array from an empty observation state.
@@ -58,6 +93,49 @@ fn replay_events_json(
     let events: Vec<GameEvent> = serde_json::from_str(events_json).map_err(value_error)?;
     let state = replay_events(observer, rules, events).map_err(value_error)?;
     game_state_to_json(&state).map_err(value_error)
+}
+
+/// Stateful observation replay for bulk dataset conversion.
+///
+/// Keeping the Rust GameState alive avoids parsing and serializing the growing
+/// event history after every event. JSON is emitted only at decision points.
+#[pyclass(name = "ObservationReplayer")]
+struct PyObservationReplayer {
+    inner: GameState,
+}
+
+#[pymethods]
+impl PyObservationReplayer {
+    #[new]
+    #[pyo3(signature = (observer, rules_json=None))]
+    fn new(observer: u8, rules_json: Option<&str>) -> PyResult<Self> {
+        let observer = PlayerId::new(observer).map_err(value_error)?;
+        let rules = match rules_json {
+            Some(json) => serde_json::from_str(json).map_err(value_error)?,
+            None => RuleConfig::default(),
+        };
+        Ok(Self {
+            inner: replay_events(observer, rules, []).map_err(value_error)?,
+        })
+    }
+
+    fn state_json(&self) -> PyResult<String> {
+        game_state_to_json(&self.inner).map_err(value_error)
+    }
+
+    fn apply_event_json(&mut self, event_json: &str) -> PyResult<()> {
+        let event: GameEvent = serde_json::from_str(event_json).map_err(value_error)?;
+        self.inner.apply_event(event).map_err(value_error)
+    }
+
+    fn legal_actions_json(&self) -> PyResult<String> {
+        let report = legal_actions(&self.inner).map_err(value_error)?;
+        serde_json::to_string(&report).map_err(value_error)
+    }
+
+    fn next_event_sequence(&self) -> u64 {
+        self.inner.next_event_sequence
+    }
 }
 
 #[pyclass(name = "FourPlayerSimulator")]
@@ -122,8 +200,11 @@ fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_state_json, module)?)?;
     module.add_function(wrap_pyfunction!(apply_event_json, module)?)?;
     module.add_function(wrap_pyfunction!(analyze_state_json, module)?)?;
+    module.add_function(wrap_pyfunction!(legal_actions_json, module)?)?;
     module.add_function(wrap_pyfunction!(calculate_shanten_json, module)?)?;
+    module.add_function(wrap_pyfunction!(score_hand_json, module)?)?;
     module.add_function(wrap_pyfunction!(replay_events_json, module)?)?;
+    module.add_class::<PyObservationReplayer>()?;
     module.add_class::<PyFourPlayerSimulator>()?;
     Ok(())
 }

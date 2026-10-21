@@ -14,10 +14,28 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoint_a")
     parser.add_argument("checkpoint_b")
+    parser.add_argument("--belief-checkpoint-a")
+    parser.add_argument("--belief-checkpoint-b")
     parser.add_argument("--output", required=True)
     parser.add_argument("--seed-blocks", type=int, default=64)
     parser.add_argument("--base-seed", type=int, default=20_261_019)
     parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument(
+        "--policy-a",
+        choices=(
+            "tile_efficiency", "imitation", "hybrid_no_search", "hybrid_search",
+            "hybrid_search_high_accuracy",
+        ),
+        default="hybrid_search",
+    )
+    parser.add_argument(
+        "--policy-b",
+        choices=(
+            "tile_efficiency", "imitation", "hybrid_no_search", "hybrid_search",
+            "hybrid_search_high_accuracy",
+        ),
+        default="hybrid_search",
+    )
     args = parser.parse_args()
     output = Path(args.output)
     if output.exists():
@@ -28,6 +46,10 @@ def main() -> None:
         seed_blocks=args.seed_blocks,
         base_seed=args.base_seed,
         workers=args.workers,
+        policy_a=args.policy_a,
+        policy_b=args.policy_b,
+        belief_checkpoint_a=args.belief_checkpoint_a,
+        belief_checkpoint_b=args.belief_checkpoint_b,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

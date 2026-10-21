@@ -7,7 +7,7 @@ from typing import Any
 
 import torch
 
-from mahjong_ai.schema import tile_index
+from mahjong_ai.schema import canonical_json, tile_index
 
 from .encoder import FeatureEncoder
 from .inference import ModelMetadata
@@ -81,6 +81,7 @@ class SequenceBeliefPredictor:
                 tensor(sequence.tiles),
                 tensor(sequence.flags),
                 tensor(sequence.valid_mask),
+                danger_features=tensor(encoded.danger_features),
             )
             tenpai = torch.sigmoid(output["opponent_tenpai_logits"])[0].cpu().tolist()
             waits = torch.sigmoid(output["opponent_wait_logits"])[0].cpu().tolist()
@@ -112,7 +113,69 @@ class SequenceBeliefPredictor:
                     probability,
                     value,
                     safe,
-                    tuple(float(value) for value in waits[relative]),
+                    tuple(
+                        probability * float(wait_probability)
+                        for wait_probability in waits[relative]
+                    ),
                 )
             )
         return tuple(result)
+
+    def action_risks(
+        self, state: dict[str, Any], legal: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Return candidate-specific opponent danger and terminal outcome priors."""
+
+        if not self.model.config.decision_heads:
+            return {}
+        encoded = self.state_encoder.encode(state, legal)
+        sequence = self.sequence_encoder.encode_tokens(public_event_tokens(state))
+
+        def tensor(value: Any) -> torch.Tensor:
+            return torch.from_numpy(value).unsqueeze(0).to(self.device)
+
+        with torch.inference_mode():
+            output = self.model(
+                tensor(encoded.planes),
+                tensor(encoded.action_features),
+                tensor(sequence.event_types),
+                tensor(sequence.players),
+                tensor(sequence.tiles),
+                tensor(sequence.flags),
+                tensor(sequence.valid_mask),
+                danger_features=tensor(encoded.danger_features),
+            )
+            danger_logits = output["deal_in_logits"][0]
+            scales = self.metadata.risk_logit_scale_by_opponent
+            biases = self.metadata.risk_logit_bias_by_opponent
+            if scales is not None or biases is not None:
+                if scales is None or biases is None or len(scales) != 4 or len(biases) != 4:
+                    raise ValueError("risk calibration needs four scales and four biases")
+                scale_tensor = torch.tensor(scales, device=danger_logits.device)
+                bias_tensor = torch.tensor(biases, device=danger_logits.device)
+                danger_logits = danger_logits * scale_tensor + bias_tensor
+            dangers = torch.sigmoid(danger_logits).cpu()
+            score_probabilities = torch.softmax(
+                output["deal_in_score_logits"], dim=-1
+            )[0].cpu()
+            outcomes = torch.softmax(output["action_outcome_logits"], dim=-1)[0].cpu()
+        centers = torch.tensor(
+            [1_000.0, 2_900.0, 4_550.0, 6_450.0, 7_850.0, 10_000.0, 15_000.0, 24_000.0]
+        )
+        expected_losses = (score_probabilities * centers).sum(dim=-1).tolist()
+        observer = int(state["information"]["observer"])
+        result: dict[str, dict[str, Any]] = {}
+        for action_index, action in enumerate(legal):
+            absolute_danger = [0.0] * 4
+            absolute_loss = [0.0] * 4
+            for relative in range(1, 4):
+                player = (observer + relative) % 4
+                absolute_danger[player] = float(dangers[action_index, relative])
+                absolute_loss[player] = float(expected_losses[relative])
+            result[canonical_json(action)] = {
+                "calibrated": self.metadata.risk_calibrated,
+                "deal_in_probability_by_opponent": tuple(absolute_danger),
+                "expected_deal_in_loss_by_opponent": tuple(absolute_loss),
+                "outcome_probabilities": tuple(float(value) for value in outcomes[action_index]),
+            }
+        return result

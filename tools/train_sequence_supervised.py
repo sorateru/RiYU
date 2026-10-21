@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train the observable sequence Transformer on decision/v2 shards."""
+"""Train the observable sequence Transformer on decision/v2 or labelled v3 shards."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from mahjong_ai.training import (
     ParquetSequenceDataset,
     SequenceTrainer,
     SequenceTrainerConfig,
-    split_sequence_by_log,
+    split_sequence_train_validation_holdout,
 )
 
 
@@ -33,6 +33,13 @@ def main() -> None:
         help="initialize snapshot/policy/value layers from an observable-planes-v1 checkpoint",
     )
     parser.add_argument("--validation-fraction", type=float, default=0.1)
+    parser.add_argument("--holdout-fraction", type=float, default=0.1)
+    parser.add_argument(
+        "--decision-heads",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="train opponent-specific danger, loss-bin, and action-outcome heads",
+    )
     parser.add_argument(
         "--preset", choices=("tiny", "base"), default="base",
         help="tiny is intended only for pipeline smoke tests",
@@ -42,6 +49,9 @@ def main() -> None:
         parser.error("epochs and batch size must be positive")
     if args.warm_start and args.legacy_warm_start:
         parser.error("--warm-start and --legacy-warm-start are mutually exclusive")
+    # Model construction happens before SequenceTrainer seeds its optimizer.
+    # Seed here as well so newly initialized Transformer heads are reproducible.
+    torch.manual_seed(20261019)
     dataset_paths = [Path(value) for value in args.datasets]
     digest = hashlib.sha256()
     for dataset_path in sorted(dataset_paths):
@@ -49,13 +59,41 @@ def main() -> None:
         digest.update(dataset_path.read_bytes())
     fingerprint = digest.hexdigest()
     dataset = ParquetSequenceDataset(dataset_paths)
-    train, validation = split_sequence_by_log(dataset, args.validation_fraction)
+    if args.decision_heads and not dataset.has_decision_labels:
+        raise ValueError(
+            "--decision-heads requires newly converted shards with opponent danger, "
+            "per-opponent loss, and terminal outcome labels"
+        )
+    train, validation, holdout = split_sequence_train_validation_holdout(
+        dataset, args.validation_fraction, args.holdout_fraction
+    )
     if args.warm_start:
         warm = torch.load(args.warm_start, map_location=args.device, weights_only=False)
         if warm.get("model_family") != "sequence-transformer-v2":
             raise ValueError("warm-start checkpoint is not sequence-transformer-v2")
-        model = SequenceMahjongNetwork(SequenceModelConfig(**warm["model_config"]))
-        model.load_state_dict(warm["model_state"])
+        warm_config = dict(warm["model_config"])
+        warm_config["decision_heads"] = args.decision_heads
+        model = SequenceMahjongNetwork(SequenceModelConfig(**warm_config))
+        incompatible = model.load_state_dict(warm["model_state"], strict=False)
+        unexpected = list(incompatible.unexpected_keys)
+        forbidden_missing = [
+            key
+            for key in incompatible.missing_keys
+            if not key.startswith(
+                (
+                    "opponent_seat_embedding",
+                    "opponent_projection",
+                    "deal_in_head",
+                    "deal_in_score_head",
+                    "outcome_action_projection",
+                    "action_outcome_head",
+                )
+            )
+        ]
+        if unexpected or forbidden_missing:
+            raise ValueError(
+                f"warm-start mismatch: missing={forbidden_missing}, unexpected={unexpected}"
+            )
     elif args.legacy_warm_start:
         legacy_checkpoint = torch.load(
             args.legacy_warm_start, map_location=args.device, weights_only=False
@@ -70,6 +108,7 @@ def main() -> None:
                 snapshot_dim=legacy_config.representation_dim,
                 fused_dim=legacy_config.representation_dim,
                 action_dim=legacy_config.action_dim,
+                decision_heads=args.decision_heads,
             )
         )
         _transfer_legacy_weights(model, legacy)
@@ -85,10 +124,13 @@ def main() -> None:
                 transformer_feedforward=96,
                 fused_dim=64,
                 action_dim=32,
+                decision_heads=args.decision_heads,
             )
         )
     else:
-        model = SequenceMahjongNetwork(SequenceModelConfig())
+        model = SequenceMahjongNetwork(
+            SequenceModelConfig(decision_heads=args.decision_heads)
+        )
     trainer = SequenceTrainer(
         model,
         SequenceTrainerConfig(
@@ -108,9 +150,14 @@ def main() -> None:
         "completed_at": time.time(),
         "model_family": "sequence-transformer-v2",
         "preset": args.preset,
+        "decision_heads": args.decision_heads,
         "datasets": [str(path.resolve()) for path in dataset_paths],
         "dataset_fingerprint": fingerprint,
         "decisions": len(dataset),
+        "train_decisions": len(train),
+        "validation_decisions": len(validation),
+        "sealed_holdout_decisions": len(holdout),
+        "holdout_policy": "never evaluated during training or checkpoint selection",
         "epochs": args.epochs,
         "warm_start": str(Path(args.warm_start).resolve()) if args.warm_start else None,
         "legacy_warm_start": (

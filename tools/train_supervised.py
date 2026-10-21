@@ -12,7 +12,12 @@ from pathlib import Path
 import torch
 
 from mahjong_ai.ai import MahjongNetwork, ModelConfig
-from mahjong_ai.training import ParquetDecisionDataset, Trainer, TrainerConfig, split_by_log
+from mahjong_ai.training import (
+    ParquetDecisionDataset,
+    Trainer,
+    TrainerConfig,
+    split_train_validation_holdout,
+)
 
 
 def main() -> None:
@@ -24,6 +29,8 @@ def main() -> None:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--warm-start")
     parser.add_argument("--mlflow", action="store_true")
+    parser.add_argument("--validation-fraction", type=float, default=0.1)
+    parser.add_argument("--holdout-fraction", type=float, default=0.1)
     args = parser.parse_args()
     dataset_paths = [Path(value) for value in args.datasets]
     digest = hashlib.sha256()
@@ -32,7 +39,9 @@ def main() -> None:
         digest.update(dataset_path.read_bytes())
     fingerprint = digest.hexdigest()
     dataset = ParquetDecisionDataset(dataset_paths)
-    train, validation = split_by_log(dataset)
+    train, validation, holdout = split_train_validation_holdout(
+        dataset, args.validation_fraction, args.holdout_fraction
+    )
     if args.warm_start:
         warm = torch.load(args.warm_start, map_location=args.device, weights_only=False)
         model = MahjongNetwork(ModelConfig(**warm["model_config"]))
@@ -57,6 +66,10 @@ def main() -> None:
         "datasets": [str(path.resolve()) for path in dataset_paths],
         "dataset_fingerprint": fingerprint,
         "decisions": len(dataset),
+        "train_decisions": len(train),
+        "validation_decisions": len(validation),
+        "sealed_holdout_decisions": len(holdout),
+        "holdout_policy": "never evaluated during training or checkpoint selection",
         "epochs": args.epochs,
         "warm_start": str(Path(args.warm_start).resolve()) if args.warm_start else None,
         "history": history,

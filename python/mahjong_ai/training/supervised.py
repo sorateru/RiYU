@@ -101,6 +101,39 @@ def split_by_log(dataset: ParquetDecisionDataset, validation_fraction: float = 0
     return Subset(dataset, train), Subset(dataset, validation)
 
 
+def split_train_validation_holdout(
+    dataset: ParquetDecisionDataset,
+    validation_fraction: float = 0.1,
+    holdout_fraction: float = 0.1,
+) -> tuple[Subset, Subset, Subset]:
+    """Keep complete hanchan in train, tuning validation, or sealed holdout."""
+
+    if validation_fraction <= 0.0 or holdout_fraction <= 0.0:
+        raise ValueError("validation and holdout fractions must be positive")
+    if validation_fraction + holdout_fraction >= 1.0:
+        raise ValueError("validation plus holdout fraction must be below one")
+    holdout_threshold = int(holdout_fraction * 1_000_000)
+    validation_threshold = holdout_threshold + int(validation_fraction * 1_000_000)
+    train: list[int] = []
+    validation: list[int] = []
+    holdout: list[int] = []
+    for index, row in enumerate(dataset.rows):
+        group_id = str(row["log_id"]).rsplit("-r", 1)[0]
+        bucket = int.from_bytes(
+            hashlib.sha256(("final-split-v1:" + group_id).encode()).digest()[:8],
+            "big",
+        ) % 1_000_000
+        if bucket < holdout_threshold:
+            holdout.append(index)
+        elif bucket < validation_threshold:
+            validation.append(index)
+        else:
+            train.append(index)
+    if not train or not validation or not holdout:
+        raise ValueError("three-way split needs hanchan in every partition")
+    return Subset(dataset, train), Subset(dataset, validation), Subset(dataset, holdout)
+
+
 class Trainer:
     def __init__(self, model: MahjongNetwork, config: TrainerConfig = TrainerConfig()) -> None:
         self.model = model.to(config.device)

@@ -1,8 +1,19 @@
 from .encoder import ACTION_FEATURES, ENCODER_PLANES, ENCODER_VERSION, EncodedState, FeatureEncoder
 from .decision import ActionValue, ExpectedValuePolicy
 from .inference import InferenceEngine, ModelMetadata
+from .calibration import BinaryCalibrationResult, fit_platt_scaling
 from .model import MahjongNetwork, ModelConfig
-from .search import BeliefRolloutSearch, OpponentBelief, RolloutConfig, RolloutEstimate
+from .search import (
+    BeliefRolloutSearch,
+    BeliefUpdateDiagnostics,
+    DiscardLikelihood,
+    ImitationDiscardLikelihood,
+    OpponentBelief,
+    ParticlePosterior,
+    RolloutConfig,
+    RolloutEstimate,
+    StatefulParticleFilter,
+)
 from .sequence import (
     MAX_SEQUENCE_EVENTS,
     SEQUENCE_ENCODER_VERSION,
@@ -26,10 +37,17 @@ __all__ = [
     "MahjongNetwork",
     "ModelConfig",
     "ModelMetadata",
+    "BinaryCalibrationResult",
+    "fit_platt_scaling",
     "BeliefRolloutSearch",
+    "BeliefUpdateDiagnostics",
+    "DiscardLikelihood",
+    "ImitationDiscardLikelihood",
     "OpponentBelief",
+    "ParticlePosterior",
     "RolloutConfig",
     "RolloutEstimate",
+    "StatefulParticleFilter",
     "MAX_SEQUENCE_EVENTS",
     "SEQUENCE_ENCODER_VERSION",
     "EncodedEventSequence",

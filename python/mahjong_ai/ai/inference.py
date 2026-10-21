@@ -16,6 +16,7 @@ from mahjong_ai.schema import canonical_json
 from .encoder import ENCODER_VERSION, FeatureEncoder
 from .decision import ExpectedValuePolicy
 from .model import MahjongNetwork, ModelConfig
+from .search import ImitationDiscardLikelihood
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,13 @@ class ModelMetadata:
     validated: bool
     policy_calibrated: bool
     dataset_fingerprint: str | None = None
+    # Kept separate from policy calibration: a well calibrated action
+    # distribution does not imply that rare deal-in probabilities are
+    # calibrated.  Old checkpoints omit this field and safely default to
+    # diagnostics-only risk predictions.
+    risk_calibrated: bool = False
+    risk_logit_scale_by_opponent: tuple[float, float, float, float] | None = None
+    risk_logit_bias_by_opponent: tuple[float, float, float, float] | None = None
 
 
 class InferenceEngine:
@@ -36,7 +44,11 @@ class InferenceEngine:
         self.metadata = metadata
         self.device = device
         self.encoder = FeatureEncoder()
-        self.expected_value = ExpectedValuePolicy(self.model, device=device)
+        self.expected_value = ExpectedValuePolicy(
+            self.model,
+            device=device,
+            action_likelihood=ImitationDiscardLikelihood(self.model, device=device),
+        )
 
     @classmethod
     def load(
@@ -57,7 +69,11 @@ class InferenceEngine:
                 belief_checkpoint, device=device, require_validated=True
             )
             engine.expected_value = ExpectedValuePolicy(
-                engine.model, device=device, belief_predictor=predictor
+                engine.model,
+                device=device,
+                belief_predictor=predictor,
+                action_likelihood=ImitationDiscardLikelihood(engine.model, device=device),
+                risk_predictor=predictor.action_risks,
             )
         return engine
 

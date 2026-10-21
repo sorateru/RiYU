@@ -14,8 +14,16 @@ from typing import Any
 import numpy as np
 import torch
 
-from mahjong_ai import FourPlayerSimulator, calculate_shanten_json
-from mahjong_ai.ai import ExpectedValuePolicy, MahjongNetwork, ModelConfig
+from mahjong_ai import FourPlayerSimulator, analyze_state_json, calculate_shanten_json
+from mahjong_ai.ai import (
+    ExpectedValuePolicy,
+    FeatureEncoder,
+    ImitationDiscardLikelihood,
+    MahjongNetwork,
+    ModelConfig,
+    RolloutConfig,
+    SequenceBeliefPredictor,
+)
 from mahjong_ai.schema import canonical_json, tile_index
 
 from .metrics import confidence_interval
@@ -31,12 +39,20 @@ _STARTING_SCORE = 25_000
 _TARGET_SCORE = 30_000
 _MAX_HANDS_PER_MATCH = 64
 _WIND_ORDER = ("east", "south", "west", "north")
+_POLICY_MODES = {
+    "tile_efficiency",
+    "imitation",
+    "hybrid_no_search",
+    "hybrid_search",
+    "hybrid_search_high_accuracy",
+}
 
 
 @dataclass(frozen=True)
 class HandResult:
     seed: int
     round_state: dict[str, Any]
+    initial_scores: tuple[int, int, int, int]
     final_scores: tuple[int, int, int, int]
     result_type: str
     winners: tuple[int, ...]
@@ -57,12 +73,59 @@ class MatchResult:
 
 
 class GreedyModelPolicy:
-    def __init__(self, model: MahjongNetwork, label: str) -> None:
+    def __init__(
+        self,
+        model: MahjongNetwork,
+        label: str,
+        mode: str,
+        belief_predictor: SequenceBeliefPredictor | None = None,
+    ) -> None:
+        if mode not in _POLICY_MODES:
+            raise ValueError(f"unknown arena policy mode: {mode}")
         self.model = model
         self.label = label
-        self.expected_value = ExpectedValuePolicy(model)
+        self.mode = mode
+        self.encoder = FeatureEncoder()
+        self.expected_value = ExpectedValuePolicy(
+            model,
+            enable_rollout=mode in {"hybrid_search", "hybrid_search_high_accuracy"},
+            rollout_config=(
+                RolloutConfig.high_accuracy()
+                if mode == "hybrid_search_high_accuracy"
+                else None
+            ),
+            belief_predictor=belief_predictor,
+            action_likelihood=ImitationDiscardLikelihood(model),
+            risk_predictor=(
+                belief_predictor.action_risks if belief_predictor is not None else None
+            ),
+        )
 
     def choose(self, state: dict[str, Any], legal: list[dict[str, Any]]) -> int:
+        terminal = next(
+            (index for index, action in enumerate(legal) if action["type"] in {"ron", "tsumo"}),
+            None,
+        )
+        if terminal is not None:
+            return terminal
+        if self.mode == "tile_efficiency":
+            analysis = json.loads(analyze_state_json(canonical_json(state)))
+            for efficient in analysis["discard_efficiency"].get("value") or []:
+                for index, action in enumerate(legal):
+                    if action["type"] == "discard" and action["tile"] == efficient["discard"]:
+                        return index
+            return next(
+                (index for index, action in enumerate(legal) if action["type"] == "pass"),
+                0,
+            )
+        if self.mode == "imitation":
+            encoded = self.encoder.encode(state, legal)
+            with torch.inference_mode():
+                output = self.model(
+                    torch.from_numpy(encoded.planes).unsqueeze(0),
+                    torch.from_numpy(encoded.action_features).unsqueeze(0),
+                )
+            return int(output["policy_logits"][0].argmax())
         return self.expected_value.choose(state, legal)
 
 
@@ -73,18 +136,38 @@ def evaluate_checkpoints(
     seed_blocks: int,
     base_seed: int = 20_261_019,
     workers: int = 1,
+    policy_a: str = "hybrid_search",
+    policy_b: str = "hybrid_search",
+    belief_checkpoint_a: str | Path | None = None,
+    belief_checkpoint_b: str | Path | None = None,
 ) -> dict[str, Any]:
     """Evaluate two checkpoints over seat-balanced east-south matches."""
     if seed_blocks <= 0:
         raise ValueError("seed_blocks must be positive")
     if workers <= 0:
         raise ValueError("workers must be positive")
+    if policy_a not in _POLICY_MODES or policy_b not in _POLICY_MODES:
+        raise ValueError(f"policy modes must be one of {sorted(_POLICY_MODES)}")
     path_a = Path(checkpoint_a).resolve()
     path_b = Path(checkpoint_b).resolve()
-    identities = {"a": _checkpoint_identity(path_a), "b": _checkpoint_identity(path_b)}
+    belief_paths = {
+        "a": Path(belief_checkpoint_a).resolve() if belief_checkpoint_a else None,
+        "b": Path(belief_checkpoint_b).resolve() if belief_checkpoint_b else None,
+    }
+    identities = {
+        "a": _checkpoint_identity(path_a, belief_paths["a"]),
+        "b": _checkpoint_identity(path_b, belief_paths["b"]),
+    }
     tasks = [(block, base_seed + block) for block in range(seed_blocks)]
     worker_count = min(workers, seed_blocks)
-    initargs = (str(path_a), str(path_b))
+    initargs = (
+        str(path_a),
+        str(path_b),
+        policy_a,
+        policy_b,
+        str(belief_paths["a"]) if belief_paths["a"] else None,
+        str(belief_paths["b"]) if belief_paths["b"] else None,
+    )
     if worker_count == 1:
         _initialize_arena_worker(*initargs)
         blocks = list(map(_play_seed_block, tasks))
@@ -131,7 +214,7 @@ def evaluate_checkpoints(
             "hands": total_hands,
             "base_seed": base_seed,
             "seat_patterns": [list(pattern) for pattern in _SEAT_PATTERNS],
-            "policy": "successor_expected_value_with_exact_shanten_ukeire",
+            "policies": {"a": policy_a, "b": policy_b},
             "workers": worker_count,
             "execution_backend": backend,
             "unit": "east_south_hanchan",
@@ -149,23 +232,52 @@ def evaluate_checkpoints(
     }
 
 
-def _checkpoint_identity(path: Path) -> dict[str, Any]:
+def _checkpoint_identity(
+    path: Path, belief_path: Path | None = None
+) -> dict[str, Any]:
     checkpoint = torch.load(path, map_location="cpu", weights_only=False)
-    return {
+    identity = {
         "path": str(path),
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "metadata": checkpoint["metadata"],
         "model_config": checkpoint["model_config"],
     }
+    if belief_path is not None:
+        belief = torch.load(belief_path, map_location="cpu", weights_only=False)
+        identity["belief_checkpoint"] = {
+            "path": str(belief_path),
+            "sha256": hashlib.sha256(belief_path.read_bytes()).hexdigest(),
+            "metadata": belief["metadata"],
+            "model_config": belief["model_config"],
+        }
+    return identity
 
 
 _ARENA_MODELS: dict[str, MahjongNetwork] = {}
+_ARENA_POLICY_MODES: dict[str, str] = {}
+_ARENA_BELIEFS: dict[str, SequenceBeliefPredictor | None] = {}
 
 
-def _initialize_arena_worker(path_a: str, path_b: str) -> None:
-    global _ARENA_MODELS
+def _initialize_arena_worker(
+    path_a: str,
+    path_b: str,
+    policy_a: str,
+    policy_b: str,
+    belief_path_a: str | None,
+    belief_path_b: str | None,
+) -> None:
+    global _ARENA_MODELS, _ARENA_POLICY_MODES, _ARENA_BELIEFS
     torch.set_num_threads(1)
     _ARENA_MODELS = {"a": _load_model(path_a), "b": _load_model(path_b)}
+    _ARENA_POLICY_MODES = {"a": policy_a, "b": policy_b}
+    _ARENA_BELIEFS = {
+        "a": SequenceBeliefPredictor.load(
+            belief_path_a, require_validated=False
+        ) if belief_path_a else None,
+        "b": SequenceBeliefPredictor.load(
+            belief_path_b, require_validated=False
+        ) if belief_path_b else None,
+    }
 
 
 def _load_model(path: str) -> MahjongNetwork:
@@ -195,7 +307,15 @@ def _play_match(
         "dealer": 0,
     }
     scores = (_STARTING_SCORE,) * 4
-    policies = [GreedyModelPolicy(_ARENA_MODELS[label], label) for label in pattern]
+    policies = [
+        GreedyModelPolicy(
+            _ARENA_MODELS[label],
+            label,
+            _ARENA_POLICY_MODES[label],
+            _ARENA_BELIEFS[label],
+        )
+        for label in pattern
+    ]
     action_counts = {"a": Counter(), "b": Counter()}
     hand_results: list[HandResult] = []
     for hand_index in range(_MAX_HANDS_PER_MATCH):
@@ -254,6 +374,7 @@ def _play_hand(
             return HandResult(
                 seed=seed,
                 round_state=terminal_round,
+                initial_scores=scores,
                 final_scores=final_scores,  # type: ignore[arg-type]
                 result_type=result_type,
                 winners=winners,
@@ -419,6 +540,9 @@ def _summarize_model(matches: list[MatchResult], label: str) -> dict[str, Any]:
     seat_hand_exposures = 0
     furo_hand_exposures = 0
     open_melds = 0
+    hand_score_deltas: list[int] = []
+    win_points: list[int] = []
+    deal_in_points: list[int] = []
     actions: Counter[str] = Counter()
     for match in matches:
         seats = [seat for seat, seat_label in enumerate(match.pattern) if seat_label == label]
@@ -429,6 +553,12 @@ def _summarize_model(matches: list[MatchResult], label: str) -> dict[str, Any]:
             wins += sum(seat in hand.winners for seat in seats)
             deal_ins += sum(hand.loser == seat for seat in seats)
             for seat in seats:
+                delta = hand.final_scores[seat] - hand.initial_scores[seat]
+                hand_score_deltas.append(delta)
+                if seat in hand.winners:
+                    win_points.append(max(0, delta))
+                if hand.loser == seat:
+                    deal_in_points.append(max(0, -delta))
                 meld_count = hand.open_meld_counts[seat]
                 open_melds += meld_count
                 furo_hand_exposures += int(meld_count > 0)
@@ -442,11 +572,19 @@ def _summarize_model(matches: list[MatchResult], label: str) -> dict[str, Any]:
         "average_rank": float(np.mean(ranks)),
         "average_rank_95ci_unblocked": confidence_interval([float(value) for value in ranks]),
         "first_rate": ranks.count(1) / exposures,
+        "second_rate": ranks.count(2) / exposures,
+        "third_rate": ranks.count(3) / exposures,
         "fourth_rate": ranks.count(4) / exposures,
         "average_final_score": float(np.mean([delta + _STARTING_SCORE for delta in deltas])),
         "average_score_delta": float(np.mean(deltas)),
         "win_rate_per_seat_hand": wins / seat_hand_exposures,
         "deal_in_rate_per_seat_hand": deal_ins / seat_hand_exposures,
+        "riichi_rate_per_seat_hand": actions["riichi"] / seat_hand_exposures,
+        "average_win_points": float(np.mean(win_points)) if win_points else 0.0,
+        "average_deal_in_points": (
+            float(np.mean(deal_in_points)) if deal_in_points else 0.0
+        ),
+        "average_hand_score_delta": float(np.mean(hand_score_deltas)),
         "action_counts": dict(sorted(actions.items())),
     }
 
