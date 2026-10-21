@@ -1,5 +1,9 @@
 import "../style.css"
 
+type AnalysisPageProps = {
+  onBack: () => void
+}
+
 const candidates = [
   {
     tile: "5m",
@@ -28,23 +32,68 @@ const candidates = [
 ]
 
 const handTiles = [
-  { tile: "1m", recommendation: 4 },
-  { tile: "2m", recommendation: 3 },
-  { tile: "3m", recommendation: 2 },
-  { tile: "5m", recommendation: 72 },
-  { tile: "5m", recommendation: 4 },
-  { tile: "6m", recommendation: 3 },
-  { tile: "7m", recommendation: 2 },
-  { tile: "3p", recommendation: 1 },
-  { tile: "4p", recommendation: 1 },
-  { tile: "5p", recommendation: 2 },
-  { tile: "6s", recommendation: 1 },
-  { tile: "7s", recommendation: 1 },
-  { tile: "8s", recommendation: 1 },
-  { tile: "9p", recommendation: 3, drawn: true },
+  {
+    tile: "1m",
+    recommendation: 4,
+  },
+  {
+    tile: "2m",
+    recommendation: 3,
+  },
+  {
+    tile: "3m",
+    recommendation: 2,
+  },
+  {
+    tile: "5m",
+    recommendation: 72,
+  },
+  {
+    tile: "5m",
+    recommendation: 4,
+  },
+  {
+    tile: "6m",
+    recommendation: 3,
+  },
+  {
+    tile: "7m",
+    recommendation: 2,
+  },
+  {
+    tile: "3p",
+    recommendation: 1,
+  },
+  {
+    tile: "4p",
+    recommendation: 1,
+  },
+  {
+    tile: "5p",
+    recommendation: 2,
+  },
+  {
+    tile: "6s",
+    recommendation: 1,
+  },
+  {
+    tile: "7s",
+    recommendation: 1,
+  },
+  {
+    tile: "8s",
+    recommendation: 1,
+  },
+  {
+    tile: "9p",
+    recommendation: 3,
+    drawn: true,
+  },
 ]
 
-export default function AnalysisPage() {
+export default function AnalysisPage({
+  onBack,
+}: AnalysisPageProps) {
   return (
     <div className="analysis-page">
       <header className="analysis-header">
@@ -53,7 +102,10 @@ export default function AnalysisPage() {
           <p>Riichi Mahjong Analysis</p>
         </div>
 
-        <button className="header-button">
+        <button
+          className="header-button"
+          onClick={onBack}
+        >
           新しい牌譜を解析
         </button>
       </header>
@@ -159,49 +211,56 @@ export default function AnalysisPage() {
                 </div>
 
                 <div className="hand-with-recommendations">
-                  {handTiles.map((item, index) => (
-                    <div
-                      className={`hand-tile-column ${
-                        item.drawn
-                          ? "drawn-column"
-                          : ""
-                      }`}
-                      key={`${item.tile}-${index}`}
-                    >
-                      <div className="recommendation-gauge">
-                        <div
-                          className={`recommendation-gauge-fill ${
-                            item.recommendation >= 50
-                              ? "high"
-                              : ""
-                          }`}
-                          style={{
-                            height: `${Math.max(
-                              item.recommendation,
-                              4,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-
-                      <span
-                        className={`hand-tile ${
+                  {handTiles.map(
+                    (
+                      item,
+                      index,
+                    ) => (
+                      <div
+                        className={`hand-tile-column ${
                           item.drawn
-                            ? "drawn-tile"
+                            ? "drawn-column"
                             : ""
                         }`}
+                        key={`${item.tile}-${index}`}
                       >
-                        {item.tile}
-                      </span>
-                    </div>
-                  ))}
+                        <div className="recommendation-gauge">
+                          <div
+                            className={`recommendation-gauge-fill ${
+                              item.recommendation >= 50
+                                ? "high"
+                                : ""
+                            }`}
+                            style={{
+                              height: `${Math.max(
+                                item.recommendation,
+                                4,
+                              )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <span
+                          className={`hand-tile ${
+                            item.drawn
+                              ? "drawn-tile"
+                              : ""
+                          }`}
+                        >
+                          {item.tile}
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
           </section>
 
           <section className="timeline-card">
-            <button>←</button>
+            <button>
+              ←
+            </button>
 
             <div className="timeline">
               <span>1</span>
@@ -211,12 +270,18 @@ export default function AnalysisPage() {
               <span>5</span>
               <span>6</span>
               <span>7</span>
-              <span className="active">8</span>
+
+              <span className="active">
+                8
+              </span>
+
               <span>9</span>
               <span>10</span>
             </div>
 
-            <button>→</button>
+            <button>
+              →
+            </button>
           </section>
         </main>
 
@@ -231,8 +296,13 @@ export default function AnalysisPage() {
             </div>
 
             <div className="recommended-score">
-              <span>AI評価</span>
-              <strong>72%</strong>
+              <span>
+                AI評価
+              </span>
+
+              <strong>
+                72%
+              </strong>
             </div>
 
             <div className="main-confidence-bar">
@@ -246,23 +316,32 @@ export default function AnalysisPage() {
           </div>
 
           <div className="candidate-card">
-            <h2>候補比較</h2>
+            <h2>
+              候補比較
+            </h2>
 
             <div className="candidate-list">
               {candidates.map(
-                (candidate, index) => (
+                (
+                  candidate,
+                  index,
+                ) => (
                   <div
                     className={`candidate-row ${
                       index === 0
                         ? "recommended"
                         : ""
                     }`}
-                    key={candidate.tile}
+                    key={
+                      candidate.tile
+                    }
                   >
                     <div className="candidate-title">
                       <div className="candidate-title-left">
                         <span className="candidate-tile">
-                          {candidate.tile}
+                          {
+                            candidate.tile
+                          }
                         </span>
 
                         {index === 0 && (
@@ -273,7 +352,10 @@ export default function AnalysisPage() {
                       </div>
 
                       <span className="candidate-score">
-                        {candidate.score}%
+                        {
+                          candidate.score
+                        }
+                        %
                       </span>
                     </div>
 
@@ -293,7 +375,9 @@ export default function AnalysisPage() {
                         </span>
 
                         <strong>
-                          {candidate.shanten}
+                          {
+                            candidate.shanten
+                          }
                         </strong>
                       </div>
 
@@ -303,7 +387,9 @@ export default function AnalysisPage() {
                         </span>
 
                         <strong>
-                          {candidate.ukeire}
+                          {
+                            candidate.ukeire
+                          }
                         </strong>
                       </div>
 
@@ -313,7 +399,10 @@ export default function AnalysisPage() {
                         </span>
 
                         <strong>
-                          {candidate.dealInRisk}%
+                          {
+                            candidate.dealInRisk
+                          }
+                          %
                         </strong>
                       </div>
 
@@ -323,10 +412,13 @@ export default function AnalysisPage() {
                         </span>
 
                         <strong>
-                          {candidate.expectedValue >= 0
+                          {candidate.expectedValue >=
+                          0
                             ? "+"
                             : ""}
-                          {candidate.expectedValue}
+                          {
+                            candidate.expectedValue
+                          }
                         </strong>
                       </div>
                     </div>
