@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -20,9 +21,15 @@ from mahjong_ai.ai.encoder import ACTION_FEATURES, DANGER_FEATURES, FeatureEncod
 from mahjong_ai.ai.inference import ModelMetadata
 from mahjong_ai.ai.sequence import (
     MAX_SEQUENCE_EVENTS,
+    MODEL_OUTPUT_VERSION,
+    SEQUENCE_ARCHITECTURE_VERSION,
     SEQUENCE_ENCODER_VERSION,
     SequenceFeatureEncoder,
     SequenceMahjongNetwork,
+)
+from mahjong_ai.data.sequence_dataset import (
+    SEQUENCE_DATASET_FORMAT,
+    SEQUENCE_LABEL_VERSION,
 )
 from mahjong_ai.schema import action_key
 
@@ -46,10 +53,173 @@ class SequenceTrainerConfig:
     deal_in_loss_weight: float = 0.2
     deal_in_score_loss_weight: float = 0.1
     outcome_loss_weight: float = 0.2
+    response_loss_weight: float = 0.2
+    call_type_loss_weight: float = 0.15
+    riichi_loss_weight: float = 0.15
     deal_in_positive_weight: float = 20.0
+    auto_positive_weights: bool = True
+    maximum_positive_weight: float = 30.0
+    policy_label_smoothing: float = 0.02
     gradient_clip_norm: float = 1.0
+    scheduler_t_max_epochs: int = 50
+    minimum_learning_rate_ratio: float = 0.05
     device: str = "cpu"
     num_workers: int = 0
+
+
+def estimate_sequence_positive_weights(
+    dataset: Dataset,
+    *,
+    fallback: dict[str, float] | None = None,
+    maximum: float = 30.0,
+) -> dict[str, float]:
+    """Estimate bounded negative/positive ratios from training rows only.
+
+    Validation and final-holdout labels are intentionally never inspected.
+    Wait weights are conditional on tenpai rows, matching the conditional wait
+    loss. Missing legacy decision labels retain the configured fallback.
+    """
+
+    if maximum < 1.0:
+        raise ValueError("maximum positive weight must be at least one")
+    defaults = fallback or {"tenpai": 1.0, "wait": 10.0, "deal_in": 20.0}
+    counts = {
+        "tenpai": [0, 0],
+        "wait": [0, 0],
+        "deal_in": [0, 0],
+    }
+    labelled_deal_in_rows = 0
+    for row in _raw_rows(dataset):
+        is_v3 = row.get("factual_deal_in_by_action") is not None
+        observer = int(row["observer"])
+        if is_v3:
+            tenpai = json.loads(row["opponent_tenpai"])
+            waits = json.loads(row["opponent_wait"])
+            opponent_indexes = range(3)
+        else:
+            tenpai = json.loads(row["opponent_tenpai"])
+            waits = json.loads(row["opponent_waits"])
+            opponent_indexes = [seat for seat in range(4) if seat != observer]
+        for seat in opponent_indexes:
+            counts["tenpai"][1] += 1
+            counts["tenpai"][0] += int(bool(tenpai[seat]))
+            tiles = waits[seat]
+            if is_v3:
+                if bool(tenpai[seat]):
+                    counts["wait"][0] += sum(bool(value) for value in tiles)
+                    counts["wait"][1] += 34
+            elif tiles:
+                counts["wait"][0] += len(set(int(tile) for tile in tiles))
+                counts["wait"][1] += 34
+
+        if is_v3:
+            factual = json.loads(row["factual_deal_in_by_action"])
+            factual_mask = json.loads(row["factual_deal_in_mask"])
+            counterfactual = json.loads(row["counterfactual_deal_in_by_action"])
+            counterfactual_mask = json.loads(row["counterfactual_deal_in_mask"])
+            labelled_deal_in_rows += 1
+            for action in range(len(factual)):
+                for seat in range(3):
+                    if counterfactual_mask[action][seat]:
+                        counts["deal_in"][1] += 1
+                        counts["deal_in"][0] += int(counterfactual[action][seat])
+                    elif factual_mask[action][seat]:
+                        counts["deal_in"][1] += 1
+                        counts["deal_in"][0] += int(factual[action][seat])
+        else:
+            raw_deal_in = row.get("expert_deal_in_by_player")
+            if raw_deal_in is not None:
+                labelled_deal_in_rows += 1
+                deal_in = json.loads(raw_deal_in)
+                for seat in [seat for seat in range(4) if seat != observer]:
+                    counts["deal_in"][1] += 1
+                    counts["deal_in"][0] += int(bool(deal_in[seat]))
+
+    result: dict[str, float] = {}
+    for name, (positives, total) in counts.items():
+        if name == "deal_in" and labelled_deal_in_rows == 0:
+            result[name] = float(defaults[name])
+            continue
+        negatives = total - positives
+        if positives <= 0 or negatives <= 0:
+            result[name] = float(defaults[name])
+        else:
+            result[name] = min(max(float(negatives) / float(positives), 1.0), maximum)
+    return result
+
+
+def _raw_rows(dataset: Dataset) -> list[dict[str, Any]]:
+    if isinstance(dataset, Subset):
+        parent = dataset.dataset
+        rows = getattr(parent, "rows", None)
+        if rows is not None:
+            return [rows[int(index)] for index in dataset.indices]
+    rows = getattr(dataset, "rows", None)
+    if rows is None:
+        raise TypeError("positive-weight estimation requires a dataset with raw rows")
+    return list(rows)
+
+
+def masked_policy_cross_entropy(
+    logits: Tensor,
+    targets: Tensor,
+    action_mask: Tensor,
+    label_smoothing: float,
+) -> Tensor:
+    """Cross entropy whose smoothing mass covers legal actions only."""
+
+    if not 0.0 <= label_smoothing < 1.0:
+        raise ValueError("label_smoothing must be in [0, 1)")
+    if logits.shape != action_mask.shape:
+        raise ValueError("action mask must match policy logits")
+    if not bool(action_mask.gather(1, targets.unsqueeze(1)).all()):
+        raise ValueError("policy target points to a masked action")
+    log_probabilities = F.log_softmax(logits, dim=-1)
+    negative_log_likelihood = -log_probabilities.gather(
+        1, targets.unsqueeze(1)
+    ).squeeze(1)
+    legal_log_probabilities = log_probabilities.masked_fill(~action_mask, 0.0)
+    smooth = -legal_log_probabilities.sum(dim=-1) / action_mask.sum(
+        dim=-1
+    ).clamp_min(1)
+    return (
+        (1.0 - label_smoothing) * negative_log_likelihood
+        + label_smoothing * smooth
+    ).mean()
+
+
+def masked_mean(values: Tensor, mask: Tensor) -> Tensor:
+    """Mean over explicitly valid labels; an empty mask returns differentiable zero."""
+
+    valid = mask.to(values.dtype)
+    if valid.shape != values.shape:
+        valid = valid.expand_as(values)
+    return (values * valid).sum() / valid.sum().clamp_min(1.0)
+
+
+def masked_cross_entropy(logits: Tensor, targets: Tensor, mask: Tensor) -> Tensor:
+    losses = F.cross_entropy(
+        logits.reshape(-1, logits.shape[-1]), targets.reshape(-1), reduction="none"
+    ).reshape(targets.shape)
+    return masked_mean(losses, mask)
+
+
+def masked_binary_cross_entropy(
+    logits: Tensor,
+    targets: Tensor,
+    mask: Tensor,
+    *,
+    positive_weight: float | None = None,
+) -> Tensor:
+    pos_weight = (
+        torch.tensor(positive_weight, device=logits.device, dtype=logits.dtype)
+        if positive_weight is not None
+        else None
+    )
+    losses = F.binary_cross_entropy_with_logits(
+        logits, targets.to(logits.dtype), pos_weight=pos_weight, reduction="none"
+    )
+    return masked_mean(losses, mask)
 
 
 class ParquetSequenceDataset(Dataset[dict[str, Any]]):
@@ -60,9 +230,13 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
 
         tables = [pq.read_table(path) for path in paths]
         required_decision_labels = {
-            "expert_deal_in_by_player",
-            "expert_deal_in_points_by_player",
-            "expert_outcome_target",
+            "factual_deal_in_by_action",
+            "factual_deal_in_points_by_action",
+            "factual_deal_in_mask",
+            "counterfactual_deal_in_by_action",
+            "counterfactual_deal_in_points_by_action",
+            "counterfactual_deal_in_mask",
+            "round_result",
         }
         self.has_decision_labels = all(
             required_decision_labels.issubset(table.column_names) for table in tables
@@ -78,7 +252,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
         row = self.rows[index]
         state = json.loads(row["observation"])
         legal = json.loads(row["legal_actions"])
-        expert = json.loads(row["expert_action"])
+        expert = json.loads(row.get("chosen_action") or row["expert_action"])
         encoded = self.state_encoder.encode(state, legal)
         sequence = self.sequence_encoder.encode_tokens(json.loads(row["public_events"]))
         keys = [action_key(action) for action in legal]
@@ -89,59 +263,144 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
 
         observer = int(row["observer"])
         rotate = lambda values: [values[(observer + relative) % 4] for relative in range(4)]
-        shanten = rotate(json.loads(row["all_player_shanten"]))
-        tenpai = rotate(json.loads(row["opponent_tenpai"]))
-        waits = rotate(json.loads(row["opponent_waits"]))
-        deltas = rotate(json.loads(row["all_round_score_deltas"]))
-        wait_target = np.zeros((4, 34), dtype=np.float32)
-        for relative, tiles in enumerate(waits):
-            wait_target[relative, [int(tile) for tile in tiles]] = 1.0
-        future_target = np.zeros(34, dtype=np.float32)
-        future_target[[int(tile) for tile in json.loads(row["future_draws"])]] = 1.0
-        deal_in = rotate(
-            json.loads(
-                row.get("expert_deal_in_by_player")
-                or "[false,false,false,false]"
-            )
-        )
-        raw_points_by_player = row.get("expert_deal_in_points_by_player")
-        if raw_points_by_player:
-            deal_in_points_by_player = rotate(json.loads(raw_points_by_player))
+        is_v3 = row.get("factual_deal_in_by_action") is not None
+        if is_v3:
+            shanten = json.loads(row["opponent_shanten"])
+            tenpai = json.loads(row["opponent_tenpai"])
+            waits = json.loads(row["opponent_wait"])
+            deltas = json.loads(row["round_delta"])
+            future_draws = json.loads(row["future_draw"])
+            label_masks = json.loads(row["label_masks"])
         else:
-            legacy_points = int(row.get("expert_deal_in_points") or 0)
-            deal_in_points_by_player = [legacy_points if target else 0 for target in deal_in]
+            shanten = rotate(json.loads(row["all_player_shanten"]))[1:]
+            tenpai = rotate(json.loads(row["opponent_tenpai"]))[1:]
+            waits = rotate(json.loads(row["opponent_waits"]))[1:]
+            deltas = rotate(json.loads(row["all_round_score_deltas"]))
+            future_draws = json.loads(row["future_draws"])
+            label_masks = {
+                "policy": True,
+                "rank": True,
+                "final_score": True,
+                "round_delta": [True] * 4,
+                "opponent_state": [True] * 3,
+                "future_draw": True,
+                "round_result": row.get("expert_outcome_target") is not None,
+            }
+        if is_v3:
+            wait_target = np.asarray(waits, dtype=np.float32)
+            future_target = np.asarray(future_draws, dtype=np.float32)
+            if wait_target.shape != (3, 34) or future_target.shape != (34,):
+                raise ValueError(f"row {index}: invalid Decision V3 tile-label axes")
+        else:
+            wait_target = np.zeros((3, 34), dtype=np.float32)
+            for relative, waiting_tiles in enumerate(waits):
+                wait_target[relative, [int(tile) for tile in waiting_tiles]] = 1.0
+            future_target = np.zeros(34, dtype=np.float32)
+            future_target[[int(tile) for tile in future_draws]] = 1.0
+        action_count = len(legal)
+        if is_v3:
+            factual_deal = np.asarray(
+                json.loads(row["factual_deal_in_by_action"]), dtype=np.float32
+            )
+            factual_points = np.asarray(
+                json.loads(row["factual_deal_in_points_by_action"]), dtype=np.int64
+            )
+            factual_mask = np.asarray(
+                json.loads(row["factual_deal_in_mask"]), dtype=np.bool_
+            )
+            counterfactual_deal = np.asarray(
+                json.loads(row["counterfactual_deal_in_by_action"]), dtype=np.float32
+            )
+            counterfactual_points = np.asarray(
+                json.loads(row["counterfactual_deal_in_points_by_action"]), dtype=np.int64
+            )
+            counterfactual_mask = np.asarray(
+                json.loads(row["counterfactual_deal_in_mask"]), dtype=np.bool_
+            )
+            deal_in = np.where(counterfactual_mask, counterfactual_deal, factual_deal)
+            deal_in_points = np.where(
+                counterfactual_mask, counterfactual_points, factual_points
+            )
+            deal_in_mask = factual_mask | counterfactual_mask
+            outcome_target = (
+                "self_win", "deal_in", "opponent_tsumo", "horizontal", "draw"
+            ).index(str(row["round_result"]))
+        else:
+            deal_in = np.zeros((action_count, 3), dtype=np.float32)
+            deal_in_points = np.zeros((action_count, 3), dtype=np.int64)
+            deal_in_mask = np.zeros((action_count, 3), dtype=np.bool_)
+            if self.has_decision_labels and expert["type"] in {"discard", "riichi"}:
+                deal_in[policy_target] = rotate(
+                    json.loads(row["expert_deal_in_by_player"])
+                )[1:]
+                deal_in_points[policy_target] = rotate(
+                    json.loads(row["expert_deal_in_points_by_player"])
+                )[1:]
+                deal_in_mask[policy_target] = True
+            outcome_target = int(row.get("expert_outcome_target") or 4)
         score_edges = np.asarray(
             [2_000, 3_900, 5_200, 7_700, 8_000, 12_000, 18_000],
             dtype=np.int64,
         )
+        response_types = {"pass": 0, "chi": 1, "pon": 1, "kan": 1, "ron": 2}
+        call_types = {"chi": 0, "pon": 1, "kan": 2}
+        riichi_mask = np.asarray(
+            [action["type"] == "riichi" for action in legal], dtype=np.bool_
+        )
+        riichi_target = np.zeros(action_count, dtype=np.float32)
+        if expert["type"] == "riichi":
+            riichi_target[policy_target] = 1.0
+        opponent_state_mask = np.asarray(
+            label_masks.get("opponent_state", [True] * 3), dtype=np.bool_
+        )
         return {
             "planes": encoded.planes,
             "actions": encoded.action_features,
-            "danger_features": encoded.danger_features,
+            "danger_features": encoded.danger_features[:, 1:, :],
             "event_types": sequence.event_types,
             "players": sequence.players,
             "tiles": sequence.tiles,
             "event_flags": sequence.flags,
             "event_mask": sequence.valid_mask,
             "policy_target": policy_target,
+            "policy_target_mask": bool(label_masks.get("policy", True)),
+            "response_target": response_types.get(expert["type"], 0),
+            "response_target_mask": expert["type"] in response_types and any(
+                action["type"] == "pass" for action in legal
+            ),
+            "call_type_target": call_types.get(expert["type"], 0),
+            "call_type_target_mask": expert["type"] in call_types,
+            "riichi_target": riichi_target,
+            "riichi_target_mask": riichi_mask,
             "rank_target": int(row["final_rank"]) - 1,
+            "rank_target_mask": bool(label_masks.get("rank", True)),
             "score_target": (float(row["final_score"]) - 25_000.0) / 10_000.0,
+            "score_target_mask": bool(label_masks.get("final_score", True)),
             "round_delta_target": np.asarray(deltas, dtype=np.float32) / 10_000.0,
+            "round_delta_target_mask": np.asarray(
+                label_masks.get("round_delta", [True] * 4), dtype=np.bool_
+            ),
             "tenpai_target": np.asarray(tenpai, dtype=np.float32),
+            "tenpai_target_mask": opponent_state_mask,
             "wait_target": wait_target,
+            "wait_target_mask": opponent_state_mask[:, None] & (
+                wait_target > 0
+            ).any(axis=-1, keepdims=True),
             "shanten_target": np.asarray(
                 [min(max(int(value), -1), 6) + 1 for value in shanten], dtype=np.int64
             ),
+            "shanten_target_mask": opponent_state_mask,
             "future_target": future_target,
-            "deal_in_target": np.asarray(deal_in, dtype=np.float32),
-            "deal_in_score_target": np.searchsorted(
-                score_edges, np.asarray(deal_in_points_by_player, dtype=np.int64)
-            ).astype(np.int64),
-            "deal_in_score_mask": np.asarray(deal_in, dtype=np.float32),
-            "action_outcome_target": int(
-                row["expert_outcome_target"]
-                if row.get("expert_outcome_target") is not None
-                else 4
+            "future_target_mask": bool(label_masks.get("future_draw", True)),
+            "deal_in_target": deal_in,
+            "deal_in_target_mask": deal_in_mask,
+            "deal_in_score_target": np.searchsorted(score_edges, deal_in_points).astype(
+                np.int64
+            ),
+            "deal_in_score_mask": deal_in_mask & deal_in.astype(np.bool_),
+            "action_outcome_target": outcome_target,
+            "action_outcome_target_mask": bool(
+                label_masks.get("round_result", True)
             ),
             "log_id": row["log_id"],
         }
@@ -151,14 +410,26 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
     max_actions = max(item["actions"].shape[0] for item in batch)
     actions = np.zeros((len(batch), max_actions, ACTION_FEATURES), dtype=np.float32)
     danger_features = np.zeros(
-        (len(batch), max_actions, 4, DANGER_FEATURES), dtype=np.float32
+        (len(batch), max_actions, 3, DANGER_FEATURES), dtype=np.float32
     )
     action_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    riichi_target = np.zeros((len(batch), max_actions), dtype=np.float32)
+    riichi_target_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    deal_in_target = np.zeros((len(batch), max_actions, 3), dtype=np.float32)
+    deal_in_target_mask = np.zeros((len(batch), max_actions, 3), dtype=np.bool_)
+    deal_in_score_target = np.zeros((len(batch), max_actions, 3), dtype=np.int64)
+    deal_in_score_mask = np.zeros((len(batch), max_actions, 3), dtype=np.bool_)
     for index, item in enumerate(batch):
         count = item["actions"].shape[0]
         actions[index, :count] = item["actions"]
         danger_features[index, :count] = item["danger_features"]
         action_mask[index, :count] = True
+        riichi_target[index, :count] = item["riichi_target"]
+        riichi_target_mask[index, :count] = item["riichi_target_mask"]
+        deal_in_target[index, :count] = item["deal_in_target"]
+        deal_in_target_mask[index, :count] = item["deal_in_target_mask"]
+        deal_in_score_target[index, :count] = item["deal_in_score_target"]
+        deal_in_score_mask[index, :count] = item["deal_in_score_mask"]
     stack = lambda key: torch.from_numpy(np.stack([item[key] for item in batch]))
     return {
         "planes": stack("planes"),
@@ -171,18 +442,48 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
         "event_flags": stack("event_flags"),
         "event_mask": stack("event_mask"),
         "policy_target": torch.tensor([item["policy_target"] for item in batch]),
+        "policy_target_mask": torch.tensor(
+            [item["policy_target_mask"] for item in batch], dtype=torch.bool
+        ),
+        "response_target": torch.tensor([item["response_target"] for item in batch]),
+        "response_target_mask": torch.tensor(
+            [item["response_target_mask"] for item in batch], dtype=torch.bool
+        ),
+        "call_type_target": torch.tensor([item["call_type_target"] for item in batch]),
+        "call_type_target_mask": torch.tensor(
+            [item["call_type_target_mask"] for item in batch], dtype=torch.bool
+        ),
+        "riichi_target": torch.from_numpy(riichi_target),
+        "riichi_target_mask": torch.from_numpy(riichi_target_mask),
         "rank_target": torch.tensor([item["rank_target"] for item in batch]),
+        "rank_target_mask": torch.tensor(
+            [item["rank_target_mask"] for item in batch], dtype=torch.bool
+        ),
         "score_target": torch.tensor([item["score_target"] for item in batch]),
+        "score_target_mask": torch.tensor(
+            [item["score_target_mask"] for item in batch], dtype=torch.bool
+        ),
         "round_delta_target": stack("round_delta_target"),
+        "round_delta_target_mask": stack("round_delta_target_mask"),
         "tenpai_target": stack("tenpai_target"),
+        "tenpai_target_mask": stack("tenpai_target_mask"),
         "wait_target": stack("wait_target"),
+        "wait_target_mask": stack("wait_target_mask"),
         "shanten_target": stack("shanten_target"),
+        "shanten_target_mask": stack("shanten_target_mask"),
         "future_target": stack("future_target"),
-        "deal_in_target": stack("deal_in_target"),
-        "deal_in_score_target": stack("deal_in_score_target"),
-        "deal_in_score_mask": stack("deal_in_score_mask"),
+        "future_target_mask": torch.tensor(
+            [item["future_target_mask"] for item in batch], dtype=torch.bool
+        ),
+        "deal_in_target": torch.from_numpy(deal_in_target),
+        "deal_in_target_mask": torch.from_numpy(deal_in_target_mask),
+        "deal_in_score_target": torch.from_numpy(deal_in_score_target),
+        "deal_in_score_mask": torch.from_numpy(deal_in_score_mask),
         "action_outcome_target": torch.tensor(
             [item["action_outcome_target"] for item in batch]
+        ),
+        "action_outcome_target_mask": torch.tensor(
+            [item["action_outcome_target_mask"] for item in batch], dtype=torch.bool
         ),
     }
 
@@ -260,9 +561,57 @@ class SequenceTrainer:
         self.optimizer = torch.optim.AdamW(
             model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
         )
+        if config.scheduler_t_max_epochs <= 0:
+            raise ValueError("scheduler_t_max_epochs must be positive")
+        if not 0.0 <= config.minimum_learning_rate_ratio <= 1.0:
+            raise ValueError("minimum_learning_rate_ratio must be in [0, 1]")
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max=config.scheduler_t_max_epochs,
+            eta_min=config.learning_rate * config.minimum_learning_rate_ratio,
+        )
         random.seed(config.seed)
         np.random.seed(config.seed)
         torch.manual_seed(config.seed)
+        self.effective_positive_weights = {
+            "tenpai": config.tenpai_positive_weight,
+            "wait": config.wait_positive_weight,
+            "deal_in": config.deal_in_positive_weight,
+        }
+        self.global_step = 0
+        self.dataset_manifest_hashes: dict[str, str] = {}
+        self.best_validation_loss = float("inf")
+
+    def restore_training_state(
+        self, checkpoint: dict[str, Any], *, restore_optimizer: bool = True
+    ) -> int:
+        """Restore continuation state and return the completed epoch count."""
+
+        if restore_optimizer:
+            optimizer_state = checkpoint.get("optimizer_state")
+            if optimizer_state is not None:
+                self.optimizer.load_state_dict(optimizer_state)
+            scheduler_state = checkpoint.get("scheduler_state")
+            if scheduler_state is not None:
+                self.scheduler.load_state_dict(scheduler_state)
+        rng = checkpoint.get("rng_state")
+        if isinstance(rng, dict):
+            torch_state = rng.get("torch")
+            python_state = rng.get("python")
+            numpy_state = rng.get("numpy")
+            if torch_state is not None:
+                torch.set_rng_state(torch_state.cpu())
+            if python_state is not None:
+                random.setstate(python_state)
+            if numpy_state is not None:
+                np.random.set_state(numpy_state)
+        self.global_step = int(checkpoint.get("global_step", 0))
+        if restore_optimizer:
+            selection = checkpoint.get("selection") or {}
+            self.best_validation_loss = float(
+                selection.get("validation_loss", float("inf"))
+            )
+        return int(checkpoint.get("epoch", 0))
 
     def fit(
         self,
@@ -271,27 +620,48 @@ class SequenceTrainer:
         checkpoint_path: str | Path,
         model_id: str,
         dataset_fingerprint: str,
+        *,
+        start_epoch: int = 0,
+        dataset_manifest_hashes: Mapping[str, str] | None = None,
     ) -> list[dict[str, float]]:
-        train_loader = DataLoader(
-            train_set, batch_size=self.config.batch_size, shuffle=True,
-            num_workers=self.config.num_workers, collate_fn=collate_sequence_decisions,
-        )
+        if start_epoch < 0:
+            raise ValueError("start_epoch cannot be negative")
+        self.dataset_manifest_hashes = dict(dataset_manifest_hashes or {})
+        if self.config.auto_positive_weights:
+            self.effective_positive_weights = estimate_sequence_positive_weights(
+                train_set,
+                fallback=self.effective_positive_weights,
+                maximum=self.config.maximum_positive_weight,
+            )
         validation_loader = DataLoader(
             validation_set, batch_size=self.config.batch_size, shuffle=False,
             num_workers=self.config.num_workers, collate_fn=collate_sequence_decisions,
         )
         history: list[dict[str, float]] = []
-        best_validation_loss = float("inf")
+        best_validation_loss = self.best_validation_loss
         checkpoint_path = Path(checkpoint_path)
         last_checkpoint_path = checkpoint_path.with_name(
             f"{checkpoint_path.stem}-last{checkpoint_path.suffix}"
         )
-        for epoch in range(1, self.config.epochs + 1):
+        for epoch in range(start_epoch + 1, start_epoch + self.config.epochs + 1):
+            # Epoch-local seeding makes an interrupted/resumed run use the exact
+            # same shuffle as an uninterrupted run for the same epoch number.
+            train_loader = DataLoader(
+                train_set,
+                batch_size=self.config.batch_size,
+                shuffle=True,
+                num_workers=self.config.num_workers,
+                collate_fn=collate_sequence_decisions,
+                generator=torch.Generator().manual_seed(self.config.seed + epoch),
+            )
             train_metrics = self._run_epoch(train_loader, training=True)
             validation_metrics = self._run_epoch(validation_loader, training=False)
+            learning_rate = float(self.optimizer.param_groups[0]["lr"])
+            self.scheduler.step()
             metrics = {f"train_{key}": value for key, value in train_metrics.items()}
             metrics.update({f"val_{key}": value for key, value in validation_metrics.items()})
             metrics["epoch"] = float(epoch)
+            metrics["learning_rate"] = learning_rate
             history.append(metrics)
             validation_loss = validation_metrics["loss"]
             self._save(
@@ -304,6 +674,7 @@ class SequenceTrainer:
             )
             if validation_loss < best_validation_loss:
                 best_validation_loss = validation_loss
+                self.best_validation_loss = validation_loss
                 self._save(
                     checkpoint_path,
                     model_id,
@@ -327,58 +698,91 @@ class SequenceTrainer:
         totals = {
             "loss": 0.0,
             "policy_accuracy": 0.0,
+            "policy_valid": 0.0,
             "tenpai_accuracy": 0.0,
+            "tenpai_valid": 0.0,
+            "tenpai_true_positive": 0.0,
+            "tenpai_predicted_positive": 0.0,
+            "tenpai_actual_positive": 0.0,
+            "wait_top1_hit": 0.0,
+            "wait_positive_rows": 0.0,
             "deal_in_brier": 0.0,
+            "deal_in_valid": 0.0,
+            "deal_in_true_positive": 0.0,
+            "deal_in_predicted_positive": 0.0,
+            "deal_in_actual_positive": 0.0,
             "outcome_accuracy": 0.0,
+            "outcome_valid": 0.0,
+            **{f"loss_{name}": 0.0 for name in (
+                "policy", "rank", "score", "round", "tenpai", "wait",
+                "shanten", "draw", "deal", "dealpoint", "result",
+                "response", "call_type", "riichi",
+            )},
+            **{f"gradient_norm_{name}": 0.0 for name in (
+                "shared", "policy", "value", "belief", "risk", "hierarchy"
+            )},
         }
         examples = 0
-        opponent_mask = torch.tensor([False, True, True, True], device=self.config.device)
         for raw_batch in loader:
             batch = {key: value.to(self.config.device) for key, value in raw_batch.items()}
             with torch.set_grad_enabled(training):
                 output = self._forward(batch)
-                policy_loss = F.cross_entropy(output["policy_logits"], batch["policy_target"])
-                rank_loss = F.cross_entropy(output["rank_logits"], batch["rank_target"])
-                score_loss = F.mse_loss(output["score_value"], batch["score_target"])
-                delta_loss = F.smooth_l1_loss(
-                    output["round_delta_values"], batch["round_delta_target"]
-                )
-                tenpai_loss = F.binary_cross_entropy_with_logits(
-                    output["opponent_tenpai_logits"][:, opponent_mask],
-                    batch["tenpai_target"][:, opponent_mask],
-                    pos_weight=torch.tensor(
-                        self.config.tenpai_positive_weight,
-                        device=self.config.device,
-                    ),
-                )
-                wait_logits = output["opponent_wait_logits"][:, opponent_mask]
-                wait_targets = batch["wait_target"][:, opponent_mask]
-                # Wait shape is meaningful conditional on an actually tenpai
-                # hand. Training all 34 negatives for non-tenpai rows teaches
-                # the degenerate all-zero predictor; the separate tenpai head
-                # already learns whether this conditional distribution applies.
-                wait_rows = wait_targets.sum(dim=-1) > 0
-                if bool(wait_rows.any()):
-                    wait_loss = F.binary_cross_entropy_with_logits(
-                        wait_logits[wait_rows],
-                        wait_targets[wait_rows],
-                        pos_weight=torch.tensor(
-                            self.config.wait_positive_weight,
-                            device=self.config.device,
-                        ),
+                policy_rows = batch["policy_target_mask"]
+                policy_loss = (
+                    masked_policy_cross_entropy(
+                        output["policy_logits"][policy_rows],
+                        batch["policy_target"][policy_rows],
+                        batch["action_mask"][policy_rows],
+                        self.config.policy_label_smoothing,
                     )
-                else:
-                    wait_loss = wait_logits.sum() * 0.0
-                shanten_loss = F.cross_entropy(
-                    output["opponent_shanten_logits"][:, opponent_mask].reshape(
-                        -1, self.model.config.shanten_classes
-                    ),
-                    batch["shanten_target"][:, opponent_mask].reshape(-1),
+                    if bool(policy_rows.any())
+                    else output["policy_logits"][:, :1].sum() * 0.0
                 )
-                future_loss = F.binary_cross_entropy_with_logits(
-                    output["future_draw_logits"], batch["future_target"]
+                rank_loss = masked_cross_entropy(
+                    output["rank_logits"], batch["rank_target"], batch["rank_target_mask"]
+                )
+                score_loss = masked_mean(
+                    F.smooth_l1_loss(
+                        output["final_score"], batch["score_target"], reduction="none"
+                    ),
+                    batch["score_target_mask"],
+                )
+                delta_loss = masked_mean(
+                    F.smooth_l1_loss(
+                        output["round_delta"],
+                        batch["round_delta_target"],
+                        reduction="none",
+                    ),
+                    batch["round_delta_target_mask"],
+                )
+                tenpai_loss = masked_binary_cross_entropy(
+                    output["tenpai_logits"],
+                    batch["tenpai_target"],
+                    batch["tenpai_target_mask"],
+                    positive_weight=self.effective_positive_weights["tenpai"],
+                )
+                wait_logits = output["wait_logits"]
+                wait_targets = batch["wait_target"]
+                wait_loss = masked_binary_cross_entropy(
+                    wait_logits,
+                    wait_targets,
+                    batch["wait_target_mask"],
+                    positive_weight=self.effective_positive_weights["wait"],
+                )
+                shanten_loss = masked_cross_entropy(
+                    output["shanten_logits"],
+                    batch["shanten_target"],
+                    batch["shanten_target_mask"],
+                )
+                future_loss = masked_binary_cross_entropy(
+                    output["future_draw_logits"],
+                    batch["future_target"],
+                    batch["future_target_mask"].unsqueeze(-1),
                 )
                 cfg = self.config
+                zero = output["policy_logits"][:, :1].sum() * 0.0
+                danger_loss = deal_in_score_loss = outcome_loss = zero
+                response_loss = call_type_loss = riichi_loss = zero
                 loss = (
                     policy_loss + cfg.rank_loss_weight * rank_loss
                     + cfg.score_loss_weight * score_loss
@@ -394,74 +798,184 @@ class SequenceTrainer:
                     batch_indexes = torch.arange(
                         batch["planes"].shape[0], device=self.config.device
                     )
+                    danger_loss = masked_binary_cross_entropy(
+                        output["deal_in_logits"],
+                        batch["deal_in_target"],
+                        batch["deal_in_target_mask"],
+                        positive_weight=self.effective_positive_weights["deal_in"],
+                    )
+                    deal_in_score_loss = masked_cross_entropy(
+                        output["deal_in_point_logits"],
+                        batch["deal_in_score_target"],
+                        batch["deal_in_score_mask"],
+                    )
                     selected_danger = output["deal_in_logits"][
                         batch_indexes, batch["policy_target"]
                     ]
-                    danger_loss = F.binary_cross_entropy_with_logits(
-                        selected_danger[:, opponent_mask],
-                        batch["deal_in_target"][:, opponent_mask],
-                        pos_weight=torch.tensor(
-                            cfg.deal_in_positive_weight, device=self.config.device
-                        ),
-                    )
-                    positive = batch["deal_in_target"].bool()
-                    if bool(positive.any()):
-                        deal_in_score_loss = F.cross_entropy(
-                            output["deal_in_score_logits"][positive],
-                            batch["deal_in_score_target"][positive],
-                        )
-                    else:
-                        deal_in_score_loss = output["deal_in_score_logits"].sum() * 0.0
-                    selected_outcome = output["action_outcome_logits"][
+                    selected_outcome = output["round_result_logits"][
                         batch_indexes, batch["policy_target"]
                     ]
-                    outcome_loss = F.cross_entropy(
-                        selected_outcome, batch["action_outcome_target"]
+                    outcome_loss = masked_cross_entropy(
+                        selected_outcome,
+                        batch["action_outcome_target"],
+                        batch["action_outcome_target_mask"],
+                    )
+                    response_loss = masked_cross_entropy(
+                        output["response_logits"],
+                        batch["response_target"],
+                        batch["response_target_mask"],
+                    )
+                    call_type_loss = masked_cross_entropy(
+                        output["call_type_logits"],
+                        batch["call_type_target"],
+                        batch["call_type_target_mask"],
+                    )
+                    riichi_loss = masked_binary_cross_entropy(
+                        output["riichi_logits"],
+                        batch["riichi_target"],
+                        batch["riichi_target_mask"],
                     )
                     loss = (
                         loss
                         + cfg.deal_in_loss_weight * danger_loss
                         + cfg.deal_in_score_loss_weight * deal_in_score_loss
                         + cfg.outcome_loss_weight * outcome_loss
+                        + cfg.response_loss_weight * response_loss
+                        + cfg.call_type_loss_weight * call_type_loss
+                        + cfg.riichi_loss_weight * riichi_loss
                     )
                 if training:
                     self.optimizer.zero_grad(set_to_none=True)
                     loss.backward()
+                    gradient_norms = _gradient_norms(self.model)
                     torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), cfg.gradient_clip_norm
                     )
                     self.optimizer.step()
+                    self.global_step += 1
+                else:
+                    gradient_norms = {
+                        name: 0.0
+                        for name in ("shared", "policy", "value", "belief", "risk", "hierarchy")
+                    }
             count = batch["planes"].shape[0]
             examples += count
             totals["loss"] += float(loss.detach()) * count
+            head_losses = {
+                "policy": policy_loss,
+                "rank": rank_loss,
+                "score": score_loss,
+                "round": delta_loss,
+                "tenpai": tenpai_loss,
+                "wait": wait_loss,
+                "shanten": shanten_loss,
+                "draw": future_loss,
+                "deal": danger_loss,
+                "dealpoint": deal_in_score_loss,
+                "result": outcome_loss,
+                "response": response_loss,
+                "call_type": call_type_loss,
+                "riichi": riichi_loss,
+            }
+            for name, value in head_losses.items():
+                totals[f"loss_{name}"] += float(value.detach()) * count
+            for name, value in gradient_norms.items():
+                totals[f"gradient_norm_{name}"] += value * count
+            policy_valid = batch["policy_target_mask"]
             totals["policy_accuracy"] += float(
-                (output["policy_logits"].argmax(1) == batch["policy_target"]).sum()
+                ((output["policy_logits"].argmax(1) == batch["policy_target"]) & policy_valid).sum()
             )
-            predicted_tenpai = output["opponent_tenpai_logits"][:, opponent_mask] >= 0
+            totals["policy_valid"] += float(policy_valid.sum())
+            predicted_tenpai = output["tenpai_logits"] >= 0
+            actual_tenpai = batch["tenpai_target"].bool()
+            tenpai_valid = batch["tenpai_target_mask"]
             totals["tenpai_accuracy"] += float(
-                (predicted_tenpai == batch["tenpai_target"][:, opponent_mask].bool()).float().mean()
-            ) * count
-            if selected_danger is not None and selected_outcome is not None:
-                danger_probabilities = torch.sigmoid(
-                    selected_danger[:, opponent_mask].detach()
+                ((predicted_tenpai == actual_tenpai) & tenpai_valid).sum()
+            )
+            totals["tenpai_valid"] += float(tenpai_valid.sum())
+            totals["tenpai_true_positive"] += float(
+                (predicted_tenpai & actual_tenpai & tenpai_valid).sum()
+            )
+            totals["tenpai_predicted_positive"] += float(
+                (predicted_tenpai & tenpai_valid).sum()
+            )
+            totals["tenpai_actual_positive"] += float(
+                (actual_tenpai & tenpai_valid).sum()
+            )
+            wait_valid_rows = batch["wait_target_mask"].any(dim=-1)
+            positive_wait_rows = (wait_targets.sum(dim=-1) > 0) & wait_valid_rows
+            if bool(positive_wait_rows.any()):
+                top_wait = wait_logits.argmax(dim=-1)
+                top_hit = wait_targets.gather(
+                    -1, top_wait.unsqueeze(-1)
+                ).squeeze(-1).bool()
+                totals["wait_top1_hit"] += float(
+                    (top_hit & positive_wait_rows).sum()
                 )
+                totals["wait_positive_rows"] += float(positive_wait_rows.sum())
+            if selected_danger is not None and selected_outcome is not None:
+                batch_indexes = torch.arange(count, device=self.config.device)
+                danger_probabilities = torch.sigmoid(selected_danger.detach())
+                danger_targets = batch["deal_in_target"][
+                    batch_indexes, batch["policy_target"]
+                ].bool()
+                danger_valid = batch["deal_in_target_mask"][
+                    batch_indexes, batch["policy_target"]
+                ]
+                danger_predictions = danger_probabilities >= 0.5
                 totals["deal_in_brier"] += float(
-                    (
-                        danger_probabilities
-                        - batch["deal_in_target"][:, opponent_mask]
-                    )
-                    .square()
-                    .mean()
-                ) * count
+                    ((danger_probabilities - danger_targets.to(danger_probabilities.dtype)).square()
+                     * danger_valid).sum()
+                )
+                totals["deal_in_valid"] += float(danger_valid.sum())
+                totals["deal_in_true_positive"] += float(
+                    (danger_predictions & danger_targets & danger_valid).sum()
+                )
+                totals["deal_in_predicted_positive"] += float(
+                    (danger_predictions & danger_valid).sum()
+                )
+                totals["deal_in_actual_positive"] += float(
+                    (danger_targets & danger_valid).sum()
+                )
+                outcome_valid = batch["action_outcome_target_mask"]
                 totals["outcome_accuracy"] += float(
                     (
                         selected_outcome.detach().argmax(1)
                         == batch["action_outcome_target"]
-                    ).sum()
+                    )[outcome_valid].sum()
                 )
+                totals["outcome_valid"] += float(outcome_valid.sum())
         if examples == 0:
             raise ValueError("empty data loader")
-        return {key: value / examples for key, value in totals.items()}
+        metrics = {
+            "loss": totals["loss"] / examples,
+            "policy_accuracy": totals["policy_accuracy"] / max(totals["policy_valid"], 1.0),
+            "tenpai_accuracy": totals["tenpai_accuracy"] / max(totals["tenpai_valid"], 1.0),
+            "deal_in_brier": totals["deal_in_brier"] / max(totals["deal_in_valid"], 1.0),
+            "outcome_accuracy": totals["outcome_accuracy"] / max(totals["outcome_valid"], 1.0),
+        }
+        metrics.update(
+            {
+                "tenpai_precision": totals["tenpai_true_positive"]
+                / max(totals["tenpai_predicted_positive"], 1.0),
+                "tenpai_recall": totals["tenpai_true_positive"]
+                / max(totals["tenpai_actual_positive"], 1.0),
+                "wait_top1_hit_rate": totals["wait_top1_hit"]
+                / max(totals["wait_positive_rows"], 1.0),
+                "deal_in_precision": totals["deal_in_true_positive"]
+                / max(totals["deal_in_predicted_positive"], 1.0),
+                "deal_in_recall": totals["deal_in_true_positive"]
+                / max(totals["deal_in_actual_positive"], 1.0),
+            }
+        )
+        metrics.update(
+            {
+                key: value / examples
+                for key, value in totals.items()
+                if key.startswith("loss_") or key.startswith("gradient_norm_")
+            }
+        )
+        return metrics
 
     def _save(
         self,
@@ -488,8 +1002,26 @@ class SequenceTrainer:
                 "model_config": self.model.config.to_dict(),
                 "metadata": asdict(metadata),
                 "optimizer_state": self.optimizer.state_dict(),
+                "scheduler_state": self.scheduler.state_dict(),
+                "global_step": self.global_step,
+                "architecture_version": SEQUENCE_ARCHITECTURE_VERSION,
+                "model_output_version": MODEL_OUTPUT_VERSION,
+                "decision_schema_version": SEQUENCE_DATASET_FORMAT,
+                "dataset_version": SEQUENCE_DATASET_FORMAT,
+                "feature_version": f"{FeatureEncoder.version}+{SEQUENCE_ENCODER_VERSION}",
+                "label_version": SEQUENCE_LABEL_VERSION,
+                "git_commit": _git_commit(),
+                "seed": self.config.seed,
+                "hyperparameters": asdict(self.config),
+                "dataset_manifest_hashes": dict(self.dataset_manifest_hashes),
+                "rng_state": {
+                    "torch": torch.get_rng_state(),
+                    "python": random.getstate(),
+                    "numpy": np.random.get_state(),
+                },
                 "epoch": epoch,
                 "training_config": asdict(self.config),
+                "effective_positive_weights": dict(self.effective_positive_weights),
                 "selection": {
                     "validation_loss": validation_loss,
                     "selected_as_best": selected_as_best,
@@ -497,3 +1029,37 @@ class SequenceTrainer:
             },
             path,
         )
+
+
+def _git_commit() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() or None
+
+
+def _gradient_norms(model: SequenceMahjongNetwork) -> dict[str, float]:
+    groups = {
+        "policy": ("action_encoder", "policy_query", "policy_bias"),
+        "value": ("rank_head", "score_head", "round_delta_head", "action_outcome_head"),
+        "belief": ("opponent_", "future_draw_head"),
+        "risk": ("deal_in_head", "deal_in_point_head"),
+        "hierarchy": ("response_head", "call_type_head", "riichi_head"),
+    }
+    squares = {name: 0.0 for name in ("shared", *groups)}
+    for name, parameter in model.named_parameters():
+        if parameter.grad is None:
+            continue
+        group = next(
+            (key for key, prefixes in groups.items() if name.startswith(prefixes)),
+            "shared",
+        )
+        squares[group] += float(parameter.grad.detach().square().sum())
+    return {name: value**0.5 for name, value in squares.items()}

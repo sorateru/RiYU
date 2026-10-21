@@ -19,6 +19,11 @@ from .sequence_supervised import (
     SequenceTrainer,
     SequenceTrainerConfig,
     collate_sequence_decisions,
+    estimate_sequence_positive_weights,
+    masked_binary_cross_entropy,
+    masked_cross_entropy,
+    masked_mean,
+    masked_policy_cross_entropy,
     split_sequence_by_log,
     split_sequence_train_validation_holdout,
 )
@@ -41,6 +46,11 @@ __all__ = [
     "SequenceTrainer",
     "SequenceTrainerConfig",
     "collate_sequence_decisions",
+    "estimate_sequence_positive_weights",
+    "masked_binary_cross_entropy",
+    "masked_cross_entropy",
+    "masked_mean",
+    "masked_policy_cross_entropy",
     "split_sequence_by_log",
     "split_sequence_train_validation_holdout",
 ]

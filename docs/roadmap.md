@@ -39,6 +39,11 @@
 - [x] Policy/Value loss、validation、checkpoint、MLflow
 - [x] Policy Accuracy、Rank MAE、Score MSE
 - [x] 人間牌譜の権利manifest、SHA-256検証、模倣学習→PPOカリキュラム
+- [x] Decision V3軸・ModelOutput V1・階層鳴き/リーチPolicy・候補別放銃Head
+- [x] 全Head masked loss、gradient norm、Cosine scheduler、再開可能checkpoint
+- [x] mask-aware評価、統一 `evaluate_state`、全Head教師coverage付きoverfit gate
+- [ ] 実Decision V3の100〜1000件overfit gate合格
+- [ ] 10k〜50k短期学習でmulti-task干渉・calibration確認
 - [ ] 大規模学習、calibration、承認済みモデルカード
 
 ## Phase 6 — 牌譜解析UI（実装済み）
@@ -93,6 +98,11 @@ NAGA級はコード量や単一accuracyでは宣言しない。固定ルール�
 - [x] 公開イベントごとに遷移するstateful Particle FilterとESS resampling
 - [x] Rust厳密役・点数を各粒子へ接続
 - [x] 相手別危険度・打点分布Head、validation較正ツール、Brier/Log Loss/ECE評価
+- [x] train split限定の自動不均衡重み、合法手限定label smoothing、Optimizer付き継続学習
+- [x] 公開イベントを相手別attention poolingする時系列latentと聴牌・待ち・危険度Head共有
+- [x] Decision V3 / ModelOutput V1 / masked multi-task Loss / checkpoint完成契約
+- [x] 階層型response・call type・riichi Headと候補×相手別放銃打点Head
+- [ ] 100〜1000 decisionの全Head overfit完成ゲート
 - [ ] 大規模学習済みcheckpointでの最終holdout calibration合格
 - [x] 1〜4着確率を用いた半荘順位Utilityへの接続
 - [x] リーチ/ダマ、鳴き/パスを同一粒子で比較する候補beam

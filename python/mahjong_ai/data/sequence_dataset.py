@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from mahjong_ai import ObservationReplayer, calculate_shanten_json
-from mahjong_ai.schema import canonical_json, tile_index
+from mahjong_ai.schema import action_key, canonical_json, tile_index
 from mahjong_ai.ai.sequence import public_event_tokens
 
 from .dataset import DecisionRecord, build_decision_records
@@ -22,6 +22,7 @@ from .log import EventLog
 
 
 SEQUENCE_DATASET_FORMAT = "mahjong-ai-sequence-decision/v3"
+SEQUENCE_LABEL_VERSION = "sequence-labels-v1"
 
 
 @dataclass(frozen=True)
@@ -32,24 +33,29 @@ class SequenceDecisionRecord:
     observation: str
     public_events: str
     legal_actions: str
-    expert_action: str
+    chosen_action: str
+    chosen_action_index: int
     final_rank: int
     final_score: int
     round_score_delta: int
-    all_round_score_deltas: str
-    all_player_shanten: str
+    round_delta: str
+    opponent_shanten: str
     opponent_tenpai: str
-    opponent_waits: str
-    future_draws: str
-    result_type: str
+    opponent_wait: str
+    future_draw: str
+    round_result: str
+    factual_deal_in_by_action: str
+    factual_deal_in_points_by_action: str
+    factual_deal_in_mask: str
+    counterfactual_deal_in_by_action: str
+    counterfactual_deal_in_points_by_action: str
+    counterfactual_deal_in_mask: str
+    label_masks: str
     source: str
     converter_version: str
     state_schema_version: int
-    expert_deal_in_by_player: str = "[false,false,false,false]"
-    expert_deal_in_points: int = 0
-    expert_deal_in_points_by_player: str = "[0,0,0,0]"
-    expert_outcome_target: int = 4
     dataset_version: str = SEQUENCE_DATASET_FORMAT
+    label_version: str = SEQUENCE_LABEL_VERSION
 
 
 def build_sequence_decision_records(
@@ -93,6 +99,15 @@ def build_sequence_decision_records(
                 future_draws = _future_draws(streams, index, future_draw_horizon)
             shanten, tenpai, waits = labels
             public = json.loads(record.observation)
+            legal_actions = json.loads(record.legal_actions)
+            chosen_action = json.loads(record.expert_action)
+            legal_keys = [action_key(action) for action in legal_actions]
+            chosen_action_index = legal_keys.index(action_key(chosen_action))
+            opponents = [(observer + relative) % 4 for relative in range(1, 4)]
+            relative_deltas = [
+                int(log.round_score_deltas[(observer + relative) % 4])
+                for relative in range(4)
+            ]
             event = streams[observer][index]
             riichi_discard_decision = (
                 event.get("type") == "riichi"
@@ -100,6 +115,22 @@ def build_sequence_decision_records(
                 and index + 1 == deal_in_index
             )
             is_deal_in_decision = index == deal_in_index or riichi_discard_decision
+            factual_deal_in = [[False] * 3 for _ in legal_actions]
+            factual_points = [[0] * 3 for _ in legal_actions]
+            factual_mask = [[False] * 3 for _ in legal_actions]
+            if chosen_action["type"] in {"discard", "riichi"}:
+                factual_mask[chosen_action_index] = [True] * 3
+                if is_deal_in_decision:
+                    factual_deal_in[chosen_action_index] = [
+                        player in deal_in_winners for player in opponents
+                    ]
+                    factual_points[chosen_action_index] = [
+                        int(deal_in_points[player]) for player in opponents
+                    ]
+            counterfactual_deal_in = [[False] * 3 for _ in legal_actions]
+            counterfactual_points = [[0] * 3 for _ in legal_actions]
+            counterfactual_mask = [[False] * 3 for _ in legal_actions]
+            round_result = _outcome_name(_outcome_target(log, observer))
             output.append(
                 SequenceDecisionRecord(
                     log_id=record.log_id,
@@ -108,36 +139,52 @@ def build_sequence_decision_records(
                     observation=record.observation,
                     public_events=canonical_json(public_event_tokens(public)),
                     legal_actions=record.legal_actions,
-                    expert_action=record.expert_action,
+                    chosen_action=record.expert_action,
+                    chosen_action_index=chosen_action_index,
                     final_rank=record.final_rank,
                     final_score=record.final_score,
                     round_score_delta=int(log.round_score_deltas[observer]),
-                    all_round_score_deltas=canonical_json(log.round_score_deltas),
-                    all_player_shanten=canonical_json(shanten),
+                    round_delta=canonical_json(relative_deltas),
+                    opponent_shanten=canonical_json(
+                        [shanten[player] for player in opponents]
+                    ),
                     opponent_tenpai=canonical_json(
-                        [tenpai[player] if player != observer else False for player in range(4)]
+                        [tenpai[player] for player in opponents]
                     ),
-                    opponent_waits=canonical_json(
-                        [waits[player] if player != observer else [] for player in range(4)]
+                    opponent_wait=canonical_json(
+                        [
+                            [tile in set(waits[player]) for tile in range(34)]
+                            for player in opponents
+                        ]
                     ),
-                    future_draws=canonical_json(future_draws),
-                    result_type=str((log.round_result or {}).get("type", "unknown")),
+                    future_draw=canonical_json(
+                        [tile in set(future_draws) for tile in range(34)]
+                    ),
+                    round_result=round_result,
+                    factual_deal_in_by_action=canonical_json(factual_deal_in),
+                    factual_deal_in_points_by_action=canonical_json(factual_points),
+                    factual_deal_in_mask=canonical_json(factual_mask),
+                    counterfactual_deal_in_by_action=canonical_json(
+                        counterfactual_deal_in
+                    ),
+                    counterfactual_deal_in_points_by_action=canonical_json(
+                        counterfactual_points
+                    ),
+                    counterfactual_deal_in_mask=canonical_json(counterfactual_mask),
+                    label_masks=canonical_json(
+                        {
+                            "policy": True,
+                            "rank": True,
+                            "final_score": True,
+                            "round_delta": [True] * 4,
+                            "opponent_state": [True] * 3,
+                            "future_draw": True,
+                            "round_result": True,
+                        }
+                    ),
                     source=record.source,
                     converter_version=record.converter_version,
                     state_schema_version=record.state_schema_version,
-                    expert_deal_in_by_player=canonical_json(
-                        [
-                            is_deal_in_decision and player in deal_in_winners
-                            for player in range(4)
-                        ]
-                    ),
-                    expert_deal_in_points=(
-                        sum(deal_in_points) if is_deal_in_decision else 0
-                    ),
-                    expert_deal_in_points_by_player=canonical_json(
-                        deal_in_points if is_deal_in_decision else [0, 0, 0, 0]
-                    ),
-                    expert_outcome_target=_outcome_target(log, observer),
                 )
             )
 
@@ -217,6 +264,10 @@ def _outcome_target(log: EventLog, observer: int) -> int:
     return 4
 
 
+def _outcome_name(target: int) -> str:
+    return ("self_win", "deal_in", "opponent_tsumo", "horizontal", "draw")[target]
+
+
 def _wins_from_terminal_events(log: EventLog) -> list[dict[str, int]]:
     """Recover outcome labels for simulator/custom logs without round_result.
 
@@ -245,7 +296,10 @@ def write_sequence_parquet(
     import pyarrow as pa
     import pyarrow.parquet as pq
 
-    rows = [asdict(record) for record in records]
+    materialized = list(records)
+    for record in materialized:
+        validate_sequence_decision_record(record)
+    rows = [asdict(record) for record in materialized]
     if not rows:
         raise ValueError("cannot write an empty sequence dataset")
     table = pa.Table.from_pylist(rows)
@@ -253,6 +307,39 @@ def write_sequence_parquet(
     metadata[b"mahjong_ai_dataset"] = SEQUENCE_DATASET_FORMAT.encode()
     table = table.replace_schema_metadata(metadata)
     pq.write_table(table, path, compression="zstd")
+
+
+def validate_sequence_decision_record(record: SequenceDecisionRecord) -> None:
+    """Fail closed when a V3 record violates a frozen axis or mask contract."""
+
+    actions = json.loads(record.legal_actions)
+    chosen = json.loads(record.chosen_action)
+    if not 0 <= record.chosen_action_index < len(actions):
+        raise ValueError("chosen_action_index is outside legal_actions")
+    if action_key(actions[record.chosen_action_index]) != action_key(chosen):
+        raise ValueError("chosen_action_index does not identify chosen_action")
+    if len(json.loads(record.opponent_tenpai)) != 3:
+        raise ValueError("opponent_tenpai must have three relative opponents")
+    waits = json.loads(record.opponent_wait)
+    if len(waits) != 3 or any(len(row) != 34 for row in waits):
+        raise ValueError("opponent_wait must have shape [3, 34]")
+    if len(json.loads(record.opponent_shanten)) != 3:
+        raise ValueError("opponent_shanten must have three relative opponents")
+    if len(json.loads(record.round_delta)) != 4:
+        raise ValueError("round_delta must have four relative seats")
+    if len(json.loads(record.future_draw)) != 34:
+        raise ValueError("future_draw must have 34 tile indicators")
+    for field in (
+        "factual_deal_in_by_action",
+        "factual_deal_in_points_by_action",
+        "factual_deal_in_mask",
+        "counterfactual_deal_in_by_action",
+        "counterfactual_deal_in_points_by_action",
+        "counterfactual_deal_in_mask",
+    ):
+        values = json.loads(getattr(record, field))
+        if len(values) != len(actions) or any(len(row) != 3 for row in values):
+            raise ValueError(f"{field} must have shape [legal_actions, 3]")
 
 
 def _hidden_labels(

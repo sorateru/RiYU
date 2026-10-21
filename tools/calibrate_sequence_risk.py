@@ -70,11 +70,12 @@ def main() -> None:
             )
             indexes = torch.arange(batch["planes"].shape[0], device=args.device)
             selected = predicted["deal_in_logits"][indexes, batch["policy_target"]]
-            for relative in range(1, 4):
-                logits_by_relative[relative - 1].append(selected[:, relative].cpu())
-                targets_by_relative[relative - 1].append(
-                    batch["deal_in_target"][:, relative].cpu()
-                )
+            selected_target = batch["deal_in_target"][indexes, batch["policy_target"]]
+            selected_mask = batch["deal_in_target_mask"][indexes, batch["policy_target"]]
+            for relative in range(3):
+                valid = selected_mask[:, relative]
+                logits_by_relative[relative].append(selected[valid, relative].cpu())
+                targets_by_relative[relative].append(selected_target[valid, relative].cpu())
 
     results = [
         fit_platt_scaling(torch.cat(logits), torch.cat(targets))

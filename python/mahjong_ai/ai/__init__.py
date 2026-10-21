@@ -16,11 +16,15 @@ from .search import (
 )
 from .sequence import (
     MAX_SEQUENCE_EVENTS,
+    MODEL_OUTPUT_VERSION,
+    SEQUENCE_ARCHITECTURE_VERSION,
     SEQUENCE_ENCODER_VERSION,
     EncodedEventSequence,
+    MahjongModelOutput,
     SequenceFeatureEncoder,
     SequenceMahjongNetwork,
     SequenceModelConfig,
+    compose_hierarchical_policy_logits,
     public_event_tokens,
 )
 from .sequence_inference import SequenceBeliefPredictor
@@ -49,11 +53,15 @@ __all__ = [
     "RolloutEstimate",
     "StatefulParticleFilter",
     "MAX_SEQUENCE_EVENTS",
+    "MODEL_OUTPUT_VERSION",
+    "SEQUENCE_ARCHITECTURE_VERSION",
     "SEQUENCE_ENCODER_VERSION",
     "EncodedEventSequence",
+    "MahjongModelOutput",
     "SequenceFeatureEncoder",
     "SequenceMahjongNetwork",
     "SequenceModelConfig",
     "SequenceBeliefPredictor",
+    "compose_hierarchical_policy_logits",
     "public_event_tokens",
 ]
