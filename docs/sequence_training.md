@@ -2,7 +2,7 @@
 
 `sequence-transformer-v2` は、現在局面の49×34平面に加えて直近96件の公開イベントを時系列で読む別系統のモデルです。相手の手牌や牌山は入力しません。牌譜変換時だけ完全情報を教師ラベルとして使い、推論時は公開情報から予測します。
 
-大規模学習で固定するaction軸、相手3席軸、factual/counterfactual教師、全Head、masked Loss、checkpointの完成契約は [Decision V3 / Mahjong Model V1](decision_v3_model_contract.md) を正とします。
+大規模学習で固定するaction軸、相手3席軸、factual/counterfactual教師、全Head、masked Loss、checkpointの完成契約は [Decision V4 / Mahjong ModelOutput V2](decision_v4_model_contract.md) を正とします。
 
 ## 教師ラベル
 
@@ -18,7 +18,7 @@
 ## 変換
 
 既存の許諾確認済みオフラインDBからV2 shardを作ります。
-年別`tar.xz`を内包するユーザー提供ZIPは`tools/import_tenhou_xml_archives.py`で直接v3 shardへ変換できる。変換は二重アーカイブをストリームし、展開後の生XMLをディスクに残さない。
+年別`tar.xz`を内包するユーザー提供ZIPは`tools/import_tenhou_xml_archives.py`で直接v4 shardへ変換できる。変換は二重アーカイブをストリームし、展開後の生XMLをディスクに残さない。
 
 ```bash
 PYTHONPATH=python .venv/bin/python tools/import_tenhou_sequence_db.py \
@@ -66,8 +66,8 @@ global stepを一緒に復元します。入力Parquetと同じdirectoryの `man
 total lossが初期値の25%以下、各Head lossが改善することを自動確認します。
 
 ```bash
-PYTHONPATH=python .venv/bin/python tools/check_sequence_v3_overfit.py \
-  data/sequence-v3/part-*.parquet --decisions 256 --epochs 100
+PYTHONPATH=python .venv/bin/python tools/check_sequence_v4_overfit.py \
+  data/sequence-v4/part-*.parquet --decisions 256 --epochs 100
 ```
 
 `--no-require-complete-label-coverage` は配線スモーク専用です。本番開始判定では使用しません。

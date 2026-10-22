@@ -21,8 +21,9 @@ from .dataset import DecisionRecord, build_decision_records
 from .log import EventLog
 
 
-SEQUENCE_DATASET_FORMAT = "mahjong-ai-sequence-decision/v3"
-SEQUENCE_LABEL_VERSION = "sequence-labels-v1"
+SEQUENCE_DATASET_FORMAT = "mahjong-ai-sequence-decision/v4"
+LEGACY_SEQUENCE_DATASET_FORMAT = "mahjong-ai-sequence-decision/v3"
+SEQUENCE_LABEL_VERSION = "sequence-labels-v2"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,28 @@ class SequenceDecisionRecord:
     counterfactual_deal_in_by_action: str
     counterfactual_deal_in_points_by_action: str
     counterfactual_deal_in_mask: str
+    factual_round_result_by_action: str
+    factual_round_result_mask: str
+    counterfactual_round_result_by_action: str
+    counterfactual_round_result_mask: str
+    factual_action_round_delta: str
+    factual_action_round_delta_mask: str
+    counterfactual_action_round_delta: str
+    counterfactual_action_round_delta_mask: str
+    factual_action_final_rank: str
+    factual_action_final_score: str
+    factual_action_hanchan_mask: str
+    counterfactual_action_final_rank: str
+    counterfactual_action_final_score: str
+    counterfactual_action_hanchan_mask: str
+    opponent_next_discard: str
+    opponent_next_discard_mask: str
+    opponent_next_response: str
+    opponent_next_response_mask: str
+    opponent_next_call_type: str
+    opponent_next_call_type_mask: str
+    opponent_tile_count: str
+    opponent_tile_count_mask: str
     label_masks: str
     source: str
     converter_version: str
@@ -131,13 +154,31 @@ def build_sequence_decision_records(
             counterfactual_points = [[0] * 3 for _ in legal_actions]
             counterfactual_mask = [[False] * 3 for _ in legal_actions]
             round_result = _outcome_name(_outcome_target(log, observer))
+            round_result_index = _outcome_target(log, observer)
+            factual_round_result = [-1] * len(legal_actions)
+            factual_round_result[chosen_action_index] = round_result_index
+            factual_action_round_delta = [0] * len(legal_actions)
+            factual_action_round_delta[chosen_action_index] = int(
+                log.round_score_deltas[observer]
+            )
+            factual_action_final_rank = [0] * len(legal_actions)
+            factual_action_final_score = [0] * len(legal_actions)
+            factual_action_final_rank[chosen_action_index] = record.final_rank
+            factual_action_final_score[chosen_action_index] = record.final_score
+            factual_action_mask = [False] * len(legal_actions)
+            factual_action_mask[chosen_action_index] = True
+            counterfactual_action_mask = [False] * len(legal_actions)
+            next_actions = _future_opponent_actions(streams[observer], index, opponents)
+            tile_counts = _hidden_tile_counts(decoded, opponents)
             output.append(
                 SequenceDecisionRecord(
                     log_id=record.log_id,
                     observer=observer,
                     event_sequence=index,
                     observation=record.observation,
-                    public_events=canonical_json(public_event_tokens(public)),
+                    public_events=canonical_json(
+                        public_event_tokens(public, maximum=None)
+                    ),
                     legal_actions=record.legal_actions,
                     chosen_action=record.expert_action,
                     chosen_action_index=chosen_action_index,
@@ -171,6 +212,58 @@ def build_sequence_decision_records(
                         counterfactual_points
                     ),
                     counterfactual_deal_in_mask=canonical_json(counterfactual_mask),
+                    factual_round_result_by_action=canonical_json(
+                        factual_round_result
+                    ),
+                    factual_round_result_mask=canonical_json(factual_action_mask),
+                    counterfactual_round_result_by_action=canonical_json(
+                        [-1] * len(legal_actions)
+                    ),
+                    counterfactual_round_result_mask=canonical_json(
+                        counterfactual_action_mask
+                    ),
+                    factual_action_round_delta=canonical_json(
+                        factual_action_round_delta
+                    ),
+                    factual_action_round_delta_mask=canonical_json(
+                        factual_action_mask
+                    ),
+                    counterfactual_action_round_delta=canonical_json(
+                        [0] * len(legal_actions)
+                    ),
+                    counterfactual_action_round_delta_mask=canonical_json(
+                        counterfactual_action_mask
+                    ),
+                    factual_action_final_rank=canonical_json(
+                        factual_action_final_rank
+                    ),
+                    factual_action_final_score=canonical_json(
+                        factual_action_final_score
+                    ),
+                    factual_action_hanchan_mask=canonical_json(factual_action_mask),
+                    counterfactual_action_final_rank=canonical_json(
+                        [0] * len(legal_actions)
+                    ),
+                    counterfactual_action_final_score=canonical_json(
+                        [0] * len(legal_actions)
+                    ),
+                    counterfactual_action_hanchan_mask=canonical_json(
+                        counterfactual_action_mask
+                    ),
+                    opponent_next_discard=canonical_json(next_actions["discard"]),
+                    opponent_next_discard_mask=canonical_json(
+                        next_actions["discard_mask"]
+                    ),
+                    opponent_next_response=canonical_json(next_actions["response"]),
+                    opponent_next_response_mask=canonical_json(
+                        next_actions["response_mask"]
+                    ),
+                    opponent_next_call_type=canonical_json(next_actions["call_type"]),
+                    opponent_next_call_type_mask=canonical_json(
+                        next_actions["call_type_mask"]
+                    ),
+                    opponent_tile_count=canonical_json(tile_counts),
+                    opponent_tile_count_mask=canonical_json([True] * 3),
                     label_masks=canonical_json(
                         {
                             "policy": True,
@@ -310,8 +403,12 @@ def write_sequence_parquet(
 
 
 def validate_sequence_decision_record(record: SequenceDecisionRecord) -> None:
-    """Fail closed when a V3 record violates a frozen axis or mask contract."""
+    """Fail closed when a V4 record violates a frozen axis or mask contract."""
 
+    if record.dataset_version != SEQUENCE_DATASET_FORMAT:
+        raise ValueError("record does not use the Decision V4 schema")
+    if record.label_version != SEQUENCE_LABEL_VERSION:
+        raise ValueError("record does not use the Decision V4 label contract")
     actions = json.loads(record.legal_actions)
     chosen = json.loads(record.chosen_action)
     if not 0 <= record.chosen_action_index < len(actions):
@@ -340,6 +437,203 @@ def validate_sequence_decision_record(record: SequenceDecisionRecord) -> None:
         values = json.loads(getattr(record, field))
         if len(values) != len(actions) or any(len(row) != 3 for row in values):
             raise ValueError(f"{field} must have shape [legal_actions, 3]")
+    for field in (
+        "factual_round_result_by_action",
+        "factual_round_result_mask",
+        "counterfactual_round_result_by_action",
+        "counterfactual_round_result_mask",
+        "factual_action_round_delta",
+        "factual_action_round_delta_mask",
+        "counterfactual_action_round_delta",
+        "counterfactual_action_round_delta_mask",
+        "factual_action_final_rank",
+        "factual_action_final_score",
+        "factual_action_hanchan_mask",
+        "counterfactual_action_final_rank",
+        "counterfactual_action_final_score",
+        "counterfactual_action_hanchan_mask",
+    ):
+        if len(json.loads(getattr(record, field))) != len(actions):
+            raise ValueError(f"{field} must follow the legal action axis")
+    for field in (
+        "opponent_next_discard",
+        "opponent_next_discard_mask",
+        "opponent_next_response",
+        "opponent_next_response_mask",
+        "opponent_next_call_type",
+        "opponent_next_call_type_mask",
+        "opponent_tile_count_mask",
+    ):
+        if len(json.loads(getattr(record, field))) != 3:
+            raise ValueError(f"{field} must follow the three-opponent axis")
+    tile_counts = json.loads(record.opponent_tile_count)
+    if len(tile_counts) != 3 or any(len(row) != 34 for row in tile_counts):
+        raise ValueError("opponent_tile_count must have shape [3, 34]")
+    if any(not 0 <= int(value) <= 4 for row in tile_counts for value in row):
+        raise ValueError("opponent_tile_count values must be between zero and four")
+
+    def checked_mask(field: str) -> list[bool]:
+        values = json.loads(getattr(record, field))
+        flattened = (
+            [value for row in values for value in row]
+            if values and isinstance(values[0], list)
+            else values
+        )
+        if any(not isinstance(value, bool) for value in flattened):
+            raise ValueError(f"{field} must contain booleans")
+        return flattened
+
+    factual_action_masks = (
+        "factual_round_result_mask",
+        "factual_action_round_delta_mask",
+        "factual_action_hanchan_mask",
+    )
+    for field in factual_action_masks:
+        mask = json.loads(getattr(record, field))
+        if any(value and index != record.chosen_action_index for index, value in enumerate(mask)):
+            raise ValueError(f"{field} may label only chosen_action_index")
+    factual_deal_mask = json.loads(record.factual_deal_in_mask)
+    if any(
+        value and action_index != record.chosen_action_index
+        for action_index, row in enumerate(factual_deal_mask)
+        for value in row
+    ):
+        raise ValueError("factual_deal_in_mask may label only chosen_action_index")
+
+    result_fields = (
+        ("factual_round_result_by_action", "factual_round_result_mask"),
+        ("counterfactual_round_result_by_action", "counterfactual_round_result_mask"),
+    )
+    for value_field, mask_field in result_fields:
+        values = json.loads(getattr(record, value_field))
+        mask = json.loads(getattr(record, mask_field))
+        if any(valid and not 0 <= int(value) < 5 for value, valid in zip(values, mask, strict=True)):
+            raise ValueError(f"{value_field} contains an invalid result class")
+    for value_field, mask_field in (
+        ("factual_action_final_rank", "factual_action_hanchan_mask"),
+        ("counterfactual_action_final_rank", "counterfactual_action_hanchan_mask"),
+    ):
+        values = json.loads(getattr(record, value_field))
+        mask = json.loads(getattr(record, mask_field))
+        if any(
+            valid and not 1 <= int(value) <= 4
+            for value, valid in zip(values, mask, strict=True)
+        ):
+            raise ValueError(f"{value_field} must contain final ranks one through four")
+    for value_field, mask_field, class_count in (
+        ("opponent_next_discard", "opponent_next_discard_mask", 34),
+        ("opponent_next_response", "opponent_next_response_mask", 4),
+        ("opponent_next_call_type", "opponent_next_call_type_mask", 3),
+    ):
+        values = json.loads(getattr(record, value_field))
+        mask = json.loads(getattr(record, mask_field))
+        if any(
+            valid and not 0 <= int(value) < class_count
+            for value, valid in zip(values, mask, strict=True)
+        ):
+            raise ValueError(f"{value_field} contains an invalid class")
+    mask_pairs = (
+        ("factual_deal_in_mask", "counterfactual_deal_in_mask"),
+        ("factual_round_result_mask", "counterfactual_round_result_mask"),
+        (
+            "factual_action_round_delta_mask",
+            "counterfactual_action_round_delta_mask",
+        ),
+        ("factual_action_hanchan_mask", "counterfactual_action_hanchan_mask"),
+    )
+    mask_fields = {field for pair in mask_pairs for field in pair}
+    mask_fields.update(
+        {
+            "opponent_next_discard_mask",
+            "opponent_next_response_mask",
+            "opponent_next_call_type_mask",
+            "opponent_tile_count_mask",
+        }
+    )
+    for field in mask_fields:
+        checked_mask(field)
+    for factual_field, counterfactual_field in mask_pairs:
+        factual = json.loads(getattr(record, factual_field))
+        counterfactual = json.loads(getattr(record, counterfactual_field))
+        factual_flat = [value for row in factual for value in row] if factual and isinstance(factual[0], list) else factual
+        counterfactual_flat = (
+            [value for row in counterfactual for value in row]
+            if counterfactual and isinstance(counterfactual[0], list)
+            else counterfactual
+        )
+        if any(bool(left) and bool(right) for left, right in zip(factual_flat, counterfactual_flat, strict=True)):
+            raise ValueError(
+                f"{factual_field} and {counterfactual_field} must not overlap"
+            )
+
+
+def _hidden_tile_counts(
+    states: list[dict[str, Any]], opponents: list[int]
+) -> list[list[int]]:
+    result: list[list[int]] = []
+    for player in opponents:
+        counts = [0] * 34
+        state = states[player]
+        for tile in state.get("hand") or []:
+            counts[tile_index(tile)] += 1
+        if state.get("drawn_tile") is not None:
+            counts[tile_index(state["drawn_tile"])] += 1
+        result.append(counts)
+    return result
+
+
+def _future_opponent_actions(
+    events: list[dict[str, Any]], start: int, opponents: list[int]
+) -> dict[str, list[int] | list[bool]]:
+    discard = [0] * 3
+    discard_mask = [False] * 3
+    response = [0] * 3
+    response_mask = [False] * 3
+    call_type = [0] * 3
+    call_type_mask = [False] * 3
+    seat_to_relative = {player: index for index, player in enumerate(opponents)}
+    for event in events[start + 1 :]:
+        event_type = str(event.get("type", ""))
+        player = event.get("player", event.get("winner"))
+        if event_type == "ron":
+            for winner in event.get("winners", []):
+                relative = seat_to_relative.get(int(winner))
+                if relative is not None and not response_mask[relative]:
+                    response[relative] = 3
+                    response_mask[relative] = True
+            continue
+        if player is None or int(player) not in seat_to_relative:
+            continue
+        relative = seat_to_relative[int(player)]
+        if event_type == "discard" and not discard_mask[relative]:
+            discard[relative] = tile_index(event["tile"])
+            discard_mask[relative] = True
+        if response_mask[relative]:
+            continue
+        if event_type == "pass":
+            response[relative] = 0
+            response_mask[relative] = True
+        elif event_type in {"chi", "pon", "kan"}:
+            response[relative] = 1
+            response_mask[relative] = True
+            call_type[relative] = {"chi": 0, "pon": 1, "kan": 2}[event_type]
+            call_type_mask[relative] = True
+        elif event_type == "riichi" and event.get("step") == "declared":
+            response[relative] = 2
+            response_mask[relative] = True
+        elif event_type == "tsumo":
+            response[relative] = 3
+            response_mask[relative] = True
+        if all(discard_mask) and all(response_mask):
+            break
+    return {
+        "discard": discard,
+        "discard_mask": discard_mask,
+        "response": response,
+        "response_mask": response_mask,
+        "call_type": call_type,
+        "call_type_mask": call_type_mask,
+    }
 
 
 def _hidden_labels(

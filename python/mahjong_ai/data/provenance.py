@@ -18,6 +18,7 @@ SUPPORTED_DECISION_FORMATS = frozenset(
         b"decision/v1",
         b"mahjong-ai-sequence-decision/v2",
         b"mahjong-ai-sequence-decision/v3",
+        b"mahjong-ai-sequence-decision/v4",
     }
 )
 

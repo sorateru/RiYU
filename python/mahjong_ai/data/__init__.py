@@ -9,6 +9,7 @@ from .tenhou import TenhouRound, convert_document, decode_archive_xml
 from .tenhou_archive import iter_tenhou_archive_xml, validate_tenhou_archive
 from .sequence_dataset import (
     SEQUENCE_DATASET_FORMAT,
+    LEGACY_SEQUENCE_DATASET_FORMAT,
     SEQUENCE_LABEL_VERSION,
     SequenceDecisionRecord,
     build_sequence_decision_records,
@@ -23,6 +24,7 @@ __all__ = [
     "HumanDatasetManifest",
     "TenhouRound",
     "SEQUENCE_DATASET_FORMAT",
+    "LEGACY_SEQUENCE_DATASET_FORMAT",
     "SEQUENCE_LABEL_VERSION",
     "SequenceDecisionRecord",
     "build_decision_records",

@@ -16,9 +16,14 @@ from .inference import ModelMetadata
 from .search import OpponentBelief
 from .sequence import (
     SEQUENCE_ENCODER_VERSION,
+    SEQUENCE_ARCHITECTURE_VERSION,
+    MODEL_OUTPUT_VERSION,
+    ROUND_VALUE_BIN_EDGES,
+    RuleFeatureEncoder,
     SequenceFeatureEncoder,
     SequenceMahjongNetwork,
     SequenceModelConfig,
+    load_sequence_state_dict_compatible,
     public_event_tokens,
 )
 
@@ -33,9 +38,11 @@ class SequenceBeliefPredictor:
         *,
         device: str = "cpu",
         require_validated: bool = True,
+        model_output_version: str = MODEL_OUTPUT_VERSION,
     ) -> None:
         expected = f"{FeatureEncoder.version}+{SEQUENCE_ENCODER_VERSION}"
-        if metadata.encoder_version != expected:
+        legacy = f"{FeatureEncoder.version}+observable-events-v2"
+        if metadata.encoder_version not in {expected, legacy}:
             raise ValueError("checkpoint sequence encoder version does not match runtime")
         if not metadata.trained:
             raise ValueError("sequence belief checkpoint is not trained")
@@ -43,9 +50,13 @@ class SequenceBeliefPredictor:
             raise ValueError("sequence belief checkpoint is not approved by evaluation")
         self.model = model.to(device).eval()
         self.metadata = metadata
+        if model_output_version not in {MODEL_OUTPUT_VERSION, "mahjong-model-output/v1"}:
+            raise ValueError("unsupported model output version")
+        self.model_output_version = model_output_version
         self.device = device
         self.state_encoder = FeatureEncoder()
         self.sequence_encoder = SequenceFeatureEncoder(model.config.maximum_events)
+        self.rule_encoder = RuleFeatureEncoder()
 
     @classmethod
     def load(
@@ -58,13 +69,18 @@ class SequenceBeliefPredictor:
         checkpoint = torch.load(path, map_location=device, weights_only=False)
         if checkpoint.get("model_family") != "sequence-transformer-v2":
             raise ValueError("checkpoint is not sequence-transformer-v2")
-        model = SequenceMahjongNetwork(SequenceModelConfig(**checkpoint["model_config"]))
-        model.load_state_dict(checkpoint["model_state"])
+        config = dict(checkpoint["model_config"])
+        config["architecture_version"] = SEQUENCE_ARCHITECTURE_VERSION
+        model = SequenceMahjongNetwork(SequenceModelConfig(**config))
+        load_sequence_state_dict_compatible(model, checkpoint["model_state"])
         return cls(
             model,
             ModelMetadata(**checkpoint["metadata"]),
             device=device,
             require_validated=require_validated,
+            model_output_version=checkpoint.get(
+                "model_output_version", "mahjong-model-output/v1"
+            ),
         )
 
     def __call__(self, state: dict[str, Any]) -> tuple[OpponentBelief, ...]:
@@ -84,6 +100,8 @@ class SequenceBeliefPredictor:
                 tensor(sequence.flags),
                 tensor(sequence.valid_mask),
                 danger_features=tensor(encoded.danger_features[:, 1:, :]),
+                memory_features=tensor(sequence.memory_features),
+                rule_features=tensor(self.rule_encoder.encode(state)),
             )
             tenpai = torch.sigmoid(output["tenpai_logits"])[0].cpu().tolist()
             waits = torch.sigmoid(output["wait_logits"])[0].cpu().tolist()
@@ -149,6 +167,8 @@ class SequenceBeliefPredictor:
                 tensor(sequence.flags),
                 tensor(sequence.valid_mask),
                 danger_features=tensor(encoded.danger_features[:, 1:, :]),
+                memory_features=tensor(sequence.memory_features),
+                rule_features=tensor(self.rule_encoder.encode(state)),
             )
             danger_logits = output["deal_in_logits"][0]
             scales = self.metadata.risk_logit_scale_by_opponent
@@ -186,7 +206,7 @@ class SequenceBeliefPredictor:
         return result
 
     def evaluate_state(self, state: dict[str, Any]) -> dict[str, Any]:
-        """Evaluate one observable state using the frozen ModelOutput V1 contract."""
+        """Evaluate one observable state using the frozen ModelOutput V2 contract."""
 
         exact = json.loads(analyze_state_json(canonical_json(state)))
         if not self.metadata.trained or not self.metadata.validated:
@@ -218,6 +238,8 @@ class SequenceBeliefPredictor:
                     1, len(legal), dtype=torch.bool, device=self.device
                 ),
                 danger_features=tensor(encoded.danger_features[:, 1:, :]),
+                memory_features=tensor(sequence.memory_features),
+                rule_features=tensor(self.rule_encoder.encode(state)),
             )
             policy = torch.softmax(output.policy_logits[0], dim=-1).cpu()
             rank = torch.softmax(output.rank_logits[0], dim=-1).cpu()
@@ -227,6 +249,37 @@ class SequenceBeliefPredictor:
             waits = torch.sigmoid(output.wait_logits[0]).cpu()
             shanten = output.shanten_logits[0].argmax(dim=-1).cpu() - 1
             future_draw = torch.sigmoid(output.future_draw_logits[0]).cpu()
+            has_v2_values = self.model_output_version == MODEL_OUTPUT_VERSION
+            action_round_value = (
+                output.action_round_value[0].cpu() * 10_000.0
+                if has_v2_values and output.action_round_value is not None
+                else None
+            )
+            action_hanchan_value = (
+                output.action_hanchan_value[0].cpu()
+                if has_v2_values and output.action_hanchan_value is not None
+                else None
+            )
+            action_round_distribution = (
+                torch.softmax(output.action_round_distribution_logits[0], dim=-1).cpu()
+                if has_v2_values and output.action_round_distribution_logits is not None
+                else None
+            )
+            opponent_next_discard = (
+                torch.softmax(output.opponent_next_discard_logits[0], dim=-1).cpu()
+                if has_v2_values and output.opponent_next_discard_logits is not None
+                else None
+            )
+            opponent_response = (
+                torch.softmax(output.opponent_response_logits[0], dim=-1).cpu()
+                if has_v2_values and output.opponent_response_logits is not None
+                else None
+            )
+            opponent_tile_count = (
+                torch.softmax(output.opponent_tile_count_logits[0], dim=-1).cpu()
+                if has_v2_values and output.opponent_tile_count_logits is not None
+                else None
+            )
 
             danger = torch.zeros(len(legal), 3)
             expected_loss = torch.zeros(len(legal), 3)
@@ -272,12 +325,46 @@ class SequenceBeliefPredictor:
                 absolute_danger[player] * absolute_loss[player]
                 for player in range(4)
             )
+            round_value = (
+                float(action_round_value[index])
+                if action_round_value is not None
+                else None
+            )
+            hanchan_value = (
+                float(action_hanchan_value[index])
+                if action_hanchan_value is not None
+                else None
+            )
             ranking.append(
                 {
                     "action": action,
-                    "estimated_action_value": final_score - risk_ev,
+                    "estimated_action_value": (
+                        round_value if round_value is not None else final_score - risk_ev
+                    ),
                     "model_final_score": final_score,
                     "policy_score": float(policy[index]),
+                    "value_score": round_value,
+                    "action_round_value": round_value,
+                    "action_hanchan_value": hanchan_value,
+                    "action_round_distribution": (
+                        tuple(float(value) for value in action_round_distribution[index])
+                        if action_round_distribution is not None
+                        else None
+                    ),
+                    "action_round_distribution_edges": (
+                        ROUND_VALUE_BIN_EDGES
+                        if action_round_distribution is not None
+                        else None
+                    ),
+                    "risk_score": -risk_ev,
+                    "search_score": None,
+                    "score_components": {
+                        "policy_prior": float(policy[index]),
+                        "action_round_value": round_value,
+                        "action_hanchan_utility": hanchan_value,
+                        "risk_ev": -risk_ev,
+                        "counterfactual_search": None,
+                    },
                     "shanten": (
                         int(efficiency["shanten"]["minimum"])
                         if efficiency is not None
@@ -301,7 +388,7 @@ class SequenceBeliefPredictor:
             "status": "model_estimate",
             "value": ranking,
             "reason": (
-                "Decision V3 hierarchical policy with exact shanten/ukeire and "
+                "Decision V4 hierarchical policy with exact shanten/ukeire and "
                 f"candidate-specific opponent risk; {calibration}; "
                 f"model_id={self.metadata.model_id}"
             ),
@@ -311,17 +398,35 @@ class SequenceBeliefPredictor:
             "value": sum((index + 1) * float(value) for index, value in enumerate(rank)),
             "reason": "softmax rank head output",
         }
+        sequence_predictions: dict[str, Any] = {
+            "final_score": final_score,
+            "round_delta_by_relative_player": [float(value) for value in round_delta],
+            "opponent_tenpai": [float(value) for value in tenpai],
+            "opponent_shanten": [int(value) for value in shanten],
+            "opponent_wait": [[float(value) for value in row] for row in waits],
+            "future_draw": [float(value) for value in future_draw],
+        }
+        if opponent_next_discard is not None:
+            sequence_predictions.update(
+                {
+                    "opponent_next_discard": [
+                        [float(value) for value in row]
+                        for row in opponent_next_discard
+                    ],
+                    "opponent_response": [
+                        [float(value) for value in row]
+                        for row in opponent_response
+                    ],
+                    "opponent_tile_count": [
+                        [[float(value) for value in tile] for tile in opponent]
+                        for opponent in opponent_tile_count
+                    ],
+                }
+            )
         exact["sequence_model_predictions"] = {
             "status": "model_estimate",
-            "value": {
-                "final_score": final_score,
-                "round_delta_by_relative_player": [float(value) for value in round_delta],
-                "opponent_tenpai": [float(value) for value in tenpai],
-                "opponent_shanten": [int(value) for value in shanten],
-                "opponent_wait": [[float(value) for value in row] for row in waits],
-                "future_draw": [float(value) for value in future_draw],
-            },
-            "reason": "observable-only ModelOutput V1 heads",
+            "value": sequence_predictions,
+            "reason": f"observable-only {self.model_output_version} heads",
         }
         return exact
 

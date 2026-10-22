@@ -1,4 +1,4 @@
-"""Supervised multi-task training for observable sequence decision/v2/v3 shards."""
+"""Supervised multi-task training for observable sequence decision/v2-v4 shards."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import random
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -24,6 +24,9 @@ from mahjong_ai.ai.sequence import (
     MODEL_OUTPUT_VERSION,
     SEQUENCE_ARCHITECTURE_VERSION,
     SEQUENCE_ENCODER_VERSION,
+    ROUND_VALUE_BIN_EDGES,
+    RuleFeatureEncoder,
+    MahjongModelOutput,
     SequenceFeatureEncoder,
     SequenceMahjongNetwork,
 )
@@ -32,6 +35,36 @@ from mahjong_ai.data.sequence_dataset import (
     SEQUENCE_LABEL_VERSION,
 )
 from mahjong_ai.schema import action_key
+
+
+ROUND_VALUE_EDGES = np.asarray(ROUND_VALUE_BIN_EDGES, dtype=np.float32)
+
+
+class HanchanUtility(Protocol):
+    def __call__(self, final_rank: int, final_score: int) -> float: ...
+
+
+@dataclass(frozen=True)
+class RankScoreUtility:
+    """Replaceable utility mapping used by supervised and future offline RL."""
+
+    rank_values: tuple[float, float, float, float] = (1.0, 0.35, -0.35, -1.0)
+    score_weight: float = 0.0
+    score_center: float = 25_000.0
+    score_scale: float = 10_000.0
+
+    def __post_init__(self) -> None:
+        if len(self.rank_values) != 4:
+            raise ValueError("rank_values must contain one utility for each rank")
+        if self.score_scale <= 0:
+            raise ValueError("score_scale must be positive")
+
+    def __call__(self, final_rank: int, final_score: int) -> float:
+        if not 1 <= final_rank <= 4:
+            raise ValueError("final_rank must be between one and four")
+        return self.rank_values[final_rank - 1] + self.score_weight * (
+            (final_score - self.score_center) / self.score_scale
+        )
 
 
 @dataclass(frozen=True)
@@ -56,6 +89,16 @@ class SequenceTrainerConfig:
     response_loss_weight: float = 0.2
     call_type_loss_weight: float = 0.15
     riichi_loss_weight: float = 0.15
+    state_round_value_loss_weight: float = 0.15
+    state_hanchan_value_loss_weight: float = 0.2
+    action_round_value_loss_weight: float = 0.3
+    action_hanchan_value_loss_weight: float = 0.3
+    action_round_distribution_loss_weight: float = 0.2
+    opponent_discard_loss_weight: float = 0.1
+    opponent_response_loss_weight: float = 0.1
+    opponent_call_type_loss_weight: float = 0.05
+    opponent_tile_count_loss_weight: float = 0.05
+    belief_consistency_loss_weight: float = 0.05
     deal_in_positive_weight: float = 20.0
     auto_positive_weights: bool = True
     maximum_positive_weight: float = 30.0
@@ -63,6 +106,14 @@ class SequenceTrainerConfig:
     gradient_clip_norm: float = 1.0
     scheduler_t_max_epochs: int = 50
     minimum_learning_rate_ratio: float = 0.05
+    hanchan_utility_version: str = "rank-score-utility-v1"
+    hanchan_rank_utilities: tuple[float, float, float, float] = (
+        1.0,
+        0.35,
+        -0.35,
+        -1.0,
+    )
+    hanchan_score_weight: float = 0.0
     device: str = "cpu"
     num_workers: int = 0
 
@@ -198,10 +249,18 @@ def masked_mean(values: Tensor, mask: Tensor) -> Tensor:
 
 
 def masked_cross_entropy(logits: Tensor, targets: Tensor, mask: Tensor) -> Tensor:
+    valid = mask
+    if valid.shape != targets.shape:
+        valid = valid.expand_as(targets)
+    # Missing categorical labels may use an out-of-range sentinel such as -1.
+    # Replace only masked cells before CE; the mask still removes their loss.
+    safe_targets = torch.where(valid, targets, torch.zeros_like(targets))
     losses = F.cross_entropy(
-        logits.reshape(-1, logits.shape[-1]), targets.reshape(-1), reduction="none"
+        logits.reshape(-1, logits.shape[-1]),
+        safe_targets.reshape(-1),
+        reduction="none",
     ).reshape(targets.shape)
-    return masked_mean(losses, mask)
+    return masked_mean(losses, valid)
 
 
 def masked_binary_cross_entropy(
@@ -222,8 +281,88 @@ def masked_binary_cross_entropy(
     return masked_mean(losses, mask)
 
 
+def belief_consistency_loss(
+    tenpai_logits: Tensor,
+    wait_logits: Tensor,
+    shanten_logits: Tensor,
+    mask: Tensor,
+) -> Tensor:
+    """Softly align tenpai, ready-shanten and existence-of-wait beliefs."""
+
+    tenpai_probability = torch.sigmoid(tenpai_logits)
+    shanten_probability = torch.softmax(shanten_logits, dim=-1)[..., :2].sum(dim=-1)
+    # A max-based soft existence score avoids the strong independence
+    # assumption that would make 34 uncertain tiles imply near-certain waits.
+    any_wait_probability = torch.sigmoid(wait_logits).amax(dim=-1)
+    disagreement = (
+        (tenpai_probability - shanten_probability).square()
+        + (tenpai_probability - any_wait_probability).square()
+        + (shanten_probability - any_wait_probability).square()
+    ) / 3.0
+    return masked_mean(disagreement, mask)
+
+
+@dataclass(frozen=True)
+class OfflineRLSignals:
+    state_round_value: Tensor
+    action_round_value: Tensor
+    round_advantage: Tensor
+    state_hanchan_value: Tensor
+    action_hanchan_value: Tensor
+    hanchan_advantage: Tensor
+    action_mask: Tensor
+    behavior_action: Tensor
+    behavior_action_mask: Tensor
+
+
+def build_offline_rl_signals(
+    output: MahjongModelOutput, batch: Mapping[str, Tensor]
+) -> OfflineRLSignals:
+    """Stable bridge for future AWR/IQL trainers without changing the model."""
+
+    if output.action_round_value is None or output.action_hanchan_value is None:
+        raise ValueError("offline RL signals require action value heads")
+    return OfflineRLSignals(
+        state_round_value=output.state_round_value,
+        action_round_value=output.action_round_value,
+        round_advantage=output.action_round_value
+        - output.state_round_value.unsqueeze(1),
+        state_hanchan_value=output.state_hanchan_value,
+        action_hanchan_value=output.action_hanchan_value,
+        hanchan_advantage=output.action_hanchan_value
+        - output.state_hanchan_value.unsqueeze(1),
+        action_mask=batch["action_mask"],
+        behavior_action=batch["policy_target"],
+        behavior_action_mask=batch["policy_target_mask"],
+    )
+
+
+def merge_factual_counterfactual(
+    factual: np.ndarray,
+    factual_mask: np.ndarray,
+    counterfactual: np.ndarray,
+    counterfactual_mask: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Merge only at the trainer boundary while preserving disjoint provenance."""
+
+    if factual.shape != counterfactual.shape or factual_mask.shape != counterfactual_mask.shape:
+        raise ValueError("factual and counterfactual label shapes must match")
+    if factual.shape != factual_mask.shape:
+        raise ValueError("label and mask shapes must match")
+    if np.any(factual_mask & counterfactual_mask):
+        raise ValueError("factual and counterfactual masks must not overlap")
+    return np.where(counterfactual_mask, counterfactual, factual), (
+        factual_mask | counterfactual_mask
+    )
+
+
 class ParquetSequenceDataset(Dataset[dict[str, Any]]):
-    def __init__(self, paths: str | Path | Sequence[str | Path]) -> None:
+    def __init__(
+        self,
+        paths: str | Path | Sequence[str | Path],
+        *,
+        hanchan_utility: HanchanUtility | None = None,
+    ) -> None:
         if isinstance(paths, (str, Path)):
             paths = [paths]
         import pyarrow as pa
@@ -241,9 +380,22 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
         self.has_decision_labels = all(
             required_decision_labels.issubset(table.column_names) for table in tables
         )
+        required_v4_labels = {
+            "factual_action_round_delta",
+            "counterfactual_action_round_delta",
+            "factual_round_result_by_action",
+            "counterfactual_round_result_by_action",
+            "opponent_next_discard",
+            "opponent_tile_count",
+        }
+        self.has_v4_labels = all(
+            required_v4_labels.issubset(table.column_names) for table in tables
+        )
         self.rows = pa.concat_tables(tables, promote_options="default").to_pylist()
         self.state_encoder = FeatureEncoder()
         self.sequence_encoder = SequenceFeatureEncoder()
+        self.rule_encoder = RuleFeatureEncoder()
+        self.hanchan_utility = hanchan_utility or RankScoreUtility()
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -255,6 +407,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
         expert = json.loads(row.get("chosen_action") or row["expert_action"])
         encoded = self.state_encoder.encode(state, legal)
         sequence = self.sequence_encoder.encode_tokens(json.loads(row["public_events"]))
+        rule_features = self.rule_encoder.encode(state)
         keys = [action_key(action) for action in legal]
         try:
             policy_target = keys.index(action_key(expert))
@@ -264,6 +417,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
         observer = int(row["observer"])
         rotate = lambda values: [values[(observer + relative) % 4] for relative in range(4)]
         is_v3 = row.get("factual_deal_in_by_action") is not None
+        is_v4 = row.get("factual_action_round_delta") is not None
         if is_v3:
             shanten = json.loads(row["opponent_shanten"])
             tenpai = json.loads(row["opponent_tenpai"])
@@ -290,7 +444,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
             wait_target = np.asarray(waits, dtype=np.float32)
             future_target = np.asarray(future_draws, dtype=np.float32)
             if wait_target.shape != (3, 34) or future_target.shape != (34,):
-                raise ValueError(f"row {index}: invalid Decision V3 tile-label axes")
+                raise ValueError(f"row {index}: invalid sequence tile-label axes")
         else:
             wait_target = np.zeros((3, 34), dtype=np.float32)
             for relative, waiting_tiles in enumerate(waits):
@@ -317,12 +471,13 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
             counterfactual_mask = np.asarray(
                 json.loads(row["counterfactual_deal_in_mask"]), dtype=np.bool_
             )
-            deal_in = np.where(counterfactual_mask, counterfactual_deal, factual_deal)
-            deal_in_points = np.where(
-                counterfactual_mask, counterfactual_points, factual_points
+            deal_in, deal_in_mask = merge_factual_counterfactual(
+                factual_deal, factual_mask, counterfactual_deal, counterfactual_mask
             )
-            deal_in_mask = factual_mask | counterfactual_mask
-            outcome_target = (
+            deal_in_points, _ = merge_factual_counterfactual(
+                factual_points, factual_mask, counterfactual_points, counterfactual_mask
+            )
+            selected_outcome_target = (
                 "self_win", "deal_in", "opponent_tsumo", "horizontal", "draw"
             ).index(str(row["round_result"]))
         else:
@@ -337,7 +492,162 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
                     json.loads(row["expert_deal_in_points_by_player"])
                 )[1:]
                 deal_in_mask[policy_target] = True
-            outcome_target = int(row.get("expert_outcome_target") or 4)
+            selected_outcome_target = int(row.get("expert_outcome_target") or 4)
+
+        action_outcome_target = np.zeros(action_count, dtype=np.int64)
+        action_outcome_mask = np.zeros(action_count, dtype=np.bool_)
+        action_round_value_target = np.zeros(action_count, dtype=np.float32)
+        action_round_value_mask = np.zeros(action_count, dtype=np.bool_)
+        action_hanchan_value_target = np.zeros(action_count, dtype=np.float32)
+        action_hanchan_value_mask = np.zeros(action_count, dtype=np.bool_)
+        if is_v4:
+            factual_outcome = np.asarray(
+                json.loads(row["factual_round_result_by_action"]), dtype=np.int64
+            )
+            factual_outcome_mask = np.asarray(
+                json.loads(row["factual_round_result_mask"]), dtype=np.bool_
+            )
+            counterfactual_outcome = np.asarray(
+                json.loads(row["counterfactual_round_result_by_action"]), dtype=np.int64
+            )
+            counterfactual_outcome_mask = np.asarray(
+                json.loads(row["counterfactual_round_result_mask"]), dtype=np.bool_
+            )
+            action_outcome_target, action_outcome_mask = merge_factual_counterfactual(
+                factual_outcome,
+                factual_outcome_mask,
+                counterfactual_outcome,
+                counterfactual_outcome_mask,
+            )
+
+            factual_round = np.asarray(
+                json.loads(row["factual_action_round_delta"]), dtype=np.float32
+            )
+            factual_round_mask = np.asarray(
+                json.loads(row["factual_action_round_delta_mask"]), dtype=np.bool_
+            )
+            counterfactual_round = np.asarray(
+                json.loads(row["counterfactual_action_round_delta"]), dtype=np.float32
+            )
+            counterfactual_round_mask = np.asarray(
+                json.loads(row["counterfactual_action_round_delta_mask"]), dtype=np.bool_
+            )
+            action_round_value_target, action_round_value_mask = (
+                merge_factual_counterfactual(
+                    factual_round,
+                    factual_round_mask,
+                    counterfactual_round,
+                    counterfactual_round_mask,
+                )
+            )
+            action_round_value_target = action_round_value_target / 10_000.0
+
+            factual_rank = np.asarray(
+                json.loads(row["factual_action_final_rank"]), dtype=np.int64
+            )
+            factual_score = np.asarray(
+                json.loads(row["factual_action_final_score"]), dtype=np.int64
+            )
+            factual_hanchan_mask = np.asarray(
+                json.loads(row["factual_action_hanchan_mask"]), dtype=np.bool_
+            )
+            counterfactual_rank = np.asarray(
+                json.loads(row["counterfactual_action_final_rank"]), dtype=np.int64
+            )
+            counterfactual_score = np.asarray(
+                json.loads(row["counterfactual_action_final_score"]), dtype=np.int64
+            )
+            counterfactual_hanchan_mask = np.asarray(
+                json.loads(row["counterfactual_action_hanchan_mask"]), dtype=np.bool_
+            )
+            combined_rank, action_hanchan_value_mask = merge_factual_counterfactual(
+                factual_rank,
+                factual_hanchan_mask,
+                counterfactual_rank,
+                counterfactual_hanchan_mask,
+            )
+            combined_score, _ = merge_factual_counterfactual(
+                factual_score,
+                factual_hanchan_mask,
+                counterfactual_score,
+                counterfactual_hanchan_mask,
+            )
+            for action_index in range(action_count):
+                if action_hanchan_value_mask[action_index]:
+                    action_hanchan_value_target[action_index] = self.hanchan_utility(
+                        int(combined_rank[action_index]),
+                        int(combined_score[action_index]),
+                    )
+        else:
+            action_outcome_target[policy_target] = selected_outcome_target
+            action_outcome_mask[policy_target] = bool(
+                label_masks.get("round_result", True)
+            )
+            action_round_value_target[policy_target] = float(deltas[0]) / 10_000.0
+            action_round_value_mask[policy_target] = bool(
+                label_masks.get("round_delta", [True] * 4)[0]
+            )
+            action_hanchan_value_target[policy_target] = self.hanchan_utility(
+                int(row["final_rank"]), int(row["final_score"])
+            )
+            action_hanchan_value_mask[policy_target] = bool(
+                label_masks.get("rank", True)
+            )
+
+        if is_v4:
+            action_round_factual_mask = factual_round_mask
+            action_round_counterfactual_mask = counterfactual_round_mask
+            action_hanchan_factual_mask = factual_hanchan_mask
+            action_hanchan_counterfactual_mask = counterfactual_hanchan_mask
+            outcome_factual_mask = factual_outcome_mask
+            outcome_counterfactual_mask = counterfactual_outcome_mask
+        else:
+            action_round_factual_mask = action_round_value_mask.copy()
+            action_round_counterfactual_mask = np.zeros(action_count, dtype=np.bool_)
+            action_hanchan_factual_mask = action_hanchan_value_mask.copy()
+            action_hanchan_counterfactual_mask = np.zeros(action_count, dtype=np.bool_)
+            outcome_factual_mask = action_outcome_mask.copy()
+            outcome_counterfactual_mask = np.zeros(action_count, dtype=np.bool_)
+
+        action_round_distribution_target = np.searchsorted(
+            ROUND_VALUE_EDGES,
+            action_round_value_target * 10_000.0,
+        ).astype(np.int64)
+
+        if is_v4:
+            opponent_next_discard = np.asarray(
+                json.loads(row["opponent_next_discard"]), dtype=np.int64
+            )
+            opponent_next_discard_mask = np.asarray(
+                json.loads(row["opponent_next_discard_mask"]), dtype=np.bool_
+            )
+            opponent_next_response = np.asarray(
+                json.loads(row["opponent_next_response"]), dtype=np.int64
+            )
+            opponent_next_response_mask = np.asarray(
+                json.loads(row["opponent_next_response_mask"]), dtype=np.bool_
+            )
+            opponent_next_call_type = np.asarray(
+                json.loads(row["opponent_next_call_type"]), dtype=np.int64
+            )
+            opponent_next_call_type_mask = np.asarray(
+                json.loads(row["opponent_next_call_type_mask"]), dtype=np.bool_
+            )
+            opponent_tile_count = np.asarray(
+                json.loads(row["opponent_tile_count"]), dtype=np.int64
+            )
+            opponent_tile_count_mask = np.asarray(
+                json.loads(row["opponent_tile_count_mask"]), dtype=np.bool_
+            )[:, None]
+        else:
+            opponent_next_discard = np.zeros(3, dtype=np.int64)
+            opponent_next_discard_mask = np.zeros(3, dtype=np.bool_)
+            opponent_next_response = np.zeros(3, dtype=np.int64)
+            opponent_next_response_mask = np.zeros(3, dtype=np.bool_)
+            opponent_next_call_type = np.zeros(3, dtype=np.int64)
+            opponent_next_call_type_mask = np.zeros(3, dtype=np.bool_)
+            opponent_tile_count = np.zeros((3, 34), dtype=np.int64)
+            opponent_tile_count_mask = np.zeros((3, 1), dtype=np.bool_)
         score_edges = np.asarray(
             [2_000, 3_900, 5_200, 7_700, 8_000, 12_000, 18_000],
             dtype=np.int64,
@@ -355,6 +665,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
         )
         return {
             "planes": encoded.planes,
+            "rule_features": rule_features,
             "actions": encoded.action_features,
             "danger_features": encoded.danger_features[:, 1:, :],
             "event_types": sequence.event_types,
@@ -362,6 +673,7 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
             "tiles": sequence.tiles,
             "event_flags": sequence.flags,
             "event_mask": sequence.valid_mask,
+            "memory_features": sequence.memory_features,
             "policy_target": policy_target,
             "policy_target_mask": bool(label_masks.get("policy", True)),
             "response_target": response_types.get(expert["type"], 0),
@@ -380,6 +692,14 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
             "round_delta_target_mask": np.asarray(
                 label_masks.get("round_delta", [True] * 4), dtype=np.bool_
             ),
+            "state_round_value_target": float(deltas[0]) / 10_000.0,
+            "state_round_value_mask": bool(
+                label_masks.get("round_delta", [True] * 4)[0]
+            ),
+            "state_hanchan_value_target": self.hanchan_utility(
+                int(row["final_rank"]), int(row["final_score"])
+            ),
+            "state_hanchan_value_mask": bool(label_masks.get("rank", True)),
             "tenpai_target": np.asarray(tenpai, dtype=np.float32),
             "tenpai_target_mask": opponent_state_mask,
             "wait_target": wait_target,
@@ -398,10 +718,28 @@ class ParquetSequenceDataset(Dataset[dict[str, Any]]):
                 np.int64
             ),
             "deal_in_score_mask": deal_in_mask & deal_in.astype(np.bool_),
-            "action_outcome_target": outcome_target,
-            "action_outcome_target_mask": bool(
-                label_masks.get("round_result", True)
-            ),
+            "action_outcome_target": action_outcome_target,
+            "action_outcome_target_mask": action_outcome_mask,
+            "outcome_factual_mask": outcome_factual_mask,
+            "outcome_counterfactual_mask": outcome_counterfactual_mask,
+            "action_round_value_target": action_round_value_target,
+            "action_round_value_mask": action_round_value_mask,
+            "action_round_factual_mask": action_round_factual_mask,
+            "action_round_counterfactual_mask": action_round_counterfactual_mask,
+            "action_hanchan_value_target": action_hanchan_value_target,
+            "action_hanchan_value_mask": action_hanchan_value_mask,
+            "action_hanchan_factual_mask": action_hanchan_factual_mask,
+            "action_hanchan_counterfactual_mask": action_hanchan_counterfactual_mask,
+            "action_round_distribution_target": action_round_distribution_target,
+            "action_round_distribution_mask": action_round_value_mask,
+            "opponent_next_discard_target": opponent_next_discard,
+            "opponent_next_discard_mask": opponent_next_discard_mask,
+            "opponent_next_response_target": opponent_next_response,
+            "opponent_next_response_mask": opponent_next_response_mask,
+            "opponent_next_call_type_target": opponent_next_call_type,
+            "opponent_next_call_type_mask": opponent_next_call_type_mask,
+            "opponent_tile_count_target": opponent_tile_count,
+            "opponent_tile_count_mask": opponent_tile_count_mask,
             "log_id": row["log_id"],
         }
 
@@ -419,6 +757,20 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
     deal_in_target_mask = np.zeros((len(batch), max_actions, 3), dtype=np.bool_)
     deal_in_score_target = np.zeros((len(batch), max_actions, 3), dtype=np.int64)
     deal_in_score_mask = np.zeros((len(batch), max_actions, 3), dtype=np.bool_)
+    action_outcome_target = np.zeros((len(batch), max_actions), dtype=np.int64)
+    action_outcome_target_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    outcome_factual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    outcome_counterfactual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_round_value_target = np.zeros((len(batch), max_actions), dtype=np.float32)
+    action_round_value_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_round_factual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_round_counterfactual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_hanchan_value_target = np.zeros((len(batch), max_actions), dtype=np.float32)
+    action_hanchan_value_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_hanchan_factual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_hanchan_counterfactual_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
+    action_round_distribution_target = np.zeros((len(batch), max_actions), dtype=np.int64)
+    action_round_distribution_mask = np.zeros((len(batch), max_actions), dtype=np.bool_)
     for index, item in enumerate(batch):
         count = item["actions"].shape[0]
         actions[index, :count] = item["actions"]
@@ -430,9 +782,28 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
         deal_in_target_mask[index, :count] = item["deal_in_target_mask"]
         deal_in_score_target[index, :count] = item["deal_in_score_target"]
         deal_in_score_mask[index, :count] = item["deal_in_score_mask"]
+        action_outcome_target[index, :count] = item["action_outcome_target"]
+        action_outcome_target_mask[index, :count] = item["action_outcome_target_mask"]
+        outcome_factual_mask[index, :count] = item["outcome_factual_mask"]
+        outcome_counterfactual_mask[index, :count] = item["outcome_counterfactual_mask"]
+        action_round_value_target[index, :count] = item["action_round_value_target"]
+        action_round_value_mask[index, :count] = item["action_round_value_mask"]
+        action_round_factual_mask[index, :count] = item["action_round_factual_mask"]
+        action_round_counterfactual_mask[index, :count] = item["action_round_counterfactual_mask"]
+        action_hanchan_value_target[index, :count] = item["action_hanchan_value_target"]
+        action_hanchan_value_mask[index, :count] = item["action_hanchan_value_mask"]
+        action_hanchan_factual_mask[index, :count] = item["action_hanchan_factual_mask"]
+        action_hanchan_counterfactual_mask[index, :count] = item["action_hanchan_counterfactual_mask"]
+        action_round_distribution_target[index, :count] = item[
+            "action_round_distribution_target"
+        ]
+        action_round_distribution_mask[index, :count] = item[
+            "action_round_distribution_mask"
+        ]
     stack = lambda key: torch.from_numpy(np.stack([item[key] for item in batch]))
     return {
         "planes": stack("planes"),
+        "rule_features": stack("rule_features"),
         "actions": torch.from_numpy(actions),
         "danger_features": torch.from_numpy(danger_features),
         "action_mask": torch.from_numpy(action_mask),
@@ -441,6 +812,7 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
         "tiles": stack("tiles"),
         "event_flags": stack("event_flags"),
         "event_mask": stack("event_mask"),
+        "memory_features": stack("memory_features"),
         "policy_target": torch.tensor([item["policy_target"] for item in batch]),
         "policy_target_mask": torch.tensor(
             [item["policy_target_mask"] for item in batch], dtype=torch.bool
@@ -465,6 +837,18 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
         ),
         "round_delta_target": stack("round_delta_target"),
         "round_delta_target_mask": stack("round_delta_target_mask"),
+        "state_round_value_target": torch.tensor(
+            [item["state_round_value_target"] for item in batch]
+        ),
+        "state_round_value_mask": torch.tensor(
+            [item["state_round_value_mask"] for item in batch], dtype=torch.bool
+        ),
+        "state_hanchan_value_target": torch.tensor(
+            [item["state_hanchan_value_target"] for item in batch]
+        ),
+        "state_hanchan_value_mask": torch.tensor(
+            [item["state_hanchan_value_mask"] for item in batch], dtype=torch.bool
+        ),
         "tenpai_target": stack("tenpai_target"),
         "tenpai_target_mask": stack("tenpai_target_mask"),
         "wait_target": stack("wait_target"),
@@ -479,12 +863,36 @@ def collate_sequence_decisions(batch: list[dict[str, Any]]) -> dict[str, Tensor]
         "deal_in_target_mask": torch.from_numpy(deal_in_target_mask),
         "deal_in_score_target": torch.from_numpy(deal_in_score_target),
         "deal_in_score_mask": torch.from_numpy(deal_in_score_mask),
-        "action_outcome_target": torch.tensor(
-            [item["action_outcome_target"] for item in batch]
+        "action_outcome_target": torch.from_numpy(action_outcome_target),
+        "action_outcome_target_mask": torch.from_numpy(action_outcome_target_mask),
+        "outcome_factual_mask": torch.from_numpy(outcome_factual_mask),
+        "outcome_counterfactual_mask": torch.from_numpy(outcome_counterfactual_mask),
+        "action_round_value_target": torch.from_numpy(action_round_value_target),
+        "action_round_value_mask": torch.from_numpy(action_round_value_mask),
+        "action_round_factual_mask": torch.from_numpy(action_round_factual_mask),
+        "action_round_counterfactual_mask": torch.from_numpy(
+            action_round_counterfactual_mask
         ),
-        "action_outcome_target_mask": torch.tensor(
-            [item["action_outcome_target_mask"] for item in batch], dtype=torch.bool
+        "action_hanchan_value_target": torch.from_numpy(action_hanchan_value_target),
+        "action_hanchan_value_mask": torch.from_numpy(action_hanchan_value_mask),
+        "action_hanchan_factual_mask": torch.from_numpy(action_hanchan_factual_mask),
+        "action_hanchan_counterfactual_mask": torch.from_numpy(
+            action_hanchan_counterfactual_mask
         ),
+        "action_round_distribution_target": torch.from_numpy(
+            action_round_distribution_target
+        ),
+        "action_round_distribution_mask": torch.from_numpy(
+            action_round_distribution_mask
+        ),
+        "opponent_next_discard_target": stack("opponent_next_discard_target"),
+        "opponent_next_discard_mask": stack("opponent_next_discard_mask"),
+        "opponent_next_response_target": stack("opponent_next_response_target"),
+        "opponent_next_response_mask": stack("opponent_next_response_mask"),
+        "opponent_next_call_type_target": stack("opponent_next_call_type_target"),
+        "opponent_next_call_type_mask": stack("opponent_next_call_type_mask"),
+        "opponent_tile_count_target": stack("opponent_tile_count_target"),
+        "opponent_tile_count_mask": stack("opponent_tile_count_mask"),
     }
 
 
@@ -685,13 +1093,20 @@ class SequenceTrainer:
                 )
         return history
 
-    def _forward(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:
+    def _forward(self, batch: dict[str, Tensor]) -> MahjongModelOutput:
         return self.model(
             batch["planes"], batch["actions"], batch["event_types"],
             batch["players"], batch["tiles"], batch["event_flags"],
             batch["event_mask"], batch["action_mask"],
             batch["danger_features"],
+            batch["memory_features"],
+            batch["rule_features"],
         )
+
+    def offline_rl_signals(
+        self, output: MahjongModelOutput, batch: Mapping[str, Tensor]
+    ) -> OfflineRLSignals:
+        return build_offline_rl_signals(output, batch)
 
     def _run_epoch(self, loader: DataLoader, training: bool) -> dict[str, float]:
         self.model.train(training)
@@ -716,10 +1131,15 @@ class SequenceTrainer:
             **{f"loss_{name}": 0.0 for name in (
                 "policy", "rank", "score", "round", "tenpai", "wait",
                 "shanten", "draw", "deal", "dealpoint", "result",
-                "response", "call_type", "riichi",
+                "response", "call_type", "riichi", "state_round_value",
+                "state_hanchan_value", "action_round_value",
+                "action_hanchan_value", "action_round_distribution",
+                "opponent_discard", "opponent_response", "opponent_call_type",
+                "opponent_tile_count", "belief_consistency",
             )},
             **{f"gradient_norm_{name}": 0.0 for name in (
-                "shared", "policy", "value", "belief", "risk", "hierarchy"
+                "shared", "policy", "value", "belief", "risk", "hierarchy",
+                "action_value", "opponent_action", "rule_memory"
             )},
         }
         examples = 0
@@ -779,10 +1199,36 @@ class SequenceTrainer:
                     batch["future_target"],
                     batch["future_target_mask"].unsqueeze(-1),
                 )
+                state_round_value_loss = masked_mean(
+                    F.smooth_l1_loss(
+                        output["state_round_value"],
+                        batch["state_round_value_target"],
+                        reduction="none",
+                    ),
+                    batch["state_round_value_mask"],
+                )
+                state_hanchan_value_loss = masked_mean(
+                    F.smooth_l1_loss(
+                        output["state_hanchan_value"],
+                        batch["state_hanchan_value_target"],
+                        reduction="none",
+                    ),
+                    batch["state_hanchan_value_mask"],
+                )
+                consistency_loss = belief_consistency_loss(
+                    output["tenpai_logits"],
+                    output["wait_logits"],
+                    output["shanten_logits"],
+                    batch["tenpai_target_mask"] & batch["shanten_target_mask"],
+                )
                 cfg = self.config
                 zero = output["policy_logits"][:, :1].sum() * 0.0
                 danger_loss = deal_in_score_loss = outcome_loss = zero
                 response_loss = call_type_loss = riichi_loss = zero
+                action_round_value_loss = action_hanchan_value_loss = zero
+                action_round_distribution_loss = zero
+                opponent_discard_loss = opponent_response_loss = zero
+                opponent_call_type_loss = opponent_tile_count_loss = zero
                 loss = (
                     policy_loss + cfg.rank_loss_weight * rank_loss
                     + cfg.score_loss_weight * score_loss
@@ -791,9 +1237,11 @@ class SequenceTrainer:
                     + cfg.wait_loss_weight * wait_loss
                     + cfg.shanten_loss_weight * shanten_loss
                     + cfg.future_draw_loss_weight * future_loss
+                    + cfg.state_round_value_loss_weight * state_round_value_loss
+                    + cfg.state_hanchan_value_loss_weight * state_hanchan_value_loss
+                    + cfg.belief_consistency_loss_weight * consistency_loss
                 )
                 selected_danger: Tensor | None = None
-                selected_outcome: Tensor | None = None
                 if self.model.config.decision_heads:
                     batch_indexes = torch.arange(
                         batch["planes"].shape[0], device=self.config.device
@@ -812,11 +1260,8 @@ class SequenceTrainer:
                     selected_danger = output["deal_in_logits"][
                         batch_indexes, batch["policy_target"]
                     ]
-                    selected_outcome = output["round_result_logits"][
-                        batch_indexes, batch["policy_target"]
-                    ]
                     outcome_loss = masked_cross_entropy(
-                        selected_outcome,
+                        output["round_result_logits"],
                         batch["action_outcome_target"],
                         batch["action_outcome_target_mask"],
                     )
@@ -835,6 +1280,47 @@ class SequenceTrainer:
                         batch["riichi_target"],
                         batch["riichi_target_mask"],
                     )
+                    action_round_value_loss = masked_mean(
+                        F.smooth_l1_loss(
+                            output["action_round_value"],
+                            batch["action_round_value_target"],
+                            reduction="none",
+                        ),
+                        batch["action_round_value_mask"],
+                    )
+                    action_hanchan_value_loss = masked_mean(
+                        F.smooth_l1_loss(
+                            output["action_hanchan_value"],
+                            batch["action_hanchan_value_target"],
+                            reduction="none",
+                        ),
+                        batch["action_hanchan_value_mask"],
+                    )
+                    action_round_distribution_loss = masked_cross_entropy(
+                        output["action_round_distribution_logits"],
+                        batch["action_round_distribution_target"],
+                        batch["action_round_distribution_mask"],
+                    )
+                    opponent_discard_loss = masked_cross_entropy(
+                        output["opponent_next_discard_logits"],
+                        batch["opponent_next_discard_target"],
+                        batch["opponent_next_discard_mask"],
+                    )
+                    opponent_response_loss = masked_cross_entropy(
+                        output["opponent_response_logits"],
+                        batch["opponent_next_response_target"],
+                        batch["opponent_next_response_mask"],
+                    )
+                    opponent_call_type_loss = masked_cross_entropy(
+                        output["opponent_call_type_logits"],
+                        batch["opponent_next_call_type_target"],
+                        batch["opponent_next_call_type_mask"],
+                    )
+                    opponent_tile_count_loss = masked_cross_entropy(
+                        output["opponent_tile_count_logits"],
+                        batch["opponent_tile_count_target"],
+                        batch["opponent_tile_count_mask"],
+                    )
                     loss = (
                         loss
                         + cfg.deal_in_loss_weight * danger_loss
@@ -843,6 +1329,14 @@ class SequenceTrainer:
                         + cfg.response_loss_weight * response_loss
                         + cfg.call_type_loss_weight * call_type_loss
                         + cfg.riichi_loss_weight * riichi_loss
+                        + cfg.action_round_value_loss_weight * action_round_value_loss
+                        + cfg.action_hanchan_value_loss_weight * action_hanchan_value_loss
+                        + cfg.action_round_distribution_loss_weight
+                        * action_round_distribution_loss
+                        + cfg.opponent_discard_loss_weight * opponent_discard_loss
+                        + cfg.opponent_response_loss_weight * opponent_response_loss
+                        + cfg.opponent_call_type_loss_weight * opponent_call_type_loss
+                        + cfg.opponent_tile_count_loss_weight * opponent_tile_count_loss
                     )
                 if training:
                     self.optimizer.zero_grad(set_to_none=True)
@@ -856,7 +1350,10 @@ class SequenceTrainer:
                 else:
                     gradient_norms = {
                         name: 0.0
-                        for name in ("shared", "policy", "value", "belief", "risk", "hierarchy")
+                        for name in (
+                            "shared", "policy", "value", "belief", "risk", "hierarchy",
+                            "action_value", "opponent_action", "rule_memory",
+                        )
                     }
             count = batch["planes"].shape[0]
             examples += count
@@ -876,6 +1373,16 @@ class SequenceTrainer:
                 "response": response_loss,
                 "call_type": call_type_loss,
                 "riichi": riichi_loss,
+                "state_round_value": state_round_value_loss,
+                "state_hanchan_value": state_hanchan_value_loss,
+                "action_round_value": action_round_value_loss,
+                "action_hanchan_value": action_hanchan_value_loss,
+                "action_round_distribution": action_round_distribution_loss,
+                "opponent_discard": opponent_discard_loss,
+                "opponent_response": opponent_response_loss,
+                "opponent_call_type": opponent_call_type_loss,
+                "opponent_tile_count": opponent_tile_count_loss,
+                "belief_consistency": consistency_loss,
             }
             for name, value in head_losses.items():
                 totals[f"loss_{name}"] += float(value.detach()) * count
@@ -913,7 +1420,7 @@ class SequenceTrainer:
                     (top_hit & positive_wait_rows).sum()
                 )
                 totals["wait_positive_rows"] += float(positive_wait_rows.sum())
-            if selected_danger is not None and selected_outcome is not None:
+            if selected_danger is not None:
                 batch_indexes = torch.arange(count, device=self.config.device)
                 danger_probabilities = torch.sigmoid(selected_danger.detach())
                 danger_targets = batch["deal_in_target"][
@@ -938,11 +1445,9 @@ class SequenceTrainer:
                     (danger_targets & danger_valid).sum()
                 )
                 outcome_valid = batch["action_outcome_target_mask"]
+                outcome_prediction = output["round_result_logits"].detach().argmax(-1)
                 totals["outcome_accuracy"] += float(
-                    (
-                        selected_outcome.detach().argmax(1)
-                        == batch["action_outcome_target"]
-                    )[outcome_valid].sum()
+                    ((outcome_prediction == batch["action_outcome_target"]) & outcome_valid).sum()
                 )
                 totals["outcome_valid"] += float(outcome_valid.sum())
         if examples == 0:
@@ -1048,8 +1553,24 @@ def _git_commit() -> str | None:
 def _gradient_norms(model: SequenceMahjongNetwork) -> dict[str, float]:
     groups = {
         "policy": ("action_encoder", "policy_query", "policy_bias"),
-        "value": ("rank_head", "score_head", "round_delta_head", "action_outcome_head"),
-        "belief": ("opponent_", "future_draw_head"),
+        "action_value": (
+            "action_value_trunk", "action_round_value_head",
+            "action_hanchan_value_head", "action_round_distribution_head",
+        ),
+        "opponent_action": (
+            "opponent_next_discard_head", "opponent_response_head",
+            "opponent_call_type_head", "opponent_tile_count_head",
+        ),
+        "rule_memory": ("rule_projection", "memory_projection", "rule_gate", "memory_gate"),
+        "value": (
+            "rank_head", "score_head", "round_delta_head", "action_outcome_head",
+            "state_round_value_head", "state_hanchan_value_head",
+        ),
+        "belief": (
+            "opponent_tenpai", "opponent_wait", "opponent_shanten",
+            "opponent_projection", "opponent_temporal", "opponent_event",
+            "opponent_seat_embedding", "future_draw_head",
+        ),
         "risk": ("deal_in_head", "deal_in_point_head"),
         "hierarchy": ("response_head", "call_type_head", "riichi_head"),
     }

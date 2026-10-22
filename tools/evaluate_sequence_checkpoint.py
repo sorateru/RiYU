@@ -12,7 +12,13 @@ import torch
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 
-from mahjong_ai.ai import SequenceMahjongNetwork, SequenceModelConfig
+from mahjong_ai.ai import (
+    MODEL_OUTPUT_VERSION,
+    SEQUENCE_ARCHITECTURE_VERSION,
+    SequenceMahjongNetwork,
+    SequenceModelConfig,
+    load_sequence_state_dict_compatible,
+)
 from mahjong_ai.ai.opponent import expected_calibration_error
 from mahjong_ai.training import (
     ParquetSequenceDataset,
@@ -56,8 +62,11 @@ def main() -> None:
     checkpoint = torch.load(args.checkpoint, map_location=args.device, weights_only=False)
     if checkpoint.get("model_family") != "sequence-transformer-v2":
         raise ValueError("checkpoint is not sequence-transformer-v2")
-    model = SequenceMahjongNetwork(SequenceModelConfig(**checkpoint["model_config"]))
-    model.load_state_dict(checkpoint["model_state"])
+    model_config = dict(checkpoint["model_config"])
+    has_v2_outputs = checkpoint.get("model_output_version") == MODEL_OUTPUT_VERSION
+    model_config["architecture_version"] = SEQUENCE_ARCHITECTURE_VERSION
+    model = SequenceMahjongNetwork(SequenceModelConfig(**model_config))
+    load_sequence_state_dict_compatible(model, checkpoint["model_state"])
     model.to(args.device).eval()
     dataset = ParquetSequenceDataset(args.datasets)
     if model.config.decision_heads and not dataset.has_decision_labels:
@@ -113,6 +122,15 @@ def main() -> None:
         "outcome_nll": 0.0,
         "outcome_brier": 0.0,
         "outcome_cells": 0.0,
+        "action_round_absolute_error_points": 0.0,
+        "action_round_cells": 0.0,
+        "action_hanchan_absolute_error": 0.0,
+        "action_hanchan_cells": 0.0,
+        "action_round_distribution_correct": 0.0,
+        "opponent_discard_correct": 0.0,
+        "opponent_discard_cells": 0.0,
+        "opponent_response_correct": 0.0,
+        "opponent_response_cells": 0.0,
     }
     danger_probabilities: list[torch.Tensor] = []
     danger_targets: list[torch.Tensor] = []
@@ -131,6 +149,8 @@ def main() -> None:
                 batch["players"], batch["tiles"], batch["event_flags"],
                 batch["event_mask"], batch["action_mask"],
                 batch["danger_features"],
+                batch["memory_features"],
+                batch["rule_features"],
             )
             count = batch["planes"].shape[0]
             totals["examples"] += count
@@ -261,23 +281,65 @@ def main() -> None:
                         (expected_points - target_points).abs().sum()
                     )
                     totals["deal_in_positive_cells"] += score_targets.numel()
-                selected_outcome = output["action_outcome_logits"][indexes, batch["policy_target"]]
-                outcome_probability = torch.softmax(selected_outcome, -1)
+                outcome_logits = output["action_outcome_logits"]
+                outcome_probability = torch.softmax(outcome_logits, -1)
                 outcome_mask = batch["action_outcome_target_mask"]
                 outcome_probabilities_all.append(outcome_probability[outcome_mask].cpu())
                 outcome_targets_all.append(batch["action_outcome_target"][outcome_mask].cpu())
                 outcome_one_hot = F.one_hot(batch["action_outcome_target"], 5).float()
                 totals["outcome_correct"] += float(
-                    ((selected_outcome.argmax(-1) == batch["action_outcome_target"]) & outcome_mask).sum()
+                    ((outcome_logits.argmax(-1) == batch["action_outcome_target"]) & outcome_mask).sum()
                 )
                 outcome_losses = F.cross_entropy(
-                    selected_outcome, batch["action_outcome_target"], reduction="none"
+                    outcome_logits.transpose(1, 2),
+                    batch["action_outcome_target"],
+                    reduction="none",
                 )
                 totals["outcome_nll"] += float(outcome_losses[outcome_mask].sum())
                 totals["outcome_brier"] += float(
                     ((outcome_probability - outcome_one_hot).square() * outcome_mask.unsqueeze(-1)).sum()
                 )
                 totals["outcome_cells"] += float(outcome_mask.sum())
+                if has_v2_outputs:
+                    action_round_mask = batch["action_round_value_mask"]
+                    totals["action_round_absolute_error_points"] += float(
+                        (
+                            (output["action_round_value"] - batch["action_round_value_target"]).abs()
+                            * action_round_mask
+                        ).sum()
+                        * 10_000.0
+                    )
+                    totals["action_round_cells"] += float(action_round_mask.sum())
+                    action_hanchan_mask = batch["action_hanchan_value_mask"]
+                    totals["action_hanchan_absolute_error"] += float(
+                        (
+                            (output["action_hanchan_value"] - batch["action_hanchan_value_target"]).abs()
+                            * action_hanchan_mask
+                        ).sum()
+                    )
+                    totals["action_hanchan_cells"] += float(action_hanchan_mask.sum())
+                    totals["action_round_distribution_correct"] += float(
+                        (
+                            output["action_round_distribution_logits"].argmax(-1)
+                            == batch["action_round_distribution_target"]
+                        )[batch["action_round_distribution_mask"]].sum()
+                    )
+                    opponent_discard_mask = batch["opponent_next_discard_mask"]
+                    totals["opponent_discard_correct"] += float(
+                        (
+                            output["opponent_next_discard_logits"].argmax(-1)
+                            == batch["opponent_next_discard_target"]
+                        )[opponent_discard_mask].sum()
+                    )
+                    totals["opponent_discard_cells"] += float(opponent_discard_mask.sum())
+                    opponent_response_mask = batch["opponent_next_response_mask"]
+                    totals["opponent_response_correct"] += float(
+                        (
+                            output["opponent_response_logits"].argmax(-1)
+                            == batch["opponent_next_response_target"]
+                        )[opponent_response_mask].sum()
+                    )
+                    totals["opponent_response_cells"] += float(opponent_response_mask.sum())
 
     examples = totals["examples"]
     policy_cells = max(totals["policy_cells"], 1.0)
@@ -359,6 +421,27 @@ def main() -> None:
                 15,
             ),
         }
+        if has_v2_outputs:
+            result["action_value"] = {
+                "round_valid_labels": int(totals["action_round_cells"]),
+                "round_mae_points": totals["action_round_absolute_error_points"]
+                / max(totals["action_round_cells"], 1.0),
+                "round_distribution_accuracy": totals[
+                    "action_round_distribution_correct"
+                ]
+                / max(totals["action_round_cells"], 1.0),
+                "hanchan_valid_labels": int(totals["action_hanchan_cells"]),
+                "hanchan_utility_mae": totals["action_hanchan_absolute_error"]
+                / max(totals["action_hanchan_cells"], 1.0),
+            }
+            result["opponent_action"] = {
+                "discard_valid_labels": int(totals["opponent_discard_cells"]),
+                "discard_accuracy": totals["opponent_discard_correct"]
+                / max(totals["opponent_discard_cells"], 1.0),
+                "response_valid_labels": int(totals["opponent_response_cells"]),
+                "response_accuracy": totals["opponent_response_correct"]
+                / max(totals["opponent_response_cells"], 1.0),
+            }
     output_path = Path(args.output) if args.output else Path(args.checkpoint).with_suffix(
         f".{split_name}.evaluation.json"
     )

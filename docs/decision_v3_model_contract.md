@@ -1,5 +1,8 @@
 # Decision V3 / Mahjong Model V1 固定契約
 
+> これは後方互換用の旧契約である。新規学習は
+> [Decision V4 / Mahjong ModelOutput V2](decision_v4_model_contract.md) を正とする。
+
 この文書は大規模学習前に凍結する教師・Head・Loss・checkpoint・推論契約である。
 `decision/v3` と `mahjong-model-output/v1` の意味を変更するときは既存名を再利用せず、
 必ず新しいversionを発行する。

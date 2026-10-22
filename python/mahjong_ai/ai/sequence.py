@@ -15,9 +15,9 @@ from .model import ResidualBlock
 from mahjong_ai.schema import ACTION_TYPES, tile_index
 
 
-SEQUENCE_ENCODER_VERSION = "observable-events-v2"
-SEQUENCE_ARCHITECTURE_VERSION = "sequence-multitask-v1"
-MODEL_OUTPUT_VERSION = "mahjong-model-output/v1"
+SEQUENCE_ENCODER_VERSION = "observable-events-rules-memory-v3"
+SEQUENCE_ARCHITECTURE_VERSION = "sequence-multitask-v2"
+MODEL_OUTPUT_VERSION = "mahjong-model-output/v2"
 MAX_SEQUENCE_EVENTS = 96
 EVENT_FLAG_FEATURES = 6
 EVENT_TYPES = (
@@ -36,6 +36,38 @@ EVENT_TYPES = (
     "draw_game",
     "round_end",
 )
+RULE_FEATURES = 20
+LONG_MEMORY_FEATURES = len(EVENT_TYPES) * 5 + 34 + EVENT_FLAG_FEATURES + 1
+ROUND_VALUE_BIN_EDGES = (
+    -18_000.0,
+    -12_000.0,
+    -8_000.0,
+    -5_200.0,
+    -3_000.0,
+    -1_000.0,
+    1_000.0,
+    3_000.0,
+    5_200.0,
+    8_000.0,
+    12_000.0,
+    18_000.0,
+)
+FORBIDDEN_MODEL_INPUT_FIELDS = frozenset(
+    {
+        "private_hands",
+        "private_hand",
+        "hidden_hand",
+        "wall",
+        "wall_order",
+        "future_draw",
+        "future_draw_target",
+        "round_result",
+        "final_rank",
+        "final_score",
+        "counterfactual_hidden_state",
+        "simulation_hidden_state",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -45,11 +77,12 @@ class EncodedEventSequence:
     tiles: np.ndarray
     flags: np.ndarray
     valid_mask: np.ndarray
+    memory_features: np.ndarray
 
 
 @dataclass(frozen=True)
 class MahjongModelOutput(Mapping[str, Tensor]):
-    """Frozen V1 output contract shared by training, inference, Arena and Web."""
+    """Versioned V2 output contract shared by training, inference, Arena and Web."""
 
     policy_logits: Tensor
     rank_logits: Tensor
@@ -59,14 +92,27 @@ class MahjongModelOutput(Mapping[str, Tensor]):
     wait_logits: Tensor
     shanten_logits: Tensor
     future_draw_logits: Tensor
+    state_round_value: Tensor
+    state_hanchan_value: Tensor
     response_logits: Tensor | None = None
     call_type_logits: Tensor | None = None
     riichi_logits: Tensor | None = None
     deal_in_logits: Tensor | None = None
     deal_in_point_logits: Tensor | None = None
     round_result_logits: Tensor | None = None
+    action_round_value: Tensor | None = None
+    action_hanchan_value: Tensor | None = None
+    action_round_advantage: Tensor | None = None
+    action_hanchan_advantage: Tensor | None = None
+    action_round_distribution_logits: Tensor | None = None
+    opponent_next_discard_logits: Tensor | None = None
+    opponent_response_logits: Tensor | None = None
+    opponent_call_type_logits: Tensor | None = None
+    opponent_tile_count_logits: Tensor | None = None
     opponent_latents: Tensor | None = None
     opponent_event_counts: Tensor | None = None
+    memory_summary: Tensor | None = None
+    rule_embedding: Tensor | None = None
 
     _ALIASES = {
         "score_value": "final_score",
@@ -185,11 +231,21 @@ class SequenceFeatureEncoder:
         self.maximum_events = maximum_events
 
     def encode_tokens(self, events: list[dict[str, Any]]) -> EncodedEventSequence:
+        for event in events:
+            if event.get("type") == "draw" and event.get("relative_player") in {1, 2, 3} and event.get("tile") is not None:
+                raise ValueError("opponent concealed draw is forbidden in public events")
+            forbidden = FORBIDDEN_MODEL_INPUT_FIELDS.intersection(event)
+            if forbidden:
+                raise ValueError(
+                    "hidden or future label state is forbidden in public events: "
+                    + ", ".join(sorted(forbidden))
+                )
         event_types = np.zeros(self.maximum_events, dtype=np.int64)
         players = np.zeros(self.maximum_events, dtype=np.int64)
         tiles = np.zeros(self.maximum_events, dtype=np.int64)
         flags = np.zeros((self.maximum_events, EVENT_FLAG_FEATURES), dtype=np.float32)
         valid = np.zeros(self.maximum_events, dtype=np.bool_)
+        older = events[: -self.maximum_events] if len(events) > self.maximum_events else []
         clipped = events[-self.maximum_events :]
         offset = self.maximum_events - len(clipped)
         for output_index, event in enumerate(clipped, start=offset):
@@ -212,17 +268,88 @@ class SequenceFeatureEncoder:
             flags[output_index, 4] = float(meld_kind == "pon")
             flags[output_index, 5] = float(meld_kind in {"ankan", "daiminkan", "shouminkan"})
             valid[output_index] = True
-        return EncodedEventSequence(event_types, players, tiles, flags, valid)
+        memory = np.zeros(LONG_MEMORY_FEATURES, dtype=np.float32)
+        if older:
+            denominator = float(len(older))
+            for event in older:
+                event_type = str(event.get("type", "unknown"))
+                try:
+                    type_index = EVENT_TYPES.index(event_type)
+                except ValueError:
+                    type_index = 0
+                relative = event.get("relative_player")
+                player_bucket = int(relative) + 1 if relative is not None and 0 <= int(relative) < 4 else 0
+                memory[type_index * 5 + player_bucket] += 1.0 / denominator
+                tile = event.get("tile")
+                if tile is not None and 0 <= int(tile) < 34:
+                    memory[len(EVENT_TYPES) * 5 + int(tile)] += 1.0 / denominator
+                flag_offset = len(EVENT_TYPES) * 5 + 34
+                memory[flag_offset] += float(bool(event.get("tsumogiri", False))) / denominator
+                memory[flag_offset + 1] += float(bool(event.get("riichi_declaration", False))) / denominator
+                memory[flag_offset + 2] += float(bool(event.get("rinshan", False))) / denominator
+                meld_kind = event.get("meld_kind")
+                memory[flag_offset + 3] += float(meld_kind == "chi") / denominator
+                memory[flag_offset + 4] += float(meld_kind == "pon") / denominator
+                memory[flag_offset + 5] += float(
+                    meld_kind in {"ankan", "daiminkan", "shouminkan"}
+                ) / denominator
+            memory[-1] = min(len(older) / 256.0, 1.0)
+        return EncodedEventSequence(event_types, players, tiles, flags, valid, memory)
+
+
+class RuleFeatureEncoder:
+    """Stable defaults for cross-service rule conditioning."""
+
+    version = "rule-features-v1"
+
+    def encode(self, state: dict[str, Any]) -> np.ndarray:
+        rules = state.get("rules") or {}
+        output = np.zeros(RULE_FEATURES, dtype=np.float32)
+        output[0] = float(bool(rules))
+        output[1] = float(rules.get("player_count", 4)) / 4.0
+        output[2] = float(rules.get("starting_score", 25_000)) / 50_000.0
+        output[3] = float(rules.get("target_score", 30_000)) / 50_000.0
+        red_fives = rules.get("red_fives", [1, 1, 1])
+        for index in range(3):
+            output[4 + index] = float(red_fives[index]) if index < len(red_fives) else 0.0
+        output[7] = float(bool(rules.get("open_tanyao", True)))
+        match_length = str(rules.get("match_length", "unknown"))
+        output[8] = float(match_length in {"east", "east_only", "tonpu"})
+        output[9] = float(match_length in {"east_south", "hanchan"})
+        output[10] = float(bool(rules.get("allow_west_extension", True)))
+        output[11] = float(bool(rules.get("allow_double_ron", True)))
+        output[12] = float(bool(rules.get("triple_ron_is_draw", True)))
+        output[13] = float(bool(rules.get("agari_yame", True)))
+        output[14] = float(bool(rules.get("tenpai_yame", True)))
+        output[15] = float(bool(rules.get("bankruptcy_ends_match", True)))
+        rule_set = str(rules.get("rule_set", "unknown")).lower()
+        output[16] = float("tenhou" in rule_set)
+        output[17] = float("majsoul" in rule_set or "mahjong_soul" in rule_set)
+        output[18] = float(rule_set not in {"", "unknown"} and not output[16] and not output[17])
+        output[19] = float(match_length == "unknown")
+        return output
 
 
 def public_event_tokens(
-    state: dict[str, Any], maximum: int = MAX_SEQUENCE_EVENTS
+    state: dict[str, Any], maximum: int | None = None
 ) -> list[dict[str, Any]]:
     """Project runtime event history into the same observable token contract as V2."""
 
     observer = int(state["information"]["observer"])
+    information = state.get("information", {})
+    if information.get("opponent_hands_visible", False) or information.get(
+        "wall_order_visible", False
+    ):
+        raise ValueError("private information is forbidden in public event encoding")
+    forbidden = FORBIDDEN_MODEL_INPUT_FIELDS.intersection(state)
+    if forbidden:
+        raise ValueError(
+            "hidden or future label fields are forbidden in public event encoding: "
+            + ", ".join(sorted(forbidden))
+        )
     tokens: list[dict[str, Any]] = []
-    for event in state.get("event_history", [])[-maximum:]:
+    history = state.get("event_history", [])
+    for event in history[-maximum:] if maximum is not None else history:
         token: dict[str, Any] = {"type": event["type"]}
         player = event.get("player", event.get("winner", event.get("loser")))
         if player is not None:
@@ -259,6 +386,7 @@ class SequenceModelConfig:
     opponent_dim: int = 128
     opponent_temporal_latents: bool = False
     deal_in_score_bins: int = 8
+    round_value_bins: int = len(ROUND_VALUE_BIN_EDGES) + 1
     danger_features: int = DANGER_FEATURES
 
     def to_dict(self) -> dict[str, object]:
@@ -279,6 +407,8 @@ class SequenceMahjongNetwork(nn.Module):
             raise ValueError("event_dim must be divisible by transformer_heads")
         if config.architecture_version != SEQUENCE_ARCHITECTURE_VERSION:
             raise ValueError("unsupported sequence architecture version")
+        if config.round_value_bins != len(ROUND_VALUE_BIN_EDGES) + 1:
+            raise ValueError("round_value_bins must follow the frozen V2 bin contract")
         self.config = config
         self.snapshot_stem = nn.Sequential(
             nn.Conv1d(ENCODER_PLANES, config.snapshot_channels, 3, padding=1, bias=False),
@@ -310,6 +440,20 @@ class SequenceMahjongNetwork(nn.Module):
         )
         self.event_transformer = nn.TransformerEncoder(layer, config.transformer_layers)
         self.event_norm = nn.LayerNorm(config.event_dim)
+        self.memory_projection = nn.Sequential(
+            nn.Linear(LONG_MEMORY_FEATURES, config.event_dim),
+            nn.GELU(),
+            nn.LayerNorm(config.event_dim),
+        )
+        self.rule_projection = nn.Sequential(
+            nn.Linear(RULE_FEATURES, config.event_dim),
+            nn.GELU(),
+            nn.LayerNorm(config.event_dim),
+        )
+        # Zero gates keep old checkpoints behaviorally stable until the new
+        # conditioning paths receive gradients.
+        self.memory_gate = nn.Parameter(torch.zeros(()))
+        self.rule_gate = nn.Parameter(torch.zeros(()))
         self.fusion = nn.Sequential(
             nn.Linear(config.snapshot_dim + config.event_dim, config.fused_dim),
             nn.ReLU(),
@@ -328,6 +472,8 @@ class SequenceMahjongNetwork(nn.Module):
         self.rank_head = nn.Linear(config.fused_dim, 4)
         self.score_head = nn.Linear(config.fused_dim, 1)
         self.round_delta_head = nn.Linear(config.fused_dim, 4)
+        self.state_round_value_head = nn.Linear(config.fused_dim, 1)
+        self.state_hanchan_value_head = nn.Linear(config.fused_dim, 1)
         self.opponent_tenpai_head = nn.Linear(config.fused_dim, 4)
         self.opponent_wait_head = nn.Linear(config.fused_dim, 4 * 34)
         self.opponent_shanten_head = nn.Linear(
@@ -391,6 +537,20 @@ class SequenceMahjongNetwork(nn.Module):
                 nn.GELU(),
                 nn.Linear(config.fused_dim, 5),
             )
+            self.action_value_trunk = nn.Sequential(
+                nn.Linear(config.fused_dim + config.action_dim, config.fused_dim),
+                nn.GELU(),
+                nn.LayerNorm(config.fused_dim),
+            )
+            self.action_round_value_head = nn.Linear(config.fused_dim, 1)
+            self.action_hanchan_value_head = nn.Linear(config.fused_dim, 1)
+            self.action_round_distribution_head = nn.Linear(
+                config.fused_dim, config.round_value_bins
+            )
+            self.opponent_next_discard_head = nn.Linear(config.opponent_dim, 34)
+            self.opponent_response_head = nn.Linear(config.opponent_dim, 4)
+            self.opponent_call_type_head = nn.Linear(config.opponent_dim, 3)
+            self.opponent_tile_count_head = nn.Linear(config.opponent_dim, 34 * 5)
 
     def forward(
         self,
@@ -403,6 +563,8 @@ class SequenceMahjongNetwork(nn.Module):
         event_mask: Tensor,
         action_mask: Tensor | None = None,
         danger_features: Tensor | None = None,
+        memory_features: Tensor | None = None,
+        rule_features: Tensor | None = None,
     ) -> MahjongModelOutput:
         snapshot = self.snapshot_representation(
             self.snapshot_backbone(self.snapshot_stem(planes))
@@ -421,13 +583,34 @@ class SequenceMahjongNetwork(nn.Module):
         transformed = self.event_norm(transformed)
         weights = event_mask.unsqueeze(-1).to(transformed.dtype)
         sequence = (transformed * weights).sum(dim=1) / weights.sum(dim=1).clamp_min(1.0)
+        batch = planes.shape[0]
+        if memory_features is None:
+            memory_features = torch.zeros(
+                batch, LONG_MEMORY_FEATURES, device=planes.device, dtype=planes.dtype
+            )
+        if rule_features is None:
+            rule_features = torch.zeros(
+                batch, RULE_FEATURES, device=planes.device, dtype=planes.dtype
+            )
+        if memory_features.shape != (batch, LONG_MEMORY_FEATURES):
+            raise ValueError("memory_features must have shape [batch, LONG_MEMORY_FEATURES]")
+        if rule_features.shape != (batch, RULE_FEATURES):
+            raise ValueError("rule_features must have shape [batch, RULE_FEATURES]")
+        memory_summary = self.memory_projection(memory_features)
+        rule_embedding = self.rule_projection(rule_features)
+        sequence = self.event_norm(
+            sequence
+            + torch.tanh(self.memory_gate) * memory_summary
+            + torch.tanh(self.rule_gate) * rule_embedding
+        )
         representation = self.fusion(torch.cat((snapshot, sequence), dim=1))
 
         action_embedding = self.action_encoder(action_features)
         query = self.policy_query(representation).unsqueeze(1)
         logits = (query * action_embedding).sum(dim=-1) / self.config.action_dim**0.5
         logits = logits + self.policy_bias(action_features).squeeze(-1)
-        batch = planes.shape[0]
+        state_round_value = self.state_round_value_head(representation).squeeze(-1)
+        state_hanchan_value = self.state_hanchan_value_head(representation).squeeze(-1)
         tenpai_logits = self.opponent_tenpai_head(representation)[:, 1:]
         wait_logits = self.opponent_wait_head(representation).view(batch, 4, 34)[:, 1:]
         shanten_logits = self.opponent_shanten_head(representation).view(
@@ -441,6 +624,15 @@ class SequenceMahjongNetwork(nn.Module):
         round_result_logits: Tensor | None = None
         opponent_latents: Tensor | None = None
         opponent_event_counts: Tensor | None = None
+        action_round_value: Tensor | None = None
+        action_hanchan_value: Tensor | None = None
+        action_round_advantage: Tensor | None = None
+        action_hanchan_advantage: Tensor | None = None
+        action_round_distribution_logits: Tensor | None = None
+        opponent_next_discard_logits: Tensor | None = None
+        opponent_response_logits: Tensor | None = None
+        opponent_call_type_logits: Tensor | None = None
+        opponent_tile_count_logits: Tensor | None = None
         if self.config.decision_heads:
             seats = torch.arange(4, device=planes.device)
             seat_features = self.opponent_seat_embedding(seats).unsqueeze(0).expand(
@@ -495,6 +687,14 @@ class SequenceMahjongNetwork(nn.Module):
                 shanten_logits = self.opponent_shanten_from_latent(opponents)[:, 1:]
                 opponent_event_counts = actor_counts[:, 1:]
             opponent_latents = opponents[:, 1:]
+            opponent_next_discard_logits = self.opponent_next_discard_head(
+                opponent_latents
+            )
+            opponent_response_logits = self.opponent_response_head(opponent_latents)
+            opponent_call_type_logits = self.opponent_call_type_head(opponent_latents)
+            opponent_tile_count_logits = self.opponent_tile_count_head(
+                opponent_latents
+            ).view(batch, 3, 34, 5)
             if danger_features is None:
                 danger_features = torch.zeros(
                     batch,
@@ -521,6 +721,22 @@ class SequenceMahjongNetwork(nn.Module):
             outcome_state = representation.unsqueeze(1).expand(-1, action_embedding.shape[1], -1)
             round_result_logits = self.action_outcome_head(
                 torch.cat((outcome_state, outcome_action), dim=-1)
+            )
+            action_value_features = self.action_value_trunk(
+                torch.cat((outcome_state, action_embedding), dim=-1)
+            )
+            action_round_value = self.action_round_value_head(
+                action_value_features
+            ).squeeze(-1)
+            action_hanchan_value = self.action_hanchan_value_head(
+                action_value_features
+            ).squeeze(-1)
+            action_round_advantage = action_round_value - state_round_value.unsqueeze(1)
+            action_hanchan_advantage = (
+                action_hanchan_value - state_hanchan_value.unsqueeze(1)
+            )
+            action_round_distribution_logits = self.action_round_distribution_head(
+                action_value_features
             )
             response_logits = self.response_head(representation)
             call_type_logits = self.call_type_head(representation)
@@ -549,12 +765,67 @@ class SequenceMahjongNetwork(nn.Module):
             wait_logits=wait_logits,
             shanten_logits=shanten_logits,
             future_draw_logits=self.future_draw_head(representation),
+            state_round_value=state_round_value,
+            state_hanchan_value=state_hanchan_value,
             response_logits=response_logits,
             call_type_logits=call_type_logits,
             riichi_logits=riichi_logits,
             deal_in_logits=deal_in_logits,
             deal_in_point_logits=deal_in_point_logits,
             round_result_logits=round_result_logits,
+            action_round_value=action_round_value,
+            action_hanchan_value=action_hanchan_value,
+            action_round_advantage=action_round_advantage,
+            action_hanchan_advantage=action_hanchan_advantage,
+            action_round_distribution_logits=action_round_distribution_logits,
+            opponent_next_discard_logits=opponent_next_discard_logits,
+            opponent_response_logits=opponent_response_logits,
+            opponent_call_type_logits=opponent_call_type_logits,
+            opponent_tile_count_logits=opponent_tile_count_logits,
             opponent_latents=opponent_latents,
             opponent_event_counts=opponent_event_counts,
+            memory_summary=memory_summary,
+            rule_embedding=rule_embedding,
         )
+
+
+_V2_NEW_MODULE_PREFIXES = (
+    "memory_projection",
+    "memory_gate",
+    "rule_projection",
+    "rule_gate",
+    "state_round_value_head",
+    "state_hanchan_value_head",
+    "action_value_trunk",
+    "action_round_value_head",
+    "action_hanchan_value_head",
+    "action_round_distribution_head",
+    "opponent_next_discard_head",
+    "opponent_response_head",
+    "opponent_call_type_head",
+    "opponent_tile_count_head",
+)
+
+
+def load_sequence_state_dict_compatible(
+    model: SequenceMahjongNetwork, state_dict: Mapping[str, Tensor]
+) -> tuple[list[str], list[str]]:
+    """Warm-start V2 from V1 while failing on unrelated incompatibilities."""
+
+    incompatible = model.load_state_dict(state_dict, strict=False)
+    forbidden_missing = [
+        key
+        for key in incompatible.missing_keys
+        if not key.startswith(_V2_NEW_MODULE_PREFIXES)
+    ]
+    unexpected = [
+        key
+        for key in incompatible.unexpected_keys
+        if not key.startswith("deal_in_score_head")
+    ]
+    if forbidden_missing or unexpected:
+        raise ValueError(
+            f"sequence checkpoint mismatch: missing={forbidden_missing}, "
+            f"unexpected={unexpected}"
+        )
+    return list(incompatible.missing_keys), list(incompatible.unexpected_keys)

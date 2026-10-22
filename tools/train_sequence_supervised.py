@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train the observable sequence Transformer on decision/v2 or labelled v3 shards."""
+"""Train the observable sequence Transformer on legacy or Decision V4 shards."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from mahjong_ai.ai import MODEL_OUTPUT_VERSION, SEQUENCE_ARCHITECTURE_VERSION
 from mahjong_ai.data import SEQUENCE_DATASET_FORMAT, SEQUENCE_LABEL_VERSION
 from mahjong_ai.training import (
     ParquetSequenceDataset,
+    RankScoreUtility,
     SequenceTrainer,
     SequenceTrainerConfig,
     split_sequence_train_validation_holdout,
@@ -34,6 +35,12 @@ def main() -> None:
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--scheduler-t-max-epochs", type=int, default=50)
     parser.add_argument("--minimum-learning-rate-ratio", type=float, default=0.05)
+    parser.add_argument(
+        "--rank-utilities",
+        default="1.0,0.35,-0.35,-1.0",
+        help="comma-separated utility for final ranks 1..4",
+    )
+    parser.add_argument("--score-utility-weight", type=float, default=0.0)
     parser.add_argument(
         "--auto-positive-weights",
         action=argparse.BooleanOptionalAction,
@@ -77,6 +84,12 @@ def main() -> None:
         parser.error("scheduler t-max epochs must be positive")
     if not 0 <= args.minimum_learning_rate_ratio <= 1:
         parser.error("minimum learning rate ratio must be in [0, 1]")
+    try:
+        rank_utilities = tuple(float(value) for value in args.rank_utilities.split(","))
+    except ValueError:
+        parser.error("rank utilities must be comma-separated numbers")
+    if len(rank_utilities) != 4:
+        parser.error("rank utilities must contain four values")
     if args.maximum_positive_weight < 1:
         parser.error("maximum positive weight must be at least one")
     if not 0 <= args.policy_label_smoothing < 1:
@@ -103,7 +116,11 @@ def main() -> None:
                 manifest_path.read_bytes()
             ).hexdigest()
     fingerprint = digest.hexdigest()
-    dataset = ParquetSequenceDataset(dataset_paths)
+    utility = RankScoreUtility(
+        rank_values=rank_utilities,
+        score_weight=args.score_utility_weight,
+    )
+    dataset = ParquetSequenceDataset(dataset_paths, hanchan_utility=utility)
     if args.decision_heads and not dataset.has_decision_labels:
         raise ValueError(
             "--decision-heads requires newly converted shards with opponent danger, "
@@ -119,12 +136,31 @@ def main() -> None:
         if warm.get("model_family") != "sequence-transformer-v2":
             raise ValueError("warm-start checkpoint is not sequence-transformer-v2")
         warm_config = dict(warm["model_config"])
+        original_architecture = warm.get(
+            "architecture_version", warm_config.get("architecture_version")
+        )
         original_decision_heads = bool(warm_config.get("decision_heads", False))
         original_temporal_latents = bool(
             warm_config.get("opponent_temporal_latents", False)
         )
+        warm_training_config = warm.get("training_config") or {}
+        utility_matches = (
+            tuple(
+                warm_training_config.get(
+                    "hanchan_rank_utilities", rank_utilities
+                )
+            )
+            == rank_utilities
+            and float(
+                warm_training_config.get(
+                    "hanchan_score_weight", args.score_utility_weight
+                )
+            )
+            == args.score_utility_weight
+        )
         warm_config["decision_heads"] = args.decision_heads
         warm_config["opponent_temporal_latents"] = args.opponent_temporal_latents
+        warm_config["architecture_version"] = SEQUENCE_ARCHITECTURE_VERSION
         model = SequenceMahjongNetwork(SequenceModelConfig(**warm_config))
         incompatible = model.load_state_dict(warm["model_state"], strict=False)
         unexpected = [
@@ -153,6 +189,20 @@ def main() -> None:
                     "deal_in_point_head",
                     "outcome_action_projection",
                     "action_outcome_head",
+                    "memory_projection",
+                    "memory_gate",
+                    "rule_projection",
+                    "rule_gate",
+                    "state_round_value_head",
+                    "state_hanchan_value_head",
+                    "action_value_trunk",
+                    "action_round_value_head",
+                    "action_hanchan_value_head",
+                    "action_round_distribution_head",
+                    "opponent_next_discard_head",
+                    "opponent_response_head",
+                    "opponent_call_type_head",
+                    "opponent_tile_count_head",
                 )
             )
         ]
@@ -163,6 +213,8 @@ def main() -> None:
         resume_optimizer = (
             original_decision_heads == args.decision_heads
             and original_temporal_latents == args.opponent_temporal_latents
+            and original_architecture == SEQUENCE_ARCHITECTURE_VERSION
+            and utility_matches
         )
     elif args.legacy_warm_start:
         legacy_checkpoint = torch.load(
@@ -219,6 +271,8 @@ def main() -> None:
             policy_label_smoothing=args.policy_label_smoothing,
             scheduler_t_max_epochs=args.scheduler_t_max_epochs,
             minimum_learning_rate_ratio=args.minimum_learning_rate_ratio,
+            hanchan_rank_utilities=rank_utilities,
+            hanchan_score_weight=args.score_utility_weight,
             device=args.device,
         ),
     )
@@ -257,6 +311,11 @@ def main() -> None:
         "holdout_policy": "never evaluated during training or checkpoint selection",
         "epochs": args.epochs,
         "seed": args.seed,
+        "hanchan_utility": {
+            "version": "rank-score-utility-v1",
+            "rank_values": rank_utilities,
+            "score_weight": args.score_utility_weight,
+        },
         "start_epoch": start_epoch,
         "effective_positive_weights": trainer.effective_positive_weights,
         "optimizer_resumed": bool(

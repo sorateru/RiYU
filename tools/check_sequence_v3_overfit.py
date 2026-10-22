@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Intentional small-set overfit gate before expensive Decision V3 training."""
+"""Intentional small-set overfit gate before expensive Decision V4 training."""
 
 from __future__ import annotations
 
@@ -42,7 +42,9 @@ def main() -> None:
         parser.error("--minimum-policy-accuracy must be in (0, 1]")
     dataset = ParquetSequenceDataset(args.datasets)
     if not dataset.has_decision_labels:
-        raise ValueError("overfit gate requires frozen decision/v3 candidate labels")
+        raise ValueError("overfit gate requires frozen candidate labels")
+    if not dataset.has_v4_labels:
+        raise ValueError("full overfit gate requires Decision V4 action-value labels")
     generator = torch.Generator().manual_seed(20261019)
     indexes = torch.randperm(len(dataset), generator=generator)[
         : min(args.decisions, len(dataset))
@@ -123,6 +125,15 @@ def main() -> None:
         "response": "response",
         "call_type": "call_type",
         "riichi": "riichi",
+        "state_round_value": "state_round_value",
+        "state_hanchan_value": "state_hanchan_value",
+        "action_round_value": "action_round_value",
+        "action_hanchan_value": "action_hanchan_value",
+        "action_round_distribution": "action_round_distribution",
+        "opponent_discard": "opponent_discard",
+        "opponent_response": "opponent_response",
+        "opponent_call_type": "opponent_call_type",
+        "opponent_tile_count": "opponent_tile_count",
     }
     for name, coverage_name in loss_to_coverage.items():
         if coverage[coverage_name] == 0:
@@ -139,6 +150,9 @@ def _label_coverage(dataset: Subset) -> dict[str, int]:
         for name in (
             "policy", "rank", "score", "round", "tenpai", "wait", "shanten",
             "draw", "deal", "dealpoint", "result", "response", "call_type", "riichi",
+            "state_round_value", "state_hanchan_value", "action_round_value",
+            "action_hanchan_value", "action_round_distribution", "opponent_discard",
+            "opponent_response", "opponent_call_type", "opponent_tile_count",
         )
     }
     for item in dataset:
@@ -156,6 +170,17 @@ def _label_coverage(dataset: Subset) -> dict[str, int]:
         coverage["response"] += int(item["response_target_mask"])
         coverage["call_type"] += int(item["call_type_target_mask"])
         coverage["riichi"] += int(item["riichi_target_mask"].sum())
+        coverage["state_round_value"] += int(item["state_round_value_mask"])
+        coverage["state_hanchan_value"] += int(item["state_hanchan_value_mask"])
+        coverage["action_round_value"] += int(item["action_round_value_mask"].sum())
+        coverage["action_hanchan_value"] += int(item["action_hanchan_value_mask"].sum())
+        coverage["action_round_distribution"] += int(
+            item["action_round_distribution_mask"].sum()
+        )
+        coverage["opponent_discard"] += int(item["opponent_next_discard_mask"].sum())
+        coverage["opponent_response"] += int(item["opponent_next_response_mask"].sum())
+        coverage["opponent_call_type"] += int(item["opponent_next_call_type_mask"].sum())
+        coverage["opponent_tile_count"] += int(item["opponent_tile_count_mask"].sum())
     return coverage
 
 

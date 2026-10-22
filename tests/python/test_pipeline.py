@@ -17,6 +17,10 @@ from mahjong_ai.analysis import EXTERNAL_AUTHORIZATION, REALTIME_PROTOCOL
 from mahjong_ai.apps.reviewer import create_app
 from mahjong_ai.apps.local_play import LocalPlayManager
 from mahjong_ai.data.dataset import build_decision_records, write_parquet
+from mahjong_ai.data.sequence_dataset import (
+    build_sequence_decision_records,
+    write_sequence_parquet,
+)
 from mahjong_ai.data.log import EventLogError, load_event_log
 from mahjong_ai.data.tenhou import _kind_index, convert_document
 from mahjong_ai.data.tenhou_archive import (
@@ -41,6 +45,10 @@ from mahjong_ai.training.selfplay import (
     verify_selfplay_dataset,
 )
 from mahjong_ai.training.supervised import ParquetDecisionDataset, Trainer, TrainerConfig
+from mahjong_ai.training.sequence_supervised import (
+    ParquetSequenceDataset,
+    masked_cross_entropy,
+)
 from fastapi.testclient import TestClient
 
 
@@ -398,7 +406,7 @@ def test_event_log_dataset_parquet_and_training_smoke(tmp_path) -> None:
     assert warm_started.lineage["warm_start_metadata"]["dataset_fingerprint"] == "fixture"
 
 
-def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None:
+def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard(tmp_path) -> None:
     import xml.etree.ElementTree as ET
 
     root = ET.fromstring(
@@ -419,6 +427,32 @@ def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None
         "tile": {"kind": "p5", "red": True},
         "tsumogiri": True,
     }
+    sequence_records = build_sequence_decision_records(rounds[0].log)
+    assert len(sequence_records) == 1
+    sequence = sequence_records[0]
+    assert sequence.dataset_version == "mahjong-ai-sequence-decision/v4"
+    factual_mask = json.loads(sequence.factual_action_round_delta_mask)
+    counterfactual_mask = json.loads(sequence.counterfactual_action_round_delta_mask)
+    assert sum(factual_mask) == 1
+    assert factual_mask[sequence.chosen_action_index]
+    assert not any(counterfactual_mask)
+    assert len(json.loads(sequence.opponent_tile_count)) == 3
+    observation = json.loads(sequence.observation)
+    public_events = json.loads(sequence.public_events)
+    assert "private_hands" not in observation
+    assert "wall" not in observation
+    assert "opponent_tile_count" not in observation
+    assert all("hidden_hand" not in event for event in public_events)
+    shard = tmp_path / "decision-v4.parquet"
+    write_sequence_parquet(sequence_records, shard)
+    loaded = ParquetSequenceDataset(shard)[0]
+    assert int(loaded["action_outcome_target_mask"].sum()) == 1
+    outcome_loss = masked_cross_entropy(
+        torch.zeros(1, len(factual_mask), 5),
+        torch.from_numpy(loaded["action_outcome_target"]).unsqueeze(0),
+        torch.from_numpy(loaded["action_outcome_target_mask"]).unsqueeze(0),
+    )
+    assert torch.isfinite(outcome_loss)
 
 
 def test_tenhou_nested_archive_streams_xml_without_extracting(tmp_path) -> None:
