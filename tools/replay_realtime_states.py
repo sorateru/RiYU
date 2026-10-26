@@ -25,12 +25,20 @@ def main() -> None:
         "--url", default="ws://127.0.0.1:8787/ws/realtime/source"
     )
     parser.add_argument("--interval", type=float, default=0.25)
+    parser.add_argument(
+        "--linger",
+        type=float,
+        default=0.0,
+        help="seconds to keep the source connected after the final state",
+    )
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
     if not 0 <= args.observer <= 3:
         parser.error("--observer must be between zero and three")
     if args.interval < 0:
         parser.error("--interval cannot be negative")
+    if args.linger < 0:
+        parser.error("--linger cannot be negative")
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be positive")
     _require_loopback(args.url, parser)
@@ -42,6 +50,7 @@ def main() -> None:
             args.observer,
             states,
             args.interval,
+            args.linger,
         )
     )
 
@@ -80,6 +89,7 @@ async def _replay(
     observer: int,
     states: list[dict],
     interval: float,
+    linger: float,
 ) -> None:
     try:
         import websockets
@@ -125,6 +135,8 @@ async def _replay(
             )
             if interval and sequence + 1 < len(states):
                 await asyncio.sleep(interval)
+        if linger:
+            await asyncio.sleep(linger)
 
 
 if __name__ == "__main__":

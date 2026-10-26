@@ -124,9 +124,11 @@ python tools/serve_analysis.py --port 8787
 PYTHONPATH=python .venv/bin/python tools/replay_realtime_states.py \
   saved-observations.jsonl \
   --session-id majsoul-offline-replay \
-  --interval 0.25
+  --interval 0.25 \
+  --linger 30
 ```
 
-CLIはloopback WebSocket以外への送信を拒否する。
+`--linger`を指定すると最終局面の送信後もsource接続を維持できるため、UIから手動接続して
+表示を確認できる。CLIはloopback WebSocket以外への送信を拒否する。
 
 エラーは `{"type":"error","code":"...","message":"..."}` で返す。不正な要求ではsequenceを消費しない。1メッセージは1 MBまでで、ブラウザ接続はReviewer UIのloopback Originだけを許可する。
