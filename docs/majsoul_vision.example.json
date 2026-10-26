@@ -1,0 +1,33 @@
+{
+  "session_id": "majsoul-vision-local",
+  "observer": 0,
+  "websocket_url": "ws://127.0.0.1:8787/ws/realtime/events/source",
+  "layout": "perception_layout.example.json",
+  "templates": "../local-data/vision-templates",
+  "frames_per_second": 3.0,
+  "confirmation_frames": 3,
+  "minimum_confidence": 0.78,
+  "annotation": {
+    "marker_minimum_confidence": 0.72,
+    "marker_minimum_margin": 0.05,
+    "ocr_minimum_confidence": 0.55
+  },
+  "authorization_reference": "replace-with-your-permission-record",
+  "capture": {
+    "mode": "macos_region",
+    "left": 0,
+    "top": 0,
+    "width": 1280,
+    "height": 720
+  },
+  "bootstrap": {
+    "round_id": "east-1-0",
+    "wind": "east",
+    "hand_number": 1,
+    "honba": 0,
+    "riichi_sticks": 0,
+    "dealer": 0,
+    "scores": [25000, 25000, 25000, 25000],
+    "remaining_tiles": 70
+  }
+}

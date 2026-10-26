@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -17,11 +17,32 @@ from mahjong_ai.schema import canonical_json
 from .templates import TemplateTileClassifier
 
 
+Rectangle = tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
+class TextFieldConfig:
+    rectangle: Rectangle
+    value_type: str = "integer"
+    minimum: int | None = None
+    maximum: int | None = None
+    rotation: int = 0
+    required: bool = False
+
+
+@dataclass(frozen=True)
+class MarkerFieldConfig:
+    rectangle: Rectangle
+    required: bool = False
+
+
 @dataclass(frozen=True)
 class LayoutConfig:
     image_width: int
     image_height: int
-    slots: dict[str, tuple[tuple[int, int, int, int], ...]]
+    slots: dict[str, tuple[Rectangle, ...]]
+    text_fields: dict[str, TextFieldConfig] = field(default_factory=dict)
+    markers: dict[str, MarkerFieldConfig] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path) -> "LayoutConfig":
@@ -30,7 +51,70 @@ class LayoutConfig:
             name: tuple(tuple(int(value) for value in rectangle) for rectangle in rectangles)
             for name, rectangles in raw["slots"].items()
         }
-        return cls(int(raw["image_width"]), int(raw["image_height"]), slots)
+        text_fields = {
+            name: TextFieldConfig(
+                _rectangle(value["rect"], f"text_fields.{name}"),
+                str(value.get("type", "integer")),
+                None if value.get("min") is None else int(value["min"]),
+                None if value.get("max") is None else int(value["max"]),
+                int(value.get("rotation", 0)),
+                bool(value.get("required", False)),
+            )
+            for name, value in (raw.get("text_fields") or {}).items()
+        }
+        markers = {
+            name: MarkerFieldConfig(
+                _rectangle(value["rect"], f"markers.{name}"),
+                bool(value.get("required", False)),
+            )
+            for name, value in (raw.get("markers") or {}).items()
+        }
+        result = cls(
+            int(raw["image_width"]),
+            int(raw["image_height"]),
+            slots,
+            text_fields,
+            markers,
+        )
+        result.validate()
+        return result
+
+    def validate(self) -> None:
+        if self.image_width <= 0 or self.image_height <= 0:
+            raise ValueError("layout image dimensions must be positive")
+        rectangles = [
+            (f"slots.{name}[{index}]", rectangle)
+            for name, values in self.slots.items()
+            for index, rectangle in enumerate(values)
+        ]
+        rectangles.extend(
+            (f"text_fields.{name}", value.rectangle)
+            for name, value in self.text_fields.items()
+        )
+        rectangles.extend(
+            (f"markers.{name}", value.rectangle)
+            for name, value in self.markers.items()
+        )
+        for name, (x, y, width, height) in rectangles:
+            if (
+                min(x, y) < 0
+                or width <= 0
+                or height <= 0
+                or x + width > self.image_width
+                or y + height > self.image_height
+            ):
+                raise ValueError(f"{name} lies outside the image")
+        for name, value in self.text_fields.items():
+            if value.value_type not in {"integer", "text"}:
+                raise ValueError(f"text_fields.{name}.type must be integer or text")
+            if value.rotation not in {0, 90, 180, 270}:
+                raise ValueError(f"text_fields.{name}.rotation must be 0, 90, 180, or 270")
+            if (
+                value.minimum is not None
+                and value.maximum is not None
+                and value.minimum > value.maximum
+            ):
+                raise ValueError(f"text_fields.{name} has min greater than max")
 
 
 @dataclass(frozen=True)
@@ -40,6 +124,10 @@ class PerceptionResult:
     confidences: dict[str, tuple[float, ...]]
     unknown_slots: tuple[str, ...]
     source: str
+    metadata: dict[str, int | str] = field(default_factory=dict)
+    metadata_confidences: dict[str, float] = field(default_factory=dict)
+    markers: dict[str, bool | None] = field(default_factory=dict)
+    marker_confidences: dict[str, float] = field(default_factory=dict)
 
 
 class ScreenshotParser:
@@ -47,9 +135,11 @@ class ScreenshotParser:
         self,
         layout: LayoutConfig,
         classifier: TemplateTileClassifier,
+        annotation_parser: Any | None = None,
     ) -> None:
         self.layout = layout
         self.classifier = classifier
+        self.annotation_parser = annotation_parser
 
     def parse(
         self,
@@ -76,12 +166,24 @@ class ScreenshotParser:
                     raise ValueError(f"slot {region}[{index}] lies outside the image")
                 result = self.classifier.classify(frame[y : y + height, x : x + width])
                 scores.append(result.confidence)
-                if result.tile is None:
+                if result.tile is None and not result.empty:
                     unknown.append(f"{region}[{index}]:{result.reason}")
-                else:
+                elif result.tile is not None:
                     tiles.append(result.tile)
             recognized[region] = tuple(tiles)
             confidences[region] = tuple(scores)
+
+        metadata: dict[str, int | str] = {}
+        metadata_confidences: dict[str, float] = {}
+        markers: dict[str, bool | None] = {}
+        marker_confidences: dict[str, float] = {}
+        if self.annotation_parser is not None:
+            annotations = self.annotation_parser.parse(frame)
+            metadata = annotations.metadata
+            metadata_confidences = annotations.metadata_confidences
+            markers = annotations.markers
+            marker_confidences = annotations.marker_confidences
+            unknown.extend(annotations.required_unknown)
 
         state = None
         if base_state is not None and not unknown:
@@ -102,4 +204,14 @@ class ScreenshotParser:
             confidences=confidences,
             unknown_slots=tuple(unknown),
             source=source,
+            metadata=metadata,
+            metadata_confidences=metadata_confidences,
+            markers=markers,
+            marker_confidences=marker_confidences,
         )
+
+
+def _rectangle(value: Any, name: str) -> Rectangle:
+    if not isinstance(value, list) or len(value) != 4:
+        raise ValueError(f"{name}.rect must contain x, y, width, height")
+    return tuple(int(item) for item in value)  # type: ignore[return-value]

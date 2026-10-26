@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stream user-provided Tenhou XML bundles into sequence decision/v3 shards."""
+"""Stream user-provided Tenhou XML bundles into sequence decision/v4 shards."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from mahjong_ai.data import (
+    SEQUENCE_DATASET_FORMAT,
     build_sequence_decision_records,
     create_human_dataset_manifest,
     iter_tenhou_archive_xml,
@@ -51,7 +52,7 @@ def main() -> None:
     pending = []
     shards: list[Path] = []
     stats: dict = {
-        "format": "mahjong-ai-sequence-decision/v3",
+        "format": SEQUENCE_DATASET_FORMAT,
         "archives": [],
         "games_seen": 0,
         "rounds_seen": 0,
@@ -138,7 +139,7 @@ def main() -> None:
     create_human_dataset_manifest(
         output / "manifest.json",
         [str(path) for path in shards],
-        dataset_id="tenhou-phoenix-user-xml-sequence-v3",
+        dataset_id="tenhou-phoenix-user-xml-sequence-v4",
         source="Tenhou Phoenix user-provided XML archive",
         rights_basis="explicit_permission",
         authorization_reference=args.authorization_reference,

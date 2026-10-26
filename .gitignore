@@ -15,6 +15,7 @@ __pycache__/
 mlruns/
 /artifacts/checkpoints/
 /data/
+/local-data/
 /third_party/
 .pnpm-store/
 node_modules/

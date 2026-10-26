@@ -12,7 +12,12 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from mahjong_ai.ai import SequenceMahjongNetwork, SequenceModelConfig
+from mahjong_ai.ai import (
+    SEQUENCE_ARCHITECTURE_VERSION,
+    SequenceMahjongNetwork,
+    SequenceModelConfig,
+    load_sequence_state_dict_compatible,
+)
 from mahjong_ai.ai.calibration import fit_platt_scaling
 from mahjong_ai.training import (
     ParquetSequenceDataset,
@@ -39,13 +44,15 @@ def main() -> None:
     checkpoint = torch.load(source, map_location=args.device, weights_only=False)
     if checkpoint.get("model_family") != "sequence-transformer-v2":
         raise ValueError("checkpoint is not sequence-transformer-v2")
-    config = SequenceModelConfig(**checkpoint["model_config"])
+    raw_config = dict(checkpoint["model_config"])
+    raw_config["architecture_version"] = SEQUENCE_ARCHITECTURE_VERSION
+    config = SequenceModelConfig(**raw_config)
     if not config.decision_heads:
         raise ValueError("checkpoint has no decision heads to calibrate")
     if checkpoint.get("metadata", {}).get("risk_calibrated", False):
         raise ValueError("checkpoint risk head is already calibrated")
     model = SequenceMahjongNetwork(config)
-    model.load_state_dict(checkpoint["model_state"])
+    load_sequence_state_dict_compatible(model, checkpoint["model_state"])
     model.to(args.device).eval()
     dataset = ParquetSequenceDataset(args.datasets)
     if not dataset.has_decision_labels:
@@ -67,14 +74,17 @@ def main() -> None:
                 batch["players"], batch["tiles"], batch["event_flags"],
                 batch["event_mask"], batch["action_mask"],
                 batch["danger_features"],
+                batch["memory_features"],
+                batch["rule_features"],
             )
             indexes = torch.arange(batch["planes"].shape[0], device=args.device)
             selected = predicted["deal_in_logits"][indexes, batch["policy_target"]]
-            for relative in range(1, 4):
-                logits_by_relative[relative - 1].append(selected[:, relative].cpu())
-                targets_by_relative[relative - 1].append(
-                    batch["deal_in_target"][:, relative].cpu()
-                )
+            selected_target = batch["deal_in_target"][indexes, batch["policy_target"]]
+            selected_mask = batch["deal_in_target_mask"][indexes, batch["policy_target"]]
+            for relative in range(3):
+                valid = selected_mask[:, relative]
+                logits_by_relative[relative].append(selected[valid, relative].cpu())
+                targets_by_relative[relative].append(selected_target[valid, relative].cpu())
 
     results = [
         fit_platt_scaling(torch.cat(logits), torch.cat(targets))

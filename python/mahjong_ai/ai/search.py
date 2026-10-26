@@ -462,7 +462,11 @@ class StatefulParticleFilter:
             if player != self.observer:
                 if hands[player][discarded] <= 0:
                     return None, 0.0, pending
-                if bool(event.get("tsumogiri", False)) and pending[player] != discarded:
+                if (
+                    event.get("tsumogiri_known", True)
+                    and bool(event.get("tsumogiri", False))
+                    and pending[player] != discarded
+                ):
                     return None, 0.0, pending
                 discarded_red = bool(event["tile"].get("red", False))
                 if discarded_red and discarded not in hand_reds[player]:

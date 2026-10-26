@@ -1,0 +1,2 @@
+{"event_id":"demo-0","sequence":0,"round_id":"east-1-0","name":"round_start","data":{"wind":"east","hand_number":1,"honba":0,"riichi_sticks":0,"dealer":0,"scores":[25000,25000,25000,25000],"initial_hand":["1m","2m","3m","4m","5m","6m","7m","1p","2p","3p","7s","1z","5z"],"dora_indicator":"4z","remaining_tiles":70}}
+{"event_id":"demo-1","sequence":1,"round_id":"east-1-0","name":"draw","data":{"player":0,"tile":"9p","rinshan":false}}

@@ -112,6 +112,11 @@ class InferenceEngine:
         }
         return exact
 
+    def evaluate_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        """Stable inference entry point shared by Web, Arena and offline review."""
+
+        return self.analyze(state)
+
 
 def save_checkpoint(
     path: str | Path,

@@ -10,6 +10,16 @@ import numpy as np
 
 from mahjong_ai.schema import TILE_TO_INDEX
 
+_HONOR_ALIASES = {
+    "z1": "east",
+    "z2": "south",
+    "z3": "west",
+    "z4": "north",
+    "z5": "white",
+    "z6": "green",
+    "z7": "red",
+}
+
 
 @dataclass(frozen=True)
 class Classification:
@@ -17,6 +27,7 @@ class Classification:
     confidence: float
     runner_up_confidence: float
     reason: str | None = None
+    empty: bool = False
 
 
 class TemplateTileClassifier:
@@ -30,11 +41,19 @@ class TemplateTileClassifier:
         self.image_size = image_size
         self.minimum_confidence = minimum_confidence
         self.minimum_margin = minimum_margin
-        self.templates: list[tuple[dict[str, object], np.ndarray]] = []
+        self.templates: list[tuple[dict[str, object] | None, np.ndarray]] = []
         for path in sorted(Path(template_directory).glob("*.png")):
-            stem = path.stem
+            # ``__suffix`` allows multiple visual variants (seat/orientation/theme)
+            # without changing the semantic label used by the engine.
+            stem = path.stem.split("__", 1)[0]
+            if stem == "empty":
+                image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+                if image is not None:
+                    self.templates.append((None, self._prepare(image)))
+                continue
             red = stem.endswith("_red")
             kind = stem.removesuffix("_red")
+            kind = _HONOR_ALIASES.get(kind, kind)
             if kind not in TILE_TO_INDEX:
                 continue
             image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
@@ -57,6 +76,8 @@ class TemplateTileClassifier:
             return Classification(None, best_score, runner_up, "confidence_below_threshold")
         if best_score - runner_up < self.minimum_margin:
             return Classification(None, best_score, runner_up, "ambiguous_templates")
+        if best_tile is None:
+            return Classification(None, best_score, runner_up, empty=True)
         return Classification(best_tile, best_score, runner_up)
 
     def _prepare(self, image: np.ndarray) -> np.ndarray:

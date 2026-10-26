@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import replace
 
 import cv2
@@ -13,10 +14,21 @@ from mahjong_ai import FourPlayerSimulator
 from mahjong_ai.ai.encoder import ACTION_FEATURES, ENCODER_PLANES, FeatureEncoder
 from mahjong_ai.ai.inference import InferenceEngine, ModelMetadata, save_checkpoint
 from mahjong_ai.ai.model import MahjongNetwork, ModelConfig
-from mahjong_ai.analysis import EXTERNAL_AUTHORIZATION, REALTIME_PROTOCOL
+from mahjong_ai.analysis import (
+    EXTERNAL_AUTHORIZATION,
+    MAJSOUL_REALTIME_PROFILE,
+    MAJSOUL_SOURCE_SERVICE,
+    REALTIME_PROTOCOL,
+    RealtimeSessionHub,
+    SessionHello,
+)
 from mahjong_ai.apps.reviewer import create_app
 from mahjong_ai.apps.local_play import LocalPlayManager
 from mahjong_ai.data.dataset import build_decision_records, write_parquet
+from mahjong_ai.data.sequence_dataset import (
+    build_sequence_decision_records,
+    write_sequence_parquet,
+)
 from mahjong_ai.data.log import EventLogError, load_event_log
 from mahjong_ai.data.tenhou import _kind_index, convert_document
 from mahjong_ai.data.tenhou_archive import (
@@ -41,6 +53,10 @@ from mahjong_ai.training.selfplay import (
     verify_selfplay_dataset,
 )
 from mahjong_ai.training.supervised import ParquetDecisionDataset, Trainer, TrainerConfig
+from mahjong_ai.training.sequence_supervised import (
+    ParquetSequenceDataset,
+    masked_cross_entropy,
+)
 from fastapi.testclient import TestClient
 
 
@@ -101,6 +117,19 @@ def test_reviewer_api_returns_exact_ranked_discards() -> None:
     capabilities = TestClient(create_app()).get("/api/health").json()["replay_import"]
     assert "mahjong-ai-replay-bundle/v1" in capabilities["formats"]
     assert capabilities["direct_mahjong_soul_fetch"] is False
+
+
+def test_reviewer_serves_built_webapp_from_the_same_origin(tmp_path) -> None:
+    ui = tmp_path / "ui"
+    ui.mkdir()
+    (ui / "index.html").write_text("<h1>RiYU local</h1>", encoding="utf-8")
+    client = TestClient(create_app(ui_directory=ui))
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["webapp_available"] is True
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "RiYU local" in page.text
 
 
 def test_local_hanchan_play_is_separate_from_analysis_and_hides_opponent_hands() -> None:
@@ -195,6 +224,162 @@ def test_realtime_lab_rejects_unconfirmed_adapter_and_observer_mismatch() -> Non
         assert websocket.receive_json()["type"] == "ready"
         websocket.send_json({"type": "analyze", "sequence": 0, "state": state})
         assert websocket.receive_json()["code"] == "observer_mismatch"
+
+
+def test_majsoul_realtime_source_requires_profile_and_permission_reference() -> None:
+    client = TestClient(create_app())
+    with client.websocket_connect("/ws/realtime/source") as websocket:
+        websocket.send_json(
+            {
+                "type": "hello",
+                "protocol": REALTIME_PROTOCOL,
+                "session_id": "majsoul-missing-permission",
+                "observer": 0,
+                "source_kind": "authorized_external_adapter",
+                "authorization": EXTERNAL_AUTHORIZATION,
+                "source_service": MAJSOUL_SOURCE_SERVICE,
+                "source_profile": MAJSOUL_REALTIME_PROFILE,
+            }
+        )
+        error = websocket.receive_json()
+        assert error["code"] == "authorization_reference_required"
+
+
+def test_majsoul_realtime_source_broadcasts_normalized_analysis_to_viewer() -> None:
+    _, state, _ = _started_simulator()
+
+    class StaticAnalyzer:
+        def analyze(self, _state):
+            return {
+                "legal_actions": {"status": "exact", "value": []},
+                "shanten": {"status": "exact", "value": {"minimum": 1}},
+                "discard_efficiency": {"status": "exact", "value": []},
+                "model_policy": {"status": "unavailable", "value": None},
+            }
+
+    client = TestClient(create_app(engine=StaticAnalyzer()))
+    with client.websocket_connect("/ws/realtime/source") as source:
+        source.send_json(
+            {
+                "type": "hello",
+                "protocol": REALTIME_PROTOCOL,
+                "session_id": "majsoul-authorized-test",
+                "observer": 0,
+                "source_kind": "authorized_external_adapter",
+                "authorization": EXTERNAL_AUTHORIZATION,
+                "authorization_reference": "operator-permission-record-001",
+                "source_service": MAJSOUL_SOURCE_SERVICE,
+                "source_profile": MAJSOUL_REALTIME_PROFILE,
+            }
+        )
+        ready = source.receive_json()
+        assert ready["type"] == "ready"
+        assert ready["source_service"] == "majsoul"
+        sessions = client.get("/realtime/sessions").json()["sessions"]
+        assert sessions[0]["session_id"] == "majsoul-authorized-test"
+        assert sessions[0]["authorization_recorded"] is True
+        assert "authorization_reference" not in sessions[0]
+        with client.websocket_connect(
+            "/ws/realtime/view/majsoul-authorized-test"
+        ) as viewer:
+            subscribed = viewer.receive_json()
+            assert subscribed == {
+                "type": "subscribed",
+                "session_id": "majsoul-authorized-test",
+                "latest": None,
+            }
+            source.send_json({"type": "analyze", "sequence": 1, "state": state})
+            source_result = source.receive_json()
+            viewer_result = viewer.receive_json()
+            assert source_result["type"] == "analysis"
+            assert source_result["delivery"]["viewer_count"] == 1
+            assert viewer_result["sequence"] == 1
+            realtime = viewer_result["result"]["realtime"]
+            assert realtime["source_profile"] == MAJSOUL_REALTIME_PROFILE
+            assert realtime["analysis_ms"] >= 0
+            assert realtime["state_changed"] is True
+            assert len(realtime["state_fingerprint"]) == 64
+            source.send_json({"type": "analyze", "sequence": 2, "state": state})
+            source.receive_json()
+            unchanged = viewer.receive_json()["result"]["realtime"]
+            assert unchanged["state_changed"] is False
+            assert unchanged["changes"] == {
+                "initial": False,
+                "shanten": False,
+                "best_action": False,
+                "legal_actions": False,
+            }
+
+
+def test_realtime_viewer_queue_keeps_only_latest_analysis() -> None:
+    hub = RealtimeSessionHub()
+    hub.register_source(
+        SessionHello(
+            "latest-only",
+            0,
+            "offline_replay",
+            MAJSOUL_SOURCE_SERVICE,
+            MAJSOUL_REALTIME_PROFILE,
+        )
+    )
+    _, queue, _ = hub.subscribe("latest-only")
+    hub.publish("latest-only", {"type": "analysis", "sequence": 1})
+    hub.publish("latest-only", {"type": "analysis", "sequence": 2})
+    assert queue.qsize() == 1
+    assert queue.get_nowait()["sequence"] == 2
+
+
+def test_realtime_source_drops_stale_pending_snapshot_while_analysis_is_busy() -> None:
+    _, state, _ = _started_simulator()
+
+    class SlowAnalyzer:
+        def __init__(self) -> None:
+            self.started = threading.Event()
+            self.release = threading.Event()
+            self.calls = 0
+
+        def analyze(self, _state):
+            self.calls += 1
+            if self.calls == 1:
+                self.started.set()
+                assert self.release.wait(timeout=5)
+            return {
+                "legal_actions": {"status": "exact", "value": []},
+                "shanten": {"status": "exact", "value": {"minimum": 0}},
+                "discard_efficiency": {"status": "exact", "value": []},
+                "model_policy": {"status": "unavailable", "value": None},
+            }
+
+    analyzer = SlowAnalyzer()
+    client = TestClient(create_app(engine=analyzer))
+    with client.websocket_connect("/ws/realtime/source") as source:
+        source.send_json(
+            {
+                "type": "hello",
+                "protocol": REALTIME_PROTOCOL,
+                "session_id": "latest-source-test",
+                "observer": 0,
+                "source_kind": "offline_replay",
+                "source_service": MAJSOUL_SOURCE_SERVICE,
+                "source_profile": MAJSOUL_REALTIME_PROFILE,
+            }
+        )
+        assert source.receive_json()["type"] == "ready"
+        source.send_json({"type": "analyze", "sequence": 0, "state": state})
+        assert analyzer.started.wait(timeout=2)
+        source.send_json({"type": "analyze", "sequence": 1, "state": state})
+        source.send_json({"type": "analyze", "sequence": 2, "state": state})
+        superseded = source.receive_json()
+        assert superseded == {
+            "type": "superseded",
+            "session_id": "latest-source-test",
+            "sequence": 1,
+            "replacement_sequence": 2,
+        }
+        analyzer.release.set()
+        analyses = [source.receive_json(), source.receive_json()]
+        assert [message["sequence"] for message in analyses] == [0, 2]
+        assert analyzer.calls == 2
 
 
 def test_oracle_interface_is_explicit_and_distillation_detaches_teacher() -> None:
@@ -402,7 +587,7 @@ def test_event_log_dataset_parquet_and_training_smoke(tmp_path) -> None:
     assert warm_started.lineage["warm_start_metadata"]["dataset_fingerprint"] == "fixture"
 
 
-def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None:
+def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard(tmp_path) -> None:
     import xml.etree.ElementTree as ET
 
     root = ET.fromstring(
@@ -423,6 +608,32 @@ def test_tenhou_offline_converter_anonymizes_and_builds_expert_discard() -> None
         "tile": {"kind": "p5", "red": True},
         "tsumogiri": True,
     }
+    sequence_records = build_sequence_decision_records(rounds[0].log)
+    assert len(sequence_records) == 1
+    sequence = sequence_records[0]
+    assert sequence.dataset_version == "mahjong-ai-sequence-decision/v4"
+    factual_mask = json.loads(sequence.factual_action_round_delta_mask)
+    counterfactual_mask = json.loads(sequence.counterfactual_action_round_delta_mask)
+    assert sum(factual_mask) == 1
+    assert factual_mask[sequence.chosen_action_index]
+    assert not any(counterfactual_mask)
+    assert len(json.loads(sequence.opponent_tile_count)) == 3
+    observation = json.loads(sequence.observation)
+    public_events = json.loads(sequence.public_events)
+    assert "private_hands" not in observation
+    assert "wall" not in observation
+    assert "opponent_tile_count" not in observation
+    assert all("hidden_hand" not in event for event in public_events)
+    shard = tmp_path / "decision-v4.parquet"
+    write_sequence_parquet(sequence_records, shard)
+    loaded = ParquetSequenceDataset(shard)[0]
+    assert int(loaded["action_outcome_target_mask"].sum()) == 1
+    outcome_loss = masked_cross_entropy(
+        torch.zeros(1, len(factual_mask), 5),
+        torch.from_numpy(loaded["action_outcome_target"]).unsqueeze(0),
+        torch.from_numpy(loaded["action_outcome_target_mask"]).unsqueeze(0),
+    )
+    assert torch.isfinite(outcome_loss)
 
 
 def test_web_replay_api_analyzes_uploaded_normalized_log() -> None:

@@ -46,6 +46,12 @@
 - [x] Policy/Value loss、validation、checkpoint、MLflow
 - [x] Policy Accuracy、Rank MAE、Score MSE
 - [x] 人間牌譜の権利manifest、SHA-256検証、模倣学習→PPOカリキュラム
+- [x] Decision V4軸・ModelOutput V2・階層鳴き/リーチPolicy・候補別放銃/Action Value Head
+- [x] factual/counterfactual分離、Opponent Action、Belief consistency、Rule/long-memory、局収支分布
+- [x] 全Head masked loss、gradient norm、Cosine scheduler、再開可能checkpoint
+- [x] mask-aware評価、統一 `evaluate_state`、全Head教師coverage付きoverfit gate
+- [ ] 実Decision V4の100〜1000件overfit gate合格
+- [ ] 10k〜50k短期学習でmulti-task干渉・calibration確認
 - [ ] 大規模学習、calibration、承認済みモデルカード
 
 ## Phase 6 — 牌譜解析UI（実装済み）
@@ -85,6 +91,10 @@
 - [x] 観測者一致、秘密情報不可視、単調増加sequenceの検証
 - [x] 厳密計算、評価済みモデル推定、根拠文を同一responseで返却
 - [x] 外部adapterの明示的な許諾表明
+- [x] 雀魂用許可済みsource profile、source/viewer分離、最新解析優先配信
+- [x] read-onlyリアルタイムUIと保存GameStateリプレイCLI
+- [x] 雀魂正規化event adapter、共通GameEvent同期、意思決定検出、復旧snapshot
+- [x] event重複・欠落・局ID・State assertion検証と自動接続UI
 - [ ] 対象サービス運営者から書面で許可された場合のみ、別リポジトリのadapterと結合試験
 
 ## 性能目標
@@ -100,6 +110,11 @@ NAGA級はコード量や単一accuracyでは宣言しない。固定ルール�
 - [x] 公開イベントごとに遷移するstateful Particle FilterとESS resampling
 - [x] Rust厳密役・点数を各粒子へ接続
 - [x] 相手別危険度・打点分布Head、validation較正ツール、Brier/Log Loss/ECE評価
+- [x] train split限定の自動不均衡重み、合法手限定label smoothing、Optimizer付き継続学習
+- [x] 公開イベントを相手別attention poolingする時系列latentと聴牌・待ち・危険度Head共有
+- [x] Decision V4 / ModelOutput V2 / masked multi-task Loss / checkpoint完成契約
+- [x] 階層型response・call type・riichi Headと候補×相手別放銃打点Head
+- [ ] 100〜1000 decisionの全Head overfit完成ゲート
 - [ ] 大規模学習済みcheckpointでの最終holdout calibration合格
 - [x] 1〜4着確率を用いた半荘順位Utilityへの接続
 - [x] リーチ/ダマ、鳴き/パスを同一粒子で比較する候補beam

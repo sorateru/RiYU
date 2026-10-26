@@ -197,14 +197,20 @@ class FeatureEncoder:
                 ]
                 features[17] = float(any(visible[value] >= 4 for value in adjacent))
                 features[18] = float(any(visible[value] == 3 for value in adjacent))
+                known_discards = [
+                    item for item in discards if item.get("tsumogiri_known", True)
+                ]
                 features[19] = (
-                    sum(bool(item.get("tsumogiri", False)) for item in discards)
-                    / max(len(discards), 1)
+                    sum(bool(item.get("tsumogiri", False)) for item in known_discards)
+                    / max(len(known_discards), 1)
                 )
                 recent = discards[-6:]
+                known_recent = [
+                    item for item in recent if item.get("tsumogiri_known", True)
+                ]
                 features[20] = (
-                    sum(not bool(item.get("tsumogiri", False)) for item in recent)
-                    / max(len(recent), 1)
+                    sum(not bool(item.get("tsumogiri", False)) for item in known_recent)
+                    / max(len(known_recent), 1)
                 )
                 features[21] = float(target in dora_tiles)
                 features[22] = float(tile.get("red", False))

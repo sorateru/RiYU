@@ -136,6 +136,7 @@ impl FourPlayerSimulator {
                 player,
                 tile,
                 tsumogiri,
+                tsumogiri_known: true,
                 riichi_declaration: false,
             }),
             Action::Riichi { discard, tsumogiri } => {
@@ -147,6 +148,7 @@ impl FourPlayerSimulator {
                     player,
                     tile: discard,
                     tsumogiri,
+                    tsumogiri_known: true,
                     riichi_declaration: true,
                 })?;
                 self.pending_riichi = Some(player);
