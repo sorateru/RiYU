@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 import uvicorn
 
@@ -25,11 +26,16 @@ def main() -> None:
         help="model checkpoint for the separate local human-versus-AI mode",
     )
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--log-level", choices=("debug", "info", "warning", "error"), default="info")
     args = parser.parse_args()
     if not 1 <= args.port <= 65_535:
         parser.error("--port must be between 1 and 65535")
     if args.belief_checkpoint and not args.checkpoint:
         parser.error("--belief-checkpoint requires --checkpoint")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper()),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
     engine = (
         InferenceEngine.load(args.checkpoint, args.device, args.belief_checkpoint)
         if args.checkpoint
@@ -45,6 +51,7 @@ def main() -> None:
         host="127.0.0.1",
         port=args.port,
         access_log=False,
+        log_level=args.log_level,
     )
 
 

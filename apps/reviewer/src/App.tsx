@@ -118,25 +118,40 @@ function LiveAnalysisPanel() {
   const [sessionId, setSessionId] = useState("majsoul-offline-replay");
   const [status, setStatus] = useState<"disconnected" | "connecting" | "connected" | "offline">("disconnected");
   const [message, setMessage] = useState<Json | null>(null);
+  const [streamState, setStreamState] = useState<Json | null>(null);
   const [sessions, setSessions] = useState<Json[]>([]);
   const [error, setError] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
+  const autoConnectRef = useRef(true);
 
-  useEffect(() => () => socketRef.current?.close(), []);
+  useEffect(() => {
+    void refreshSessions(true);
+    const timer = window.setInterval(() => void refreshSessions(true), 2_000);
+    return () => {
+      window.clearInterval(timer);
+      socketRef.current?.close();
+    };
+  }, []);
 
-  async function refreshSessions() {
+  async function refreshSessions(autoConnect = false) {
     setError("");
     try {
       const response = await fetch(`${API}/realtime/sessions`);
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail ?? "セッション一覧を取得できません。");
-      setSessions(body.sessions ?? []);
+      const available = body.sessions ?? [];
+      setSessions(available);
+      if (autoConnect && autoConnectRef.current && socketRef.current == null && available.length > 0) {
+        const eventSource = available.find((item: Json) => item.source_profile === "majsoul-normalized-event/v1");
+        connect((eventSource ?? available[0]).session_id);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "セッション一覧を取得できません。");
     }
   }
 
-  function disconnect() {
+  function disconnect(disableAutoConnect = true) {
+    if (disableAutoConnect) autoConnectRef.current = false;
     const socket = socketRef.current;
     socketRef.current = null;
     socket?.close();
@@ -146,21 +161,31 @@ function LiveAnalysisPanel() {
   function connect(selected?: string) {
     const target = (selected ?? sessionId).trim();
     if (!target) { setError("セッションIDを入力してください。"); return; }
-    disconnect();
+    autoConnectRef.current = true;
+    disconnect(false);
     setSessionId(target);
     setMessage(null);
+    setStreamState(null);
     setError("");
     setStatus("connecting");
     const socket = new WebSocket(`${WS_API}/ws/realtime/view/${encodeURIComponent(target)}`);
     socketRef.current = socket;
+    const acceptPayload = (payload: Json) => {
+      if (payload.type === "analysis") {
+        setMessage(payload);
+        if (payload.state) setStreamState(payload.state);
+      } else if (payload.type === "state_update") {
+        setStreamState(payload.state ?? null);
+      }
+    };
     socket.onmessage = (event) => {
       const payload = JSON.parse(event.data) as Json;
       if (payload.type === "subscribed") {
         setStatus("connected");
-        if (payload.latest?.type === "analysis") setMessage(payload.latest);
-      } else if (payload.type === "analysis") {
+        if (payload.latest) acceptPayload(payload.latest);
+      } else if (payload.type === "analysis" || payload.type === "state_update") {
         setStatus("connected");
-        setMessage(payload);
+        acceptPayload(payload);
       } else if (payload.type === "source_offline") {
         setStatus("offline");
       } else if (payload.type === "error") {
@@ -180,6 +205,11 @@ function LiveAnalysisPanel() {
   const realtime = analysis?.realtime;
   const candidates = analysis?.model_policy?.value ?? [];
   const exactCandidates = analysis?.discard_efficiency?.value ?? [];
+  const round = streamState?.round;
+  const roundLabel = round ? `${WINDS[round.wind] ?? round.wind}${round.hand_number}局 ${round.honba}本場` : "対局待機中";
+  const liveHeadline = status === "disconnected" || status === "connecting"
+    ? "Waiting for Mahjong Soul"
+    : streamState?.decision_required ? "Your turn" : streamState ? "Game detected" : "Waiting for game";
   const connectionLabels = {
     disconnected: "未接続", connecting: "接続中", connected: "受信中", offline: "入力終了",
   };
@@ -188,7 +218,7 @@ function LiveAnalysisPanel() {
     <section className="intro-panel live-intro">
       <div>
         <p className="eyebrow">AUTHORIZED LIVE REVIEW</p>
-        <h1>リアルタイム分析</h1>
+        <h1>{liveHeadline}</h1>
         <p>許可済みの正規化観測ストリームを閲覧します。画面取得、通信傍受、非公開API、対局操作は行いません。</p>
       </div>
       <span className={`connection-badge status-${status}`}>{connectionLabels[status]}</span>
@@ -197,8 +227,8 @@ function LiveAnalysisPanel() {
       <div className="session-entry">
         <label>セッションID<input value={sessionId} onChange={(event) => setSessionId(event.target.value)} /></label>
         <button onClick={() => connect()} disabled={status === "connecting"}>閲覧接続</button>
-        <button className="secondary-button" onClick={disconnect}>切断</button>
-        <button className="secondary-button" onClick={refreshSessions}>入力一覧を更新</button>
+        <button className="secondary-button" onClick={() => disconnect(true)}>切断</button>
+        <button className="secondary-button" onClick={() => refreshSessions(false)}>入力一覧を更新</button>
       </div>
       {sessions.length > 0 && <div className="live-sessions">{sessions.map((session) => <button
         key={session.session_id} onClick={() => connect(session.session_id)}
@@ -206,6 +236,12 @@ function LiveAnalysisPanel() {
       {error && <p className="error">{error}</p>}
       <p className="scope-note">雀魂用sourceは、運営者の許可記録を持つ外部adapterか、保存済みGameStateのoffline replayだけを受理します。</p>
     </section>
+    {streamState && <section className={`live-game-state ${streamState.decision_required ? "decision-required" : ""}`}>
+      <div><span>現在局</span><strong>{roundLabel}</strong></div>
+      <div><span>巡目</span><strong>{streamState.turn ?? "—"}</strong></div>
+      <div><span>状態</span><strong>{streamState.decision_required ? "意思決定が必要" : "局面同期中"}</strong></div>
+      <div className="live-hand"><span>手牌</span><div className="tiles">{(streamState.hand ?? []).map((tile: Json, index: number) => <Tile tile={tile} small key={index} />)}</div></div>
+    </section>}
     {analysis && <div className="results live-results">
       <section className="summary live-summary">
         <article><span>Sequence</span><strong>{message.sequence}</strong><small>{message.session_id}</small></article>
@@ -217,7 +253,7 @@ function LiveAnalysisPanel() {
         <div className="section-heading"><h2>AI候補</h2><em>Policy・Value・Riskは個別表示</em></div>
         {candidates.length ? <ol className="ranking live-ranking">{candidates.map((item: Json, index: number) => <li key={index}>
           <strong>{actionLabel(item.action)}</strong>
-          <span>Policy {item.policy_score?.toFixed(4) ?? "—"}</span>
+          <span className="policy-meter"><i style={{ width: `${Math.max(0, Math.min(1, item.policy_score ?? 0)) * 100}%` }} /><b>{item.policy_score == null ? "N/A" : `${(item.policy_score * 100).toFixed(1)}%`}</b></span>
           <span>局収支 {item.action_round_value == null ? "N/A" : `${Math.round(item.action_round_value).toLocaleString()}点`}</span>
           <span>半荘価値 {item.action_hanchan_value?.toFixed(3) ?? "N/A"}</span>
           <span>放銃損失 {Math.round(item.expected_deal_in_loss ?? 0).toLocaleString()}点</span>
@@ -369,7 +405,7 @@ function PlayPanel() {
 }
 
 export function App() {
-  const [mode, setMode] = useState<Mode>("play");
+  const [mode, setMode] = useState<Mode>("live");
   return <main>
     <nav className="mode-tabs" aria-label="機能選択">
       <button className={mode === "play" ? "active" : ""} onClick={() => setMode("play")}>AI対局</button>

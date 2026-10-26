@@ -51,7 +51,7 @@ pnpm dev
 python tools/serve_analysis.py --port 8787
 ```
 
-WebSocketは正規化済みの観測 `GameState` だけを受け付けます。外部サービス固有の取得処理は含みません。雀魂用には許可記録付きのsource profile、read-only viewer、保存状態リプレイを用意しています。プロトコルと許諾境界は [realtime protocol](docs/realtime_protocol.md) を参照してください。
+WebSocketは正規化済みの観測 `GameState`、または雀魂adapter境界の公開観測イベントを受け付けます。外部サービスの通信傍受や非公開API処理は含みません。雀魂用には許可記録付きsource profile、共通`GameEvent`変換、継続State同期、意思決定時だけの推論、read-only viewer、保存イベントリプレイを用意しています。[realtime protocol](docs/realtime_protocol.md) と [雀魂event adapter](docs/majsoul_event_adapter.md) を参照してください。
 
 人間1人対AI 3人のローカル東南戦は、対戦用checkpointを指定して起動します。局面解析とは別の `/local-play` APIで、対局中に推奨手は表示しません。
 

@@ -7,6 +7,7 @@
 連続的なsourceと閲覧UIを分離する場合は次を使う。
 
 - `/ws/realtime/source`: 正規化観測を送信する単一source
+- `/ws/realtime/events/source`: 雀魂adapterの正規化eventを継続適用するsource
 - `/ws/realtime/view/{session_id}`: 解析済み結果だけを受け取るread-only viewer
 - `/realtime/sessions`: 現在のsource一覧。許可記録の内容自体は返さない
 
@@ -81,6 +82,11 @@ python tools/serve_analysis.py --port 8787
 実装されているのは「許可済みsourceから正規化観測を受け取る契約」までである。
 雀魂クライアントの通信取得、画面取得、ブラウザへの注入は含まない。
 
+継続イベント入力では`source_profile`を`majsoul-normalized-event/v1`にして
+`/ws/realtime/events/source`へ接続する。雀魂固有値から共通GameEventへの変換、重複・欠落、
+局ID、復旧snapshot、意思決定検出の完全な契約は
+[雀魂event adapter](majsoul_event_adapter.md)を参照する。
+
 成功時は `type: ready` と、サーバーが受理したobserver・sourceを返す。
 
 ## 解析要求
@@ -115,6 +121,9 @@ python tools/serve_analysis.py --port 8787
 `/ws/realtime/source`の結果には`result.realtime`が追加され、解析時間、
 状態fingerprint、前回からのシャンテン・最良候補・合法手数の変化を返す。fingerprintは
 状態同一性確認用のSHA-256で、元の非公開データは含まない。
+
+event sourceは意思決定がない更新を`type=state_update`、意思決定がある更新を
+`type=analysis`として配信する。`state_update`は推論を実行せず、局面同期だけを通知する。
 
 ## 保存状態による結合試験
 

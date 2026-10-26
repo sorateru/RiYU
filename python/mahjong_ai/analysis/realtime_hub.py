@@ -49,7 +49,7 @@ class RealtimeSessionHub:
             if session is None:
                 raise RealtimeProtocolError("unknown_session", "realtime session is not connected")
             session.latest = message
-            sequence = message.get("sequence")
+            sequence = message.get("source_sequence", message.get("sequence"))
             if isinstance(sequence, int):
                 session.last_sequence = sequence
             queues = tuple(session.viewers.values())
@@ -113,6 +113,7 @@ class RealtimeSessionHub:
                     "last_sequence": session.last_sequence,
                     "viewer_count": len(session.viewers),
                     "has_analysis": session.latest is not None,
+                    "latest_type": None if session.latest is None else session.latest.get("type"),
                 }
             )
         return result

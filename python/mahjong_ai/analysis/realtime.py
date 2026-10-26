@@ -1,8 +1,9 @@
 """Stateful, service-independent streaming analysis.
 
-This module intentionally accepts only normalized observable ``GameState``
-snapshots.  It contains no screen capture, network interception, browser
-injection, or input automation.
+This module validates normalized observable stream handshakes and ``GameState``
+analysis. Service-specific event mapping lives in ``mahjong_ai.adapters``. It
+contains no screen capture, network interception, browser injection, or input
+automation.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from mahjong_ai import validate_state_json
+from mahjong_ai.adapters import MAJSOUL_EVENT_PROFILE
 from mahjong_ai.schema import canonical_json
 
 from .explanation import explain_analysis
@@ -25,6 +27,7 @@ EXTERNAL_AUTHORIZATION = "source_operator_confirms_authorized"
 MAJSOUL_SOURCE_SERVICE = "majsoul"
 MAJSOUL_REALTIME_PROFILE = "majsoul-normalized-observation/v1"
 SUPPORTED_SOURCE_SERVICES = frozenset({MAJSOUL_SOURCE_SERVICE})
+MAJSOUL_SOURCE_PROFILES = frozenset({MAJSOUL_REALTIME_PROFILE, MAJSOUL_EVENT_PROFILE})
 
 
 class RealtimeProtocolError(ValueError):
@@ -107,10 +110,10 @@ class RealtimeAnalysisSession:
                         "invalid_source_kind",
                         "majsoul streams must be offline_replay or authorized_external_adapter",
                     )
-                if source_profile != MAJSOUL_REALTIME_PROFILE:
+                if source_profile not in MAJSOUL_SOURCE_PROFILES:
                     raise RealtimeProtocolError(
                         "unsupported_source_profile",
-                        f"majsoul source_profile must be {MAJSOUL_REALTIME_PROFILE}",
+                        f"unsupported majsoul source_profile: {source_profile!r}",
                     )
                 if source_kind == "authorized_external_adapter":
                     if (
