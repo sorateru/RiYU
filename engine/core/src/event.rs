@@ -51,6 +51,9 @@ pub enum EventKind {
         player: PlayerId,
         tile: Tile,
         tsumogiri: bool,
+        /// False when a visual source cannot distinguish tsumogiri from tedashi.
+        #[serde(default = "default_true")]
+        tsumogiri_known: bool,
         #[serde(default)]
         riichi_declaration: bool,
     },
@@ -95,6 +98,10 @@ pub enum EventKind {
         reason: RoundEndReason,
         scores: [i32; 4],
     },
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

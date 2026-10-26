@@ -149,7 +149,11 @@ class RealtimeAnalysisSession:
             "source_service": source_service,
             "source_profile": source_profile,
             "input_contract": "normalized_observable_game_state_only",
-            "acquisition_contract": "no_capture_no_interception_no_automation",
+            "acquisition_contract": (
+                "authorized_external_read_only_source_no_input_automation"
+                if source_kind == "authorized_external_adapter"
+                else "no_external_capture_no_interception_no_automation"
+            ),
         }
 
     def analyze(self, message: dict[str, Any]) -> dict[str, Any]:

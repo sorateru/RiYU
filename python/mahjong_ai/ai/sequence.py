@@ -260,7 +260,7 @@ class SequenceFeatureEncoder:
             tile = event.get("tile")
             if tile is not None and 0 <= int(tile) < 34:
                 tiles[output_index] = int(tile) + 1
-            flags[output_index, 0] = float(bool(event.get("tsumogiri", False)))
+            flags[output_index, 0] = float(event.get("tsumogiri", False))
             flags[output_index, 1] = float(bool(event.get("riichi_declaration", False)))
             flags[output_index, 2] = float(bool(event.get("rinshan", False)))
             meld_kind = event.get("meld_kind")
@@ -284,7 +284,7 @@ class SequenceFeatureEncoder:
                 if tile is not None and 0 <= int(tile) < 34:
                     memory[len(EVENT_TYPES) * 5 + int(tile)] += 1.0 / denominator
                 flag_offset = len(EVENT_TYPES) * 5 + 34
-                memory[flag_offset] += float(bool(event.get("tsumogiri", False))) / denominator
+                memory[flag_offset] += float(event.get("tsumogiri", False)) / denominator
                 memory[flag_offset + 1] += float(bool(event.get("riichi_declaration", False))) / denominator
                 memory[flag_offset + 2] += float(bool(event.get("rinshan", False))) / denominator
                 meld_kind = event.get("meld_kind")
@@ -357,7 +357,11 @@ def public_event_tokens(
         tile = event.get("tile") or event.get("dora_indicator")
         if tile is not None:
             token["tile"] = tile_index(tile)
-        token["tsumogiri"] = bool(event.get("tsumogiri", False))
+        token["tsumogiri"] = (
+            float(bool(event.get("tsumogiri", False)))
+            if event.get("tsumogiri_known", True)
+            else 0.5
+        )
         token["riichi_declaration"] = bool(event.get("riichi_declaration", False))
         token["rinshan"] = bool(event.get("rinshan", False))
         if event["type"] in {"chi", "pon", "kan"}:

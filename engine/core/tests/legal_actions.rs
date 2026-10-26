@@ -106,6 +106,7 @@ fn response_actions_include_pinfu_ron_and_pass() {
                     player: player(0),
                     tile: tile(TileType::S4),
                     tsumogiri: false,
+                    tsumogiri_known: true,
                     riichi_declaration: false,
                 },
             },
@@ -139,6 +140,7 @@ fn own_discard_of_any_wait_causes_discard_furiten() {
                     player: player(0),
                     tile: tile(TileType::S4),
                     tsumogiri: false,
+                    tsumogiri_known: true,
                     riichi_declaration: false,
                 },
             },
@@ -148,6 +150,7 @@ fn own_discard_of_any_wait_causes_discard_furiten() {
     state.players[1].discards.push(DiscardRecord {
         tile: tile(TileType::S1),
         tsumogiri: false,
+        tsumogiri_known: true,
         riichi_declaration: false,
         called_by: None,
     });
@@ -178,6 +181,7 @@ fn passing_ron_sets_temporary_furiten_and_next_draw_clears_it() {
                     player: player(0),
                     tile: tile(TileType::S4),
                     tsumogiri: false,
+                    tsumogiri_known: true,
                     riichi_declaration: false,
                 },
             },

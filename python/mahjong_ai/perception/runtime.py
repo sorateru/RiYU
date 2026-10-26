@@ -18,9 +18,16 @@ from mahjong_ai.analysis import (
     RealtimeStateManager,
 )
 
+from .annotations import ScreenAnnotationParser
 from .capture import CaptureRegion, DirectoryFrameSource, FrameSource, MacOSScreenCapture
 from .parser import LayoutConfig, ScreenshotParser
-from .stability import StableObservation, StableObservationFilter, observed_tiles
+from .stability import (
+    StableObservation,
+    StableObservationFilter,
+    observed_marker,
+    observed_metadata,
+    observed_tiles,
+)
 from .templates import TemplateTileClassifier
 from .vision_events import DetectedEvent, VisionDeltaError, VisionEventDetector
 
@@ -57,6 +64,10 @@ class VisionAdapterConfig:
     replay_directory: Path | None
     authorization_reference: str | None
     bootstrap: VisionBootstrap
+    tesseract_executable: str | None = None
+    marker_minimum_confidence: float = 0.72
+    marker_minimum_margin: float = 0.05
+    ocr_minimum_confidence: float = 0.55
 
     @classmethod
     def load(cls, path: str | Path) -> "VisionAdapterConfig":
@@ -79,6 +90,7 @@ class VisionAdapterConfig:
         else:
             raise ValueError("capture.mode must be macos_region or directory_replay")
         bootstrap = raw["bootstrap"]
+        annotation = raw.get("annotation") or {}
         scores = tuple(int(value) for value in bootstrap.get("scores", [25_000] * 4))
         if len(scores) != 4:
             raise ValueError("bootstrap.scores must contain four values")
@@ -108,6 +120,14 @@ class VisionAdapterConfig:
                 dealer=int(bootstrap["dealer"]),
                 scores=scores,  # type: ignore[arg-type]
                 remaining_tiles=int(bootstrap.get("remaining_tiles", 70)),
+            ),
+            tesseract_executable=annotation.get("tesseract_executable"),
+            marker_minimum_confidence=float(
+                annotation.get("marker_minimum_confidence", 0.72)
+            ),
+            marker_minimum_margin=float(annotation.get("marker_minimum_margin", 0.05)),
+            ocr_minimum_confidence=float(
+                annotation.get("ocr_minimum_confidence", 0.55)
             ),
         )
         result.validate()
@@ -149,6 +169,12 @@ class VisionAdapterConfig:
             self.confirmation_frames,
             self.minimum_confidence,
         )
+        if not 0 <= self.marker_minimum_confidence <= 1:
+            raise ValueError("marker_minimum_confidence must be in 0..=1")
+        if not 0 <= self.marker_minimum_margin <= 1:
+            raise ValueError("marker_minimum_margin must be in 0..=1")
+        if not 0 <= self.ocr_minimum_confidence <= 1:
+            raise ValueError("ocr_minimum_confidence must be in 0..=1")
         if self.capture_region is not None and (
             not isinstance(self.authorization_reference, str)
             or not self.authorization_reference.strip()
@@ -175,12 +201,26 @@ class VisionAdapterConfig:
 class VisionAdapterRuntime:
     def __init__(self, config: VisionAdapterConfig) -> None:
         self.config = config
+        layout = LayoutConfig.load(config.layout_path)
+        annotation_parser = (
+            ScreenAnnotationParser(
+                layout,
+                config.template_directory,
+                tesseract_executable=config.tesseract_executable,
+                minimum_confidence=config.marker_minimum_confidence,
+                minimum_margin=config.marker_minimum_margin,
+                ocr_minimum_confidence=config.ocr_minimum_confidence,
+            )
+            if layout.text_fields or layout.markers
+            else None
+        )
         self.parser = ScreenshotParser(
-            LayoutConfig.load(config.layout_path),
+            layout,
             TemplateTileClassifier(
                 config.template_directory,
                 minimum_confidence=config.minimum_confidence,
             ),
+            annotation_parser,
         )
         self.filter = StableObservationFilter(
             config.confirmation_frames, config.minimum_confidence
@@ -188,6 +228,8 @@ class VisionAdapterRuntime:
         self.detector = VisionEventDetector(config.observer)
         self.manager = RealtimeStateManager(config.observer)
         self.source = config.frame_source()
+        self.current_round_id = config.bootstrap.round_id
+        self.desynced = False
 
     async def run(self, max_frames: int | None = None) -> None:
         if max_frames is not None and max_frames <= 0:
@@ -220,28 +262,33 @@ class VisionAdapterRuntime:
 
     async def _process_stable(self, socket: Any, observation: StableObservation) -> None:
         if self.manager.round_id is None:
-            events = [self._round_start(observation)]
+            bootstrap = self._round_metadata(observation, initial=True)
+            self.current_round_id = bootstrap.round_id
+            events = [self._round_start(observation, bootstrap)]
+            self.detector.prime(observation)
+        elif self._fresh_round(observation) and self._new_round_visible(observation):
+            bootstrap = self._round_metadata(observation, initial=False)
+            if self.desynced or (self.manager.state.get("phase") or {}).get("phase") != "ended":
+                await self._restore_fresh_round(socket, observation, bootstrap)
+                return
+            self.current_round_id = bootstrap.round_id
+            events = [self._round_start(observation, bootstrap)]
             self.detector.prime(observation)
         else:
+            if self.desynced:
+                logger.warning("vision remains desynchronized; waiting for a fresh round")
+                return
             try:
                 events = self.detector.detect(observation, self.manager.state)
             except VisionDeltaError as error:
-                logger.error("vision delta rejected: %s", error)
-                raise VisionRuntimeError(str(error)) from error
+                self.desynced = True
+                logger.error(
+                    "vision delta rejected; waiting for next fresh round: %s", error
+                )
+                return
         for detected in events:
-            envelope = self._envelope(detected)
-            await socket.send(json.dumps({"type": "event", "event": envelope}))
-            response = json.loads(await socket.recv())
-            if response.get("type") == "error":
-                raise VisionRuntimeError(f"realtime service rejected vision event: {response}")
-            self.manager.apply(envelope)
-            logger.info(
-                "vision event applied sequence=%s name=%s confidence=%s",
-                envelope["sequence"],
-                envelope["name"],
-                detected.confidence,
-            )
-        if self.manager.round_id is not None:
+            await self._send_event(socket, detected)
+        if self.manager.round_id is not None and not self._terminal_visible(observation):
             assertion = {
                 "round_id": self.manager.round_id,
                 "hand_count": len(observed_tiles(observation, "hand"))
@@ -253,7 +300,60 @@ class VisionAdapterRuntime:
             if check.get("type") == "error" or check.get("valid") is not True:
                 raise VisionRuntimeError(f"vision/state inconsistency: {check}")
 
-    def _round_start(self, observation: StableObservation) -> DetectedEvent:
+    async def _send_event(self, socket: Any, detected: DetectedEvent) -> None:
+        envelope = self._envelope(detected)
+        await socket.send(json.dumps({"type": "event", "event": envelope}))
+        response = json.loads(await socket.recv())
+        if response.get("type") == "error":
+            raise VisionRuntimeError(f"realtime service rejected vision event: {response}")
+        self.manager.apply(envelope)
+        logger.info(
+            "vision event applied sequence=%s name=%s confidence=%s",
+            envelope["sequence"],
+            envelope["name"],
+            detected.confidence,
+        )
+
+    async def _restore_fresh_round(
+        self,
+        socket: Any,
+        observation: StableObservation,
+        bootstrap: VisionBootstrap,
+    ) -> None:
+        temporary = RealtimeStateManager(self.config.observer)
+        detected = self._round_start(observation, bootstrap)
+        initial = {
+            "event_id": f"vision-resync-{bootstrap.round_id}",
+            "sequence": 0,
+            "round_id": bootstrap.round_id,
+            "name": detected.name,
+            "data": detected.data,
+        }
+        temporary.apply(initial)
+        next_sequence = self.manager.next_source_sequence
+        request = {
+            "type": "snapshot",
+            "round_id": bootstrap.round_id,
+            "next_source_sequence": next_sequence,
+            "state": temporary.state,
+        }
+        await socket.send(json.dumps(request))
+        response = json.loads(await socket.recv())
+        if response.get("type") == "error":
+            raise VisionRuntimeError(f"fresh-round resync was rejected: {response}")
+        self.manager.restore(
+            temporary.state,
+            next_source_sequence=next_sequence,
+            round_id=bootstrap.round_id,
+        )
+        self.current_round_id = bootstrap.round_id
+        self.desynced = False
+        self.detector.prime(observation)
+        logger.info("vision resynchronized at fresh round=%s", bootstrap.round_id)
+
+    def _round_start(
+        self, observation: StableObservation, bootstrap: VisionBootstrap
+    ) -> DetectedEvent:
         hand = list(observed_tiles(observation, "hand"))
         drawn = observed_tiles(observation, "drawn_tile")
         dora = observed_tiles(observation, "dora_indicators")
@@ -261,7 +361,6 @@ class VisionAdapterRuntime:
             raise VisionRuntimeError(
                 "fresh round bootstrap requires exactly 13 hand tiles, no drawn tile, and one dora indicator"
             )
-        bootstrap = self.config.bootstrap
         return DetectedEvent(
             "round_start",
             {
@@ -284,7 +383,7 @@ class VisionAdapterRuntime:
         return {
             "event_id": f"vision-{sequence}-{detected.name}",
             "sequence": sequence,
-            "round_id": self.config.bootstrap.round_id,
+            "round_id": self.current_round_id,
             "name": detected.name,
             "data": detected.data,
         }
@@ -304,6 +403,130 @@ class VisionAdapterRuntime:
             hello["authorization"] = EXTERNAL_AUTHORIZATION
             hello["authorization_reference"] = self.config.authorization_reference
         return hello
+
+    def _round_metadata(
+        self, observation: StableObservation, *, initial: bool
+    ) -> VisionBootstrap:
+        fallback = self.config.bootstrap if initial else None
+        wind = self._wind(observation)
+        hand_number = observed_metadata(observation, "hand_number")
+        honba = observed_metadata(observation, "honba")
+        riichi_sticks = observed_metadata(observation, "riichi_sticks")
+        dealer = self._marked_player(observation, "dealer")
+        scores = tuple(observed_metadata(observation, f"score_{player}") for player in range(4))
+        observed_identity = (
+            wind in {"east", "south", "west", "north"}
+            and isinstance(hand_number, int)
+            and isinstance(honba, int)
+        )
+        if fallback is not None:
+            wind = wind or fallback.wind
+            hand_number = hand_number if isinstance(hand_number, int) else fallback.hand_number
+            honba = honba if isinstance(honba, int) else fallback.honba
+            riichi_sticks = (
+                riichi_sticks
+                if isinstance(riichi_sticks, int)
+                else fallback.riichi_sticks
+            )
+            dealer = dealer if dealer is not None else fallback.dealer
+            scores = tuple(
+                value if isinstance(value, int) else fallback.scores[index]
+                for index, value in enumerate(scores)
+            )
+        if (
+            wind not in {"east", "south", "west", "north"}
+            or not isinstance(hand_number, int)
+            or not isinstance(honba, int)
+            or not isinstance(riichi_sticks, int)
+            or dealer is None
+            or any(not isinstance(value, int) for value in scores)
+        ):
+            raise VisionRuntimeError(
+                "automatic round transition requires wind/dealer markers and OCR fields "
+                "hand_number, honba, riichi_sticks, score_0..score_3"
+            )
+        round_id = (
+            f"{wind}-{hand_number}-{honba}"
+            if observed_identity or fallback is None
+            else fallback.round_id
+        )
+        remaining = observed_metadata(observation, "remaining_tiles")
+        return VisionBootstrap(
+            round_id,
+            wind,
+            hand_number,
+            honba,
+            riichi_sticks,
+            dealer,
+            tuple(int(value) for value in scores),  # type: ignore[arg-type]
+            int(remaining) if isinstance(remaining, int) else 70,
+        )
+
+    def _new_round_visible(self, observation: StableObservation) -> bool:
+        try:
+            metadata = self._round_metadata(observation, initial=False)
+        except VisionRuntimeError:
+            return False
+        return metadata.round_id != self.current_round_id
+
+    @staticmethod
+    def _fresh_round(observation: StableObservation) -> bool:
+        if len(observed_tiles(observation, "hand")) != 13:
+            return False
+        if observed_tiles(observation, "drawn_tile"):
+            return False
+        if len(observed_tiles(observation, "dora_indicators")) != 1:
+            return False
+        for player in range(4):
+            if observed_tiles(observation, f"river_{player}"):
+                return False
+        for name, values in observation.recognized.items():
+            if name.startswith("meld_") and values:
+                return False
+        return not VisionAdapterRuntime._terminal_visible(observation)
+
+    @staticmethod
+    def _terminal_visible(observation: StableObservation) -> bool:
+        return any(
+            observed_marker(observation, f"result_{kind}") is True
+            for kind in ("ron", "tsumo", "draw", "abortive_draw")
+        )
+
+    @staticmethod
+    def _wind(observation: StableObservation) -> str | None:
+        value = observed_metadata(observation, "wind")
+        aliases = {
+            "E": "east",
+            "S": "south",
+            "W": "west",
+            "N": "north",
+            "east": "east",
+            "south": "south",
+            "west": "west",
+            "north": "north",
+        }
+        if isinstance(value, str) and value in aliases:
+            return aliases[value]
+        active = [
+            wind
+            for wind in ("east", "south", "west", "north")
+            if observed_marker(observation, f"wind_{wind}") is True
+        ]
+        return active[0] if len(active) == 1 else None
+
+    @staticmethod
+    def _marked_player(
+        observation: StableObservation, prefix: str
+    ) -> int | None:
+        value = observed_metadata(observation, prefix)
+        if isinstance(value, int) and 0 <= value <= 3:
+            return value
+        active = [
+            player
+            for player in range(4)
+            if observed_marker(observation, f"{prefix}_{player}") is True
+        ]
+        return active[0] if len(active) == 1 else None
 
 
 def _resolve(base: Path, value: str) -> Path:

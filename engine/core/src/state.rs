@@ -77,9 +77,15 @@ pub struct FuritenState {
 pub struct DiscardRecord {
     pub tile: Tile,
     pub tsumogiri: bool,
+    #[serde(default = "default_true")]
+    pub tsumogiri_known: bool,
     pub riichi_declaration: bool,
     /// Called discards remain in the river history but are not counted twice.
     pub called_by: Option<PlayerId>,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -282,8 +288,15 @@ impl GameState {
                 player,
                 tile,
                 tsumogiri,
+                tsumogiri_known,
                 riichi_declaration,
-            } => self.apply_discard(*player, *tile, *tsumogiri, *riichi_declaration),
+            } => self.apply_discard(
+                *player,
+                *tile,
+                *tsumogiri,
+                *tsumogiri_known,
+                *riichi_declaration,
+            ),
             EventKind::Chi { player, meld } => {
                 self.apply_open_meld(*player, meld.clone(), MeldKind::Chi)
             }
@@ -459,6 +472,7 @@ impl GameState {
         player: PlayerId,
         tile: Tile,
         tsumogiri: bool,
+        tsumogiri_known: bool,
         riichi_declaration: bool,
     ) -> Result<()> {
         self.require_discard_turn(player)?;
@@ -474,6 +488,7 @@ impl GameState {
         self.players[player.index()].discards.push(DiscardRecord {
             tile,
             tsumogiri,
+            tsumogiri_known,
             riichi_declaration,
             called_by: None,
         });

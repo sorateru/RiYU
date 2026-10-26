@@ -8,15 +8,20 @@ import cv2
 import numpy as np
 import pytest
 
+from mahjong_ai.ai.sequence import public_event_tokens
 from mahjong_ai.analysis import RealtimeStateManager
 from mahjong_ai.perception import (
     CaptureRegion,
     LayoutConfig,
+    MarkerFieldConfig,
+    MarkerTemplateBank,
     PerceptionResult,
     ScreenshotParser,
     StableObservation,
     StableObservationFilter,
     TemplateTileClassifier,
+    TesseractFieldRecognizer,
+    TextFieldConfig,
     VisionAdapterConfig,
     VisionAdapterRuntime,
     VisionEventDetector,
@@ -65,6 +70,8 @@ def observation(
     *,
     drawn: tuple[dict[str, object], ...] = (),
     rivers: dict[int, tuple[dict[str, object], ...]] | None = None,
+    metadata: dict[str, int | str] | None = None,
+    markers: dict[str, bool | None] | None = None,
 ) -> StableObservation:
     recognized = {
         "hand": hand,
@@ -74,7 +81,17 @@ def observation(
     }
     for player, values in (rivers or {}).items():
         recognized[f"river_{player}"] = values
-    return StableObservation(recognized, {}, repr(recognized), 3, "test")
+    return StableObservation(
+        recognized,
+        {},
+        repr((recognized, metadata, markers)),
+        3,
+        "test",
+        metadata or {},
+        {},
+        markers or {},
+        {},
+    )
 
 
 def make_templates(directory: Path) -> None:
@@ -117,6 +134,25 @@ def test_stability_filter_requires_repeated_confident_frames() -> None:
     assert filter_.push(unknown) is None
 
 
+def test_result_marker_can_stabilize_while_overlay_hides_tiles() -> None:
+    result = PerceptionResult(
+        None,
+        {"hand": ()},
+        {"hand": (0.1,)},
+        ("hand[0]:confidence_below_threshold",),
+        "result-frame",
+        {"delta_0": 8_000, "delta_1": -8_000, "delta_2": 0, "delta_3": 0},
+        {"delta_0": 0.9, "delta_1": 0.9, "delta_2": 0.9, "delta_3": 0.9},
+        {"result_ron": True},
+        {"result_ron": 0.99},
+    )
+    filter_ = StableObservationFilter(required_frames=2, minimum_confidence=0.8)
+    assert filter_.push(result) is None
+    stable = filter_.push(result)
+    assert stable is not None
+    assert stable.markers["result_ron"] is True
+
+
 def test_vision_delta_detects_observer_draw_then_discard() -> None:
     manager = RealtimeStateManager(observer=0)
     start(manager)
@@ -137,6 +173,7 @@ def test_vision_delta_detects_observer_draw_then_discard() -> None:
         "player": 0,
         "tile": tile("p9"),
         "tsumogiri": True,
+        "tsumogiri_known": True,
         "riichi_declaration": False,
     }
 
@@ -155,6 +192,35 @@ def test_vision_delta_infers_hidden_opponent_draw_from_river_append() -> None:
     assert events[0].data["tile"] is None
     assert events[1].data["tile"] == tile("m9")
     assert events[1].confidence == "tsumogiri_unavailable"
+    assert events[1].data["tsumogiri_known"] is False
+    for sequence, event in enumerate(events, start=1):
+        manager.apply(source_event(sequence, event.name, event.data))
+    discard = manager.state["players"][1]["discards"][-1]
+    assert discard["tsumogiri"] is False
+    assert discard["tsumogiri_known"] is False
+    discard_token = [
+        value for value in public_event_tokens(manager.state) if value["type"] == "discard"
+    ][-1]
+    assert discard_token["tsumogiri"] == 0.5
+
+
+def test_indexed_tsumogiri_marker_makes_opponent_value_known() -> None:
+    manager = RealtimeStateManager(observer=0)
+    start(manager, dealer=1)
+    hand = tuple(manager.state["hand"])
+    detector = VisionEventDetector(observer=0)
+    detector.prime(observation(hand))
+    events = detector.detect(
+        observation(
+            hand,
+            rivers={1: (tile("m9"),)},
+            markers={"tsumogiri_1_0": True},
+        ),
+        manager.state,
+    )
+    assert events[1].data["tsumogiri"] is True
+    assert events[1].data["tsumogiri_known"] is True
+    assert events[1].confidence == "visual_tsumogiri_marker"
 
 
 def test_vision_delta_infers_hidden_draw_before_opponent_ankan() -> None:
@@ -171,6 +237,129 @@ def test_vision_delta_infers_hidden_draw_before_opponent_ankan() -> None:
     assert [event.name for event in events] == ["draw", "kan"]
     assert events[0].data == {"player": 1, "tile": None, "rinshan": False}
     assert events[1].data["kind"] == "ankan"
+
+
+def test_called_discard_may_disappear_from_river_with_the_new_meld() -> None:
+    manager = RealtimeStateManager(observer=0)
+    start(manager, dealer=1)
+    hand = tuple(manager.state["hand"])
+    detector = VisionEventDetector(observer=0)
+    initial = observation(hand)
+    initial.recognized["meld_2_0"] = ()
+    detector.prime(initial)
+
+    discard_frame = observation(hand, rivers={1: (tile("m9"),)})
+    discard_frame.recognized["meld_2_0"] = ()
+    events = detector.detect(discard_frame, manager.state)
+    assert [event.name for event in events] == ["draw", "discard"]
+    for sequence, event in enumerate(events, start=1):
+        manager.apply(source_event(sequence, event.name, event.data))
+
+    call_frame = observation(hand)
+    call_frame.recognized["meld_2_0"] = (tile("m9"),) * 3
+    events = detector.detect(call_frame, manager.state)
+    assert [event.name for event in events] == ["pon"]
+    assert events[0].data["player"] == 2
+    assert events[0].data["from"] == 1
+
+
+def test_marker_templates_and_ocr_value_validation(tmp_path: Path) -> None:
+    marker_root = tmp_path / "templates" / "markers"
+    marker_root.mkdir(parents=True)
+    on = np.zeros((12, 8), dtype=np.uint8)
+    on[:, 4:] = 255
+    off = np.zeros((12, 8), dtype=np.uint8)
+    off[6:, :] = 255
+    assert cv2.imwrite(str(marker_root / "riichi_0__on.png"), on)
+    assert cv2.imwrite(str(marker_root / "riichi_0__off.png"), off)
+    bank = MarkerTemplateBank(tmp_path / "templates", {"riichi_0"})
+    assert bank.classify("riichi_0", on).value is True
+    assert bank.classify("riichi_0", off).value is False
+
+    only_on = tmp_path / "only-on" / "markers"
+    only_on.mkdir(parents=True)
+    assert cv2.imwrite(str(only_on / "riichi_0__on.png"), on)
+    safe_bank = MarkerTemplateBank(tmp_path / "only-on", {"riichi_0"})
+    assert safe_bank.classify("riichi_0", np.full_like(on, 127)).value is False
+
+    integer = TextFieldConfig((0, 0, 10, 10), "integer", 0, 50_000)
+    assert TesseractFieldRecognizer._parse_value("+12,300", integer) == 12_300
+    assert TesseractFieldRecognizer._parse_value("99999", integer) is None
+
+
+def test_riichi_is_declared_on_discard_and_accepted_on_later_frame() -> None:
+    manager = RealtimeStateManager(observer=0)
+    start(manager)
+    hand = tuple(manager.state["hand"])
+    manager.apply(source_event(1, "draw", {"player": 0, "tile": "9p", "rinshan": False}))
+    detector = VisionEventDetector(observer=0)
+    detector.prime(observation(hand, drawn=(tile("p9"),)))
+
+    discarded = observation(
+        hand,
+        rivers={0: (tile("p9"),)},
+        markers={"riichi_0": True},
+    )
+    events = detector.detect(discarded, manager.state)
+    assert [event.name for event in events] == ["riichi", "discard"]
+    assert events[1].data["riichi_declaration"] is True
+    for sequence, event in enumerate(events, start=2):
+        manager.apply(source_event(sequence, event.name, event.data))
+    assert manager.state["players"][0]["riichi"].endswith("declared")
+
+    progressed = observation(
+        hand,
+        rivers={0: (tile("p9"),), 1: (tile("m9"),)},
+        markers={"riichi_0": True},
+    )
+    events = detector.detect(progressed, manager.state)
+    assert [event.name for event in events] == ["riichi", "draw", "discard"]
+    assert events[0].data == {"player": 0, "step": "accepted"}
+
+
+def test_result_overlay_emits_result_and_matching_round_end() -> None:
+    manager = RealtimeStateManager(observer=0)
+    start(manager, dealer=1)
+    manager.apply(source_event(1, "draw", {"player": 1, "tile": None, "rinshan": False}))
+    manager.apply(
+        source_event(
+            2,
+            "discard",
+            {
+                "player": 1,
+                "tile": "9m",
+                "tsumogiri": False,
+                "riichi_declaration": False,
+            },
+        )
+    )
+    hand = tuple(manager.state["hand"])
+    detector = VisionEventDetector(observer=0)
+    detector.prime(observation(hand, rivers={1: (tile("m9"),)}))
+    result = observation(
+        hand,
+        metadata={"delta_0": 8_000, "delta_1": -8_000, "delta_2": 0, "delta_3": 0},
+        markers={
+            "result_ron": True,
+            "winner_0": True,
+            "winner_1": False,
+            "winner_2": False,
+            "winner_3": False,
+            "loser_1": True,
+        },
+    )
+    events = detector.detect(result, manager.state)
+    assert [event.name for event in events] == ["ron", "round_end"]
+    assert events[0].data["winners"] == [0]
+    for sequence, event in enumerate(events, start=3):
+        manager.apply(source_event(sequence, event.name, event.data))
+    assert manager.state["phase"]["phase"] == "ended"
+    animated_result = observation(
+        (),
+        metadata={"delta_0": 8_000, "delta_1": -8_000, "delta_2": 0, "delta_3": 0},
+        markers={"result_ron": True},
+    )
+    assert detector.detect(animated_result, manager.state) == []
 
 
 def test_config_rejects_remote_url_and_unauthorized_live_capture(tmp_path: Path) -> None:
@@ -249,6 +438,32 @@ def test_directory_replay_bootstrap_sends_checked_round_start(tmp_path: Path) ->
     assert runtime.manager.round_id == "east-1-0"
     assert socket.sent[0]["event"]["name"] == "round_start"
     assert socket.sent[1]["type"] == "state_check"
+
+    skipped = observation(
+        tuple(_canonical_hand()),
+        rivers={0: (tile("m1"), tile("m2"))},
+    )
+    asyncio.run(runtime._process_stable(socket, skipped))
+    assert runtime.desynced is True
+    socket.responses.append({"type": "state_update"})
+    next_round = observation(
+        tuple(_canonical_hand()),
+        metadata={
+            "hand_number": 2,
+            "honba": 0,
+            "riichi_sticks": 0,
+            "score_0": 24_000,
+            "score_1": 26_000,
+            "score_2": 25_000,
+            "score_3": 25_000,
+        },
+        markers={"wind_east": True, "dealer_1": True},
+    )
+    asyncio.run(runtime._process_stable(socket, next_round))
+    assert runtime.manager.round_id == "east-2-0"
+    assert runtime.manager.state["round"]["hand_number"] == 2
+    assert runtime.desynced is False
+    assert socket.sent[2]["type"] == "snapshot"
 
 
 def _canonical_hand() -> list[dict[str, object]]:

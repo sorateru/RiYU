@@ -153,6 +153,7 @@ def map_majsoul_event(
             "player": _player(data, "player"),
             "tile": _tile(data.get("tile"), "tile"),
             "tsumogiri": _boolean(data, "tsumogiri"),
+            "tsumogiri_known": _boolean(data, "tsumogiri_known", default=True),
             "riichi_declaration": _boolean(data, "riichi_declaration", default=False),
         }
     if source.name in {"chi", "pon", "kan"}:

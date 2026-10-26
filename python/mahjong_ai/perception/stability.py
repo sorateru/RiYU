@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from mahjong_ai.schema import canonical_json
@@ -17,6 +17,10 @@ class StableObservation:
     fingerprint: str
     confirmation_frames: int
     source: str
+    metadata: dict[str, int | str] = field(default_factory=dict)
+    metadata_confidences: dict[str, float] = field(default_factory=dict)
+    markers: dict[str, bool | None] = field(default_factory=dict)
+    marker_confidences: dict[str, float] = field(default_factory=dict)
 
 
 class StableObservationFilter:
@@ -32,11 +36,35 @@ class StableObservationFilter:
         self._last_emitted: str | None = None
 
     def push(self, result: PerceptionResult) -> StableObservation | None:
-        if result.unknown_slots or not self._confident(result.confidences):
+        terminal = any(
+            value is True and name.startswith("result_")
+            for name, value in result.markers.items()
+        )
+        annotation_unknown = tuple(
+            value
+            for value in result.unknown_slots
+            if value.startswith("text_fields.") or value.startswith("markers.")
+        )
+        if (
+            annotation_unknown
+            or (not terminal and result.unknown_slots)
+            or (not terminal and not self._confident(result.confidences))
+        ):
             self._candidate = None
             self._candidate_count = 0
             return None
-        fingerprint = canonical_json(result.recognized)
+        fresh_round = _looks_like_fresh_round(result.recognized)
+        event_markers = {
+            name: value
+            for name, value in result.markers.items()
+            if name.startswith("riichi_") or name.startswith("tsumogiri_")
+        }
+        payload = {
+            "recognized": {} if terminal else result.recognized,
+            "metadata": result.metadata if terminal or fresh_round else {},
+            "markers": result.markers if terminal or fresh_round else event_markers,
+        }
+        fingerprint = canonical_json(payload)
         if fingerprint == self._candidate:
             self._candidate_count += 1
         else:
@@ -51,6 +79,10 @@ class StableObservationFilter:
             fingerprint,
             self._candidate_count,
             result.source,
+            result.metadata,
+            result.metadata_confidences,
+            result.markers,
+            result.marker_confidences,
         )
 
     def _confident(self, values: dict[str, tuple[float, ...]]) -> bool:
@@ -67,3 +99,41 @@ def observed_tiles(
         else observation
     )
     return tuple(recognized.get(region, ()))
+
+
+def observed_metadata(
+    observation: StableObservation | dict[str, Any], name: str
+) -> int | str | None:
+    metadata = (
+        observation.metadata
+        if isinstance(observation, StableObservation)
+        else observation
+    )
+    return metadata.get(name)
+
+
+def observed_marker(
+    observation: StableObservation | dict[str, Any], name: str
+) -> bool | None:
+    markers = (
+        observation.markers
+        if isinstance(observation, StableObservation)
+        else observation
+    )
+    value = markers.get(name)
+    return value if isinstance(value, bool) else None
+
+
+def _looks_like_fresh_round(
+    recognized: dict[str, tuple[dict[str, object], ...]],
+) -> bool:
+    if len(recognized.get("hand", ())) != 13:
+        return False
+    if recognized.get("drawn_tile", ()):
+        return False
+    if len(recognized.get("dora_indicators", ())) != 1:
+        return False
+    for name, values in recognized.items():
+        if (name.startswith("river_") or name.startswith("meld_")) and values:
+            return False
+    return True

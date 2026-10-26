@@ -89,6 +89,8 @@ WebSocket endpointは`/ws/realtime/events/source`。Handshakeでは次を指定�
 
 牌はcore JSONの`{"kind":"s6","red":false}`に加えて、`6s`、赤五の`0m`、
 字牌の`1z`〜`7z`をadapter境界で受け付ける。他家ツモの`tile`は必ず`null`とする。
+`discard.data.tsumogiri_known`は省略時`true`である。画面上で他家ツモ切りを確定できない場合は
+`tsumogiri=false, tsumogiri_known=false`とし、公開状態とモデル入力で不明値として保持する。
 
 ## 意思決定と配信
 
