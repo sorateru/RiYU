@@ -7,12 +7,14 @@ import json
 import logging
 import secrets
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+from starlette.staticfiles import StaticFiles
 
 from mahjong_ai import analyze_state_json, validate_state_json
 from mahjong_ai.adapters import MAJSOUL_EVENT_PROFILE, MahjongSoulAdapterError
@@ -54,6 +56,7 @@ def create_app(
     engine: InferenceEngine | None = None,
     local_play: LocalPlayManager | None = None,
     realtime_hub: RealtimeSessionHub | None = None,
+    ui_directory: str | Path | None = None,
 ) -> FastAPI:
     app = FastAPI(title="mahjong-ai local analysis service", version="0.3.0")
     play_manager = local_play or LocalPlayManager()
@@ -68,6 +71,10 @@ def create_app(
     def run_analysis(state: dict[str, Any]) -> dict[str, Any]:
         return engine.analyze(state) if engine else json.loads(analyze_state_json(canonical_json(state)))
 
+    default_ui = Path(__file__).resolve().parents[3] / "apps" / "reviewer" / "dist"
+    ui_root = Path(ui_directory).resolve() if ui_directory is not None else default_ui
+    ui_available = (ui_root / "index.html").is_file()
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {
@@ -77,6 +84,7 @@ def create_app(
             "realtime_source_endpoint": "/ws/realtime/source",
             "realtime_event_source_endpoint": "/ws/realtime/events/source",
             "realtime_view_endpoint": "/ws/realtime/view/{session_id}",
+            "webapp_available": ui_available,
         }
 
     @app.get("/realtime/sessions")
@@ -506,6 +514,9 @@ def create_app(
             return
         finally:
             stream_hub.unsubscribe(session_id, token)
+
+    if ui_available:
+        app.mount("/", StaticFiles(directory=ui_root, html=True), name="reviewer-ui")
 
     return app
 

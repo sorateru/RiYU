@@ -115,6 +115,19 @@ def test_reviewer_api_returns_exact_ranked_discards() -> None:
     assert body["safety_scope"] == "offline_saved_log_or_local_simulator_only"
 
 
+def test_reviewer_serves_built_webapp_from_the_same_origin(tmp_path) -> None:
+    ui = tmp_path / "ui"
+    ui.mkdir()
+    (ui / "index.html").write_text("<h1>RiYU local</h1>", encoding="utf-8")
+    client = TestClient(create_app(ui_directory=ui))
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["webapp_available"] is True
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "RiYU local" in page.text
+
+
 def test_local_hanchan_play_is_separate_from_analysis_and_hides_opponent_hands() -> None:
     torch.manual_seed(41)
     model = MahjongNetwork(

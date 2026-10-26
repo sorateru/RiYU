@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import cv2
 import numpy as np
@@ -117,6 +118,21 @@ def test_capture_region_and_template_empty_slot(tmp_path: Path) -> None:
     result = parser.parse(frame)
     assert result.recognized["hand"] == ()
     assert result.unknown_slots == ()
+
+
+def test_macos_capture_normalizes_retina_pixels_to_logical_layout(tmp_path: Path) -> None:
+    from mahjong_ai.perception.capture import MacOSScreenCapture
+
+    executable = tmp_path / "screencapture"
+    executable.touch()
+    source = MacOSScreenCapture(CaptureRegion(0, 0, 100, 80), executable)
+    retina = np.zeros((160, 200, 3), dtype=np.uint8)
+    completed = Mock(returncode=0, stderr="")
+    with patch("mahjong_ai.perception.capture.subprocess.run", return_value=completed), patch(
+        "mahjong_ai.perception.capture.cv2.imread", return_value=retina
+    ):
+        frame = source.capture()
+    assert frame.shape == (80, 100, 3)
 
 
 def test_stability_filter_requires_repeated_confident_frames() -> None:

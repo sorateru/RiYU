@@ -3,7 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Json = Record<string, any>;
 type Mode = "play" | "review" | "live";
 
-const API = import.meta.env.VITE_REVIEWER_API ?? "http://127.0.0.1:8000";
+const DEFAULT_API = ["http:", "https:"].includes(window.location.protocol)
+  ? window.location.origin
+  : "http://127.0.0.1:8787";
+const API = import.meta.env.VITE_REVIEWER_API ?? DEFAULT_API;
 const WS_API = API.replace(/^http/, "ws");
 const WINDS: Record<string, string> = { east: "東", south: "南", west: "西", north: "北" };
 const HONORS: Record<string, string> = {

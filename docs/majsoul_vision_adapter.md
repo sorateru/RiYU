@@ -41,6 +41,7 @@ brew install tesseract
 雀魂を固定解像度・固定倍率で表示し、対象画面について必要な許諾を確認する。
 macOSの「プライバシーとセキュリティ > 画面収録」で実行terminal/Codexに許可した後、
 1 frameを保存する。
+Retina画面で取得PNGが2倍pixelになる場合は、Adapterが指定した論理サイズへ自動正規化する。
 
 ```bash
 PYTHONPATH=python .venv/bin/python tools/capture_vision_frame.py \
@@ -154,8 +155,32 @@ Reviewer UIは`majsoul-vision-local` sessionを検出してviewerへ接続する
 [majsoul_vision.example.json](majsoul_vision.example.json)をコピーし、capture座標、layout、
 template path、開始局の`bootstrap`を実際の友人戦に合わせる。`authorization_reference`は
 必要な許諾を確認した記録の識別子であり、単なる文字列入力が許諾そのものを代替するものではない。
+校正画像、設定、templateは`local-data/`に保存し、Gitには含めない。
+
+製品利用時はCodexから起動せず、画面収録権限を付与したTerminalから実行する。
+初回またはフロント変更後にWebアプリをbuildする。
 
 ```bash
+cd apps/reviewer
+npm run build
+cd ../..
+```
+
+通常は次の1コマンドで、ローカルAPI、Webアプリ、Vision Adapterをまとめて起動する。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/run_majsoul_webapp.py \
+  local-data/majsoul-vision.json
+```
+
+WebアプリはVision設定の`websocket_url`と同じポートで配信され、既定で
+`http://127.0.0.1:8787/`を開く。バックエンドとAdapterは`Ctrl+C`でまとめて終了できる。
+設定した画面座標は、Safariの実際の表示位置と一致している必要がある。
+
+個別起動して問題を切り分ける場合は、serverとAdapterを別Terminalで実行する。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/serve_analysis.py --port 8787
 PYTHONPATH=python .venv/bin/python tools/run_vision_adapter.py \
   local-data/majsoul-vision.json --log-level INFO
 ```

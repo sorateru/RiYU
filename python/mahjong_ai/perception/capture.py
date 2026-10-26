@@ -75,10 +75,18 @@ class MacOSScreenCapture:
             raise RuntimeError(
                 "macOS returned no readable frame; verify Screen Recording permission and capture bounds"
             )
-        if frame.shape[1] != self.region.width or frame.shape[0] != self.region.height:
+        scale_x = frame.shape[1] / self.region.width
+        scale_y = frame.shape[0] / self.region.height
+        if abs(scale_x - scale_y) > 0.01 or not 1.0 <= scale_x <= 4.0:
             raise RuntimeError(
-                f"captured {frame.shape[1]}x{frame.shape[0]}, expected "
-                f"{self.region.width}x{self.region.height}"
+                f"captured {frame.shape[1]}x{frame.shape[0]} for logical region "
+                f"{self.region.width}x{self.region.height}; display scaling is inconsistent"
+            )
+        if frame.shape[1] != self.region.width or frame.shape[0] != self.region.height:
+            frame = cv2.resize(
+                frame,
+                (self.region.width, self.region.height),
+                interpolation=cv2.INTER_AREA,
             )
         return frame
 
