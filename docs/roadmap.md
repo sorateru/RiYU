@@ -84,6 +84,8 @@
 - [x] 観測者一致、秘密情報不可視、単調増加sequenceの検証
 - [x] 厳密計算、評価済みモデル推定、根拠文を同一responseで返却
 - [x] 外部adapterの明示的な許諾表明
+- [x] 雀魂用許可済みsource profile、source/viewer分離、最新解析優先配信
+- [x] read-onlyリアルタイムUIと保存GameStateリプレイCLI
 - [ ] 対象サービス運営者から書面で許可された場合のみ、別リポジトリのadapterと結合試験
 
 ## 性能目標
