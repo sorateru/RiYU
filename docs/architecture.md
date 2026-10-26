@@ -64,7 +64,7 @@ Phase 2では `legal_actions(state)` が動的な `Vec<Action>` を生成する�
 - `perception`: 保存画像から候補観測を作り、確信度と不明値を保持する
 - `apps/reviewer`: FastAPI HTTP/WebSocket + React/Tauri。未学習値や算出不能値は `N/A` とする
 
-WebSocket境界は取得元から独立している。入力元は観測者向けに正規化された `GameState` のみを送信し、サービス側は観測者番号、可視性フラグ、連番を再検証する。画面キャプチャ、通信傍受、サービス固有API、入力操作はこの境界より外側であり、本リポジトリには実装しない。詳細は `docs/realtime_protocol.md` に定める。
+リアルタイムWebSocket境界は取得元から独立している。入力元は観測者向けに正規化された `GameState` のみを送信し、サービス側は観測者番号、可視性フラグ、連番を再検証する。画面キャプチャ、対局中の通信取得、サービス固有API、入力操作はこの境界より外側であり実装しない。保存牌譜についてのみ、別配布のChrome拡張が牌譜閲覧画面で既に受信済みの記録をdecodeし、オフラインEventLog境界へ渡す。詳細は `docs/realtime_protocol.md` と `docs/browser_extension.md` に定める。
 
 ## バージョニング
 

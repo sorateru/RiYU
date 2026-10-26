@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://riyu.local/schemas/mahjong-soul-decoded-replay-v1.schema.json",
+  "title": "RiYU local decoded Mahjong Soul replay v1",
+  "type": "object",
+  "required": ["format", "records"],
+  "properties": {
+    "format": {"const": "mahjong-soul-decoded-replay/v1"},
+    "records": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/record"}
+    },
+    "final_scores": {"$ref": "#/$defs/scores"}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "scores": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer"},
+        {"type": "integer"},
+        {"type": "integer"},
+        {"type": "integer"}
+      ],
+      "items": false
+    },
+    "record": {
+      "type": "object",
+      "anyOf": [
+        {"required": ["type"]},
+        {"required": ["name"]}
+      ]
+    }
+  }
+}

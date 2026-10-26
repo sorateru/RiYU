@@ -113,13 +113,11 @@ def build_decision_records(
 
 
 def _legal_actions(state_json: str) -> list[dict[str, Any]]:
-    report = json.loads(legal_actions_json(state_json))
-    return report["value"] or []
+    return json.loads(legal_actions_json(state_json)) or []
 
 
 def _replayer_legal_actions(replayer: ObservationReplayer) -> list[dict[str, Any]]:
-    report = json.loads(replayer.legal_actions_json())
-    return report["value"] or []
+    return json.loads(replayer.legal_actions_json()) or []
 
 
 def _may_have_non_pass_response(state: dict[str, Any]) -> bool:

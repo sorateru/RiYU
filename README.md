@@ -3,7 +3,7 @@
 
 四人リーチ麻雀の厳密ルール、オフライン牌譜、深層学習、自己対戦、保存画像認識を一つの観測状態契約で扱う研究基盤です。Phase 1〜9の実行可能な基盤を実装していますが、強い学習済みモデルはまだ同梱しておらず、NAGA級性能を主張しません。
 
-対象は保存牌譜、保存スクリーンショット、自作Simulator、明示的に許諾された入力元での友人間研究です。外部サービスの画面取得、通信解析、非公開API、ブラウザ注入、自動操作・自動打牌は実装しません。
+対象は保存牌譜、保存スクリーンショット、自作Simulator、明示的に許諾された入力元での友人間研究です。雀魂連携は牌譜閲覧画面だけで動く任意導入のChrome拡張を用意しています。対局中の解析、非公開APIへの追加リクエスト、ログイン自動化、入力操作・自動打牌は実装しません。
 
 ## 主な実装
 
@@ -36,14 +36,29 @@ python -m pytest -q
 python tools/crosscheck_shanten.py
 ```
 
-局面解析UI:
+新RiYU Web UI（複数局の牌譜解析）:
 
 ```bash
-python -m uvicorn mahjong_ai.apps.reviewer:app --host 127.0.0.1 --port 8000
-cd apps/reviewer
-pnpm install
-pnpm dev
+cd apps/web
+npm install
+npm run build
+cd ../..
+PYTHONPATH=python .venv/bin/python tools/serve_analysis.py \
+  --port 8000 --web-dist apps/web/dist
 ```
+
+`http://127.0.0.1:8000/` を開き、許諾済み入力から生成した `mahjong-ai-event-log/v1` JSONを読み込む。複数局は複数ファイル、JSON配列、または `{"logs": [...]}` でまとめて解析できる。雀魂はユーザー保有の `mahjong-soul-decoded-replay/v1` を直接読み込むか、取得元・変換器・利用権を記録する `mahjong-ai-replay-bundle/v1` に変換して読み込める。UIとAPIは同一のloopbackサーバーから配信される。開発中は別ターミナルで `cd apps/web && npm run dev` を実行すると、`/api` が `127.0.0.1:8000` へproxyされる。
+
+雀魂共有URLをそのまま貼り付ける場合は、利用者が保有するdecode済みJSONを一度ローカル登録する。以後は同じ `paipu` IDの公式共有URLだけで解析できる。URL本文やpaipu IDはキャッシュのファイル名・解析レスポンスへ保存しない。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/register_mahjong_soul_replay.py \
+  'https://game.mahjongsoul.com/?paipu=...' decoded-replay.json
+```
+
+NAGAと同じ操作感にする場合はChrome拡張をビルドして読み込む。ブラウザ版雀魂で牌譜を開き、拡張の「RiYUで解析」を押すと、表示中の牌譜だけがloopbackのRiYUへ送られ解析画面が開く。詳細は [browser extension](docs/browser_extension.md) を参照。
+
+既存のローカルAI対局と単一GameState解析のReact/Tauri UIは `apps/reviewer` に残している。
 
 ローカル解析サービス（HTTP `/analyze` とWebSocket `/ws/lab`）:
 

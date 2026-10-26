@@ -24,6 +24,13 @@
 - [x] 全巡目再生、秘密牌漏洩・不正牌譜の診断
 - [x] observation / legal_actions / expert_action / final result のParquet化
 - [x] 元牌譜、変換器版、状態schema版の来歴
+- [x] 外部サービス由来の複数局を安全に渡す出所付きReplay Bundle v1
+- [x] Replay Bundleの秘密牌漏洩再検査、URLハッシュ化、Web/API/CLI統合
+- [x] ユーザー保有・ローカルdecode済み雀魂JSONのサービス固有変換器とWeb/API/CLI統合
+- [x] 雀魂共有URLの検証・匿名化・ローカル認可キャッシュ解決
+- [x] NAGA型Chrome拡張による牌譜閲覧画面からのワンクリックRiYU転送
+- [ ] 実サービスexport fixtureを追加してフィールド差分を吸収
+- [ ] 雀魂変換器の和了・流局・責任払い・特殊ルールcross-check
 - [ ] 利用・配布条件を確認したサービス別オフラインアダプター
 
 ## Phase 4 — Encoderとモデル（基盤実装済み）

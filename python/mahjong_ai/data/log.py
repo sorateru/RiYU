@@ -33,6 +33,18 @@ class EventLog:
 
 def load_event_log(path: str | Path) -> EventLog:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    return parse_event_log(raw, default_log_id=Path(path).stem)
+
+
+def parse_event_log(raw: dict[str, Any], *, default_log_id: str = "uploaded-log") -> EventLog:
+    """Validate an in-memory normalized event-log document.
+
+    This is the upload-safe counterpart of :func:`load_event_log`; both paths
+    share exactly the same hidden-information and sequence checks.
+    """
+
+    if not isinstance(raw, dict):
+        raise EventLogError("event log must be a JSON object")
     if raw.get("format") != LOG_FORMAT:
         raise EventLogError(f"expected format {LOG_FORMAT!r}")
     streams = raw.get("observations")
@@ -74,7 +86,7 @@ def load_event_log(path: str | Path) -> EventLog:
     ):
         raise EventLogError("result.round_score_deltas must contain four integers")
     return EventLog(
-        log_id=str(raw.get("log_id", Path(path).stem)),
+        log_id=str(raw.get("log_id", default_log_id)),
         rules=raw.get("rules"),
         observations=observations,
         final_scores=tuple(scores),

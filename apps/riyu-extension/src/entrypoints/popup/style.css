@@ -1,0 +1,32 @@
+:root {
+  color: #1c241f;
+  background: #f4f1e8;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+main {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+h1 {
+  margin: 0;
+  color: #173f32;
+  font-family: Georgia, serif;
+  letter-spacing: .08em;
+}
+
+p { margin: 0; line-height: 1.55; }
+label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+input, select, button { box-sizing: border-box; width: 100%; padding: 9px; font: inherit; }
+input, select { border: 1px solid #b7b6ad; border-radius: 6px; background: white; }
+button { border: 0; border-radius: 6px; background: #173f32; color: white; font-weight: 700; cursor: pointer; }
+button:disabled { cursor: wait; opacity: .6; }
+#status { min-height: 1.5em; color: #8d3225; font-size: 12px; }
+details { color: #59635e; font-size: 11px; }

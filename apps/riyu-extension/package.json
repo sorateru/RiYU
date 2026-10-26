@@ -1,0 +1,20 @@
+{
+  "name": "riyu-mahjong-soul-review-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "protobufjs": "^8.8.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.37",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "wxt": "^0.21.4"
+  }
+}
