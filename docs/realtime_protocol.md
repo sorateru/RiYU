@@ -65,6 +65,10 @@ python tools/serve_analysis.py --port 8787
 `source_kind=authorized_external_adapter`では、さらに運営者の許可を識別する
 `authorization_reference`が必須である。この値はセッション一覧や解析responseには返さない。
 
+取得方式は`source_acquisition`で明示する。Vision AdapterのmacOS画面取得は
+`screen_capture`、保存frame検証は`directory_replay`を送る。メインWeb UIのリアルタイム画面は、
+`screen_capture`かつ許諾記録済みの雀魂event sourceだけを表示する。
+
 ```json
 {
   "type": "hello",

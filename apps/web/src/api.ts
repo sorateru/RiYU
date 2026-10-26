@@ -1,6 +1,32 @@
 import type { ReplayAnalysis } from "./types/analysis"
+import type { RealtimeSession } from "./types/realtime"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ""
+
+export async function loadScreenCaptureSessions(): Promise<RealtimeSession[]> {
+  const response = await fetch(`${API_BASE}/realtime/sessions`)
+  const body = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(body?.detail ?? `Session lookup failed (${response.status})`)
+  }
+  const sessions = Array.isArray(body?.sessions) ? body.sessions as RealtimeSession[] : []
+  return sessions.filter((session) =>
+    session.source_kind === "authorized_external_adapter" &&
+    session.source_service === "majsoul" &&
+    session.source_profile === "majsoul-normalized-event/v1" &&
+    session.source_acquisition === "screen_capture" &&
+    session.authorization_recorded === true
+  )
+}
+
+export function realtimeViewerURL(sessionId: string): string {
+  const base = new URL(API_BASE || window.location.origin, window.location.origin)
+  base.protocol = base.protocol === "https:" ? "wss:" : "ws:"
+  base.pathname = `/ws/realtime/view/${encodeURIComponent(sessionId)}`
+  base.search = ""
+  base.hash = ""
+  return base.toString()
+}
 
 export async function analyzeReplay(
   input: unknown,

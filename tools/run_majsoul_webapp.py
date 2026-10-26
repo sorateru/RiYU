@@ -36,16 +36,22 @@ def main() -> None:
     args = parser.parse_args()
     config_path = Path(args.config).resolve()
     config = VisionAdapterConfig.load(config_path)
+    if config.capture_region is None:
+        parser.error(
+            "the integrated realtime launcher requires capture.mode=macos_region; "
+            "use serve_analysis.py and run_vision_adapter.py separately for directory replay"
+        )
     parsed = urlparse(config.websocket_url)
     port = parsed.port or (443 if parsed.scheme == "wss" else 80)
     if parsed.scheme != "ws" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
         parser.error("one-command launcher requires a local ws:// Vision Adapter URL")
     if parsed.path != "/ws/realtime/events/source":
         parser.error("config websocket_url must use /ws/realtime/events/source")
-    ui_index = ROOT / "apps" / "reviewer" / "dist" / "index.html"
+    web_dist = ROOT / "apps" / "web" / "dist"
+    ui_index = web_dist / "index.html"
     if not ui_index.is_file():
         parser.error(
-            "web app is not built; run `cd apps/reviewer && npm run build` first"
+            "web app is not built; run `npm run build --prefix apps/web` first"
         )
 
     environment = os.environ.copy()
@@ -65,6 +71,8 @@ def main() -> None:
         args.device,
         "--log-level",
         args.log_level,
+        "--web-dist",
+        str(web_dist),
     ]
     if args.checkpoint:
         server_command.extend(("--checkpoint", str(Path(args.checkpoint).resolve())))
@@ -91,7 +99,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, stop)
     try:
         _wait_for_server(port, server)
-        web_url = f"http://127.0.0.1:{port}/"
+        web_url = f"http://127.0.0.1:{port}/#realtime"
         if not args.no_open:
             webbrowser.open(web_url)
         print(f"RiYU web app: {web_url}", flush=True)

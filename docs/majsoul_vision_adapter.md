@@ -158,12 +158,10 @@ template path、開始局の`bootstrap`を実際の友人戦に合わせる。`a
 校正画像、設定、templateは`local-data/`に保存し、Gitには含めない。
 
 製品利用時はCodexから起動せず、画面収録権限を付与したTerminalから実行する。
-初回またはフロント変更後にWebアプリをbuildする。
+初回またはフロント変更後に、牌譜解析とリアルタイム解析を統合したメインWebアプリをbuildする。
 
 ```bash
-cd apps/reviewer
-npm run build
-cd ../..
+npm run build --prefix apps/web
 ```
 
 通常は次の1コマンドで、ローカルAPI、Webアプリ、Vision Adapterをまとめて起動する。
@@ -174,7 +172,10 @@ PYTHONPATH=python .venv/bin/python tools/run_majsoul_webapp.py \
 ```
 
 WebアプリはVision設定の`websocket_url`と同じポートで配信され、既定で
-`http://127.0.0.1:8787/`を開く。バックエンドとAdapterは`Ctrl+C`でまとめて終了できる。
+`http://127.0.0.1:8787/#realtime`からリアルタイム画面へ移動できる。トップ画面の
+「リアルタイム」からも同じ画面を開ける。UIは`source_acquisition=screen_capture`、
+`source_kind=authorized_external_adapter`、許諾記録ありの雀魂Vision Adapterだけを表示する。
+バックエンドとAdapterは`Ctrl+C`でまとめて終了できる。
 設定した画面座標は、Safariの実際の表示位置と一致している必要がある。
 
 個別起動して問題を切り分ける場合は、serverとAdapterを別Terminalで実行する。

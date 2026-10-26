@@ -6,11 +6,13 @@ import "../style.css"
 
 type AnalysisPageProps = {
   onBack: () => void
+  onOpenRealtime: () => void
   analysis: ReplayAnalysis
 }
 
 export default function AnalysisPage({
   onBack,
+  onOpenRealtime,
   analysis,
 }: AnalysisPageProps) {
   const [roundIndex, setRoundIndex] = useState(0)
@@ -124,12 +126,10 @@ export default function AnalysisPage({
           <span>{analysis.analysisMode === "model_estimate" ? "モデル推定" : "厳密牌効率"}</span>
         </div>
 
-        <button
-          className="header-button"
-          onClick={onBack}
-        >
-          New Replay
-        </button>
+        <div className="analysis-header-actions">
+          <button className="header-button" onClick={onOpenRealtime}>Live</button>
+          <button className="header-button" onClick={onBack}>New Replay</button>
+        </div>
       </header>
 
       <div className="analysis-layout">

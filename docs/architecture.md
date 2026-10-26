@@ -62,7 +62,8 @@ Phase 2では `legal_actions(state)` が動的な `Vec<Action>` を生成する�
 - `evaluation`: 固定条件Arena、信頼区間、回帰ベンチマーク
 - `analysis`: 厳密値とモデル推定値を区別した構造化JSON、順序付きリアルタイムセッション
 - `perception`: 保存画像から候補観測を作り、確信度と不明値を保持する
-- `apps/reviewer`: FastAPI HTTP/WebSocket + React/Tauri。未学習値や算出不能値は `N/A` とする
+- `apps/web`: 保存牌譜解析と画面キャプチャ型リアルタイム解析を統合したメインReact UI
+- `apps/reviewer`: ローカルAI対局と単一局面解析を残すReact/Tauri検証UI
 
 リアルタイムWebSocket境界は取得元から独立している。入力元は観測者向けに正規化された `GameState`、またはadapter境界の公開観測eventを送信する。eventはサービス別mapperで共通`GameEvent`へ変換し、Rustの同じ状態機械へ適用する。サービス側は観測者番号、可視性フラグ、source連番、event ID、局IDを再検証する。ライブ取得は、ユーザーが明示的に許可した画面を読み取るread-onlyのVision Adapterに限定し、通信傍受、非公開API、入力操作は行わない。保存牌譜については、別配布のChrome拡張が牌譜閲覧画面で既に受信済みの記録をdecodeし、オフラインEventLog境界へ渡す。詳細は `docs/realtime_protocol.md`、`docs/majsoul_vision_adapter.md`、`docs/browser_extension.md` に定める。
 

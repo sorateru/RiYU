@@ -5,12 +5,14 @@ const MAX_UPLOAD_FILES = 64
 
 type HomePageProps = {
   onAnalyze: (input: unknown, observer: number) => Promise<void>
+  onOpenRealtime: () => void
   loading: boolean
   error: string
 }
 
 export default function HomePage({
   onAnalyze,
+  onOpenRealtime,
   loading,
   error,
 }: HomePageProps) {
@@ -95,6 +97,10 @@ export default function HomePage({
 
   return (
     <div className="landing-page">
+      <nav className="landing-nav" aria-label="解析モード">
+        <button className="active" aria-current="page">牌譜解析</button>
+        <button onClick={onOpenRealtime}>リアルタイム</button>
+      </nav>
       <main className="landing-center">
         <div className="landing-brand">
           <h1>RiYU</h1>
@@ -154,6 +160,11 @@ export default function HomePage({
           {selectedFiles.length > 0 && <p className="selected-files">{selectedFiles.length}ファイル: {selectedFiles.join(", ")}</p>}
           {(inputError || error) && <p className="landing-error" role="alert">{inputError || error}</p>}
         </form>
+        <button className="landing-live-link" type="button" onClick={onOpenRealtime}>
+          <span>LIVE</span>
+          雀魂の画面キャプチャ解析を開く
+          <b>→</b>
+        </button>
       </main>
     </div>
   )

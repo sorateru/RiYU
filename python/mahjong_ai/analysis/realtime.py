@@ -23,6 +23,7 @@ from .explanation import explain_analysis
 
 REALTIME_PROTOCOL = "mahjong-ai-realtime/v1"
 SOURCE_KINDS = frozenset({"local_simulator", "offline_replay", "authorized_external_adapter"})
+SOURCE_ACQUISITIONS = frozenset({"screen_capture", "directory_replay", "normalized_stream"})
 EXTERNAL_AUTHORIZATION = "source_operator_confirms_authorized"
 MAJSOUL_SOURCE_SERVICE = "majsoul"
 MAJSOUL_REALTIME_PROFILE = "majsoul-normalized-observation/v1"
@@ -46,6 +47,7 @@ class SessionHello:
     source_service: str | None = None
     source_profile: str | None = None
     authorization_reference: str | None = None
+    source_acquisition: str | None = None
 
 
 class RealtimeAnalysisSession:
@@ -98,6 +100,22 @@ class RealtimeAnalysisSession:
         source_service = message.get("source_service")
         source_profile = message.get("source_profile")
         authorization_reference = message.get("authorization_reference")
+        source_acquisition = message.get("source_acquisition")
+        if source_acquisition is not None and source_acquisition not in SOURCE_ACQUISITIONS:
+            raise RealtimeProtocolError(
+                "invalid_source_acquisition",
+                "source_acquisition must be screen_capture, directory_replay, or normalized_stream",
+            )
+        if source_acquisition == "screen_capture" and source_kind != "authorized_external_adapter":
+            raise RealtimeProtocolError(
+                "invalid_source_acquisition",
+                "screen_capture requires source_kind=authorized_external_adapter",
+            )
+        if source_acquisition == "directory_replay" and source_kind != "offline_replay":
+            raise RealtimeProtocolError(
+                "invalid_source_acquisition",
+                "directory_replay requires source_kind=offline_replay",
+            )
         if source_service is not None:
             if source_service not in SUPPORTED_SOURCE_SERVICES:
                 raise RealtimeProtocolError(
@@ -139,6 +157,7 @@ class RealtimeAnalysisSession:
             source_service,
             source_profile,
             authorization_reference,
+            source_acquisition,
         )
         return {
             "type": "ready",
@@ -148,6 +167,7 @@ class RealtimeAnalysisSession:
             "source_kind": source_kind,
             "source_service": source_service,
             "source_profile": source_profile,
+            "source_acquisition": source_acquisition,
             "input_contract": "normalized_observable_game_state_only",
             "acquisition_contract": (
                 "authorized_external_read_only_source_no_input_automation"
@@ -191,6 +211,7 @@ class RealtimeAnalysisSession:
         result["realtime"] = {
             "source_service": hello.source_service,
             "source_profile": hello.source_profile,
+            "source_acquisition": hello.source_acquisition,
             "received_at_unix": received_at,
             "analysis_ms": (time.perf_counter() - started) * 1_000.0,
             "state_fingerprint": fingerprint,

@@ -239,6 +239,7 @@ def test_majsoul_realtime_source_requires_profile_and_permission_reference() -> 
                 "authorization": EXTERNAL_AUTHORIZATION,
                 "source_service": MAJSOUL_SOURCE_SERVICE,
                 "source_profile": MAJSOUL_REALTIME_PROFILE,
+                "source_acquisition": "screen_capture",
             }
         )
         error = websocket.receive_json()
@@ -270,14 +271,17 @@ def test_majsoul_realtime_source_broadcasts_normalized_analysis_to_viewer() -> N
                 "authorization_reference": "operator-permission-record-001",
                 "source_service": MAJSOUL_SOURCE_SERVICE,
                 "source_profile": MAJSOUL_REALTIME_PROFILE,
+                "source_acquisition": "screen_capture",
             }
         )
         ready = source.receive_json()
         assert ready["type"] == "ready"
         assert ready["source_service"] == "majsoul"
+        assert ready["source_acquisition"] == "screen_capture"
         sessions = client.get("/realtime/sessions").json()["sessions"]
         assert sessions[0]["session_id"] == "majsoul-authorized-test"
         assert sessions[0]["authorization_recorded"] is True
+        assert sessions[0]["source_acquisition"] == "screen_capture"
         assert "authorization_reference" not in sessions[0]
         with client.websocket_connect(
             "/ws/realtime/view/majsoul-authorized-test"

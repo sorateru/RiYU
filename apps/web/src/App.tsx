@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { analyzeReplay, loadExtensionImport } from "./api"
 import AnalysisPage from "./pages/AnalysisPage"
 import HomePage from "./pages/HomePage"
+import RealtimePage from "./pages/RealtimePage"
 import type { ReplayAnalysis } from "./types/analysis"
 
 type Page =
@@ -13,11 +14,16 @@ type Page =
       name: "analysis"
       analysis: ReplayAnalysis
     }
+  | {
+      name: "realtime"
+    }
+
+function initialPage(): Page {
+  return window.location.hash === "#realtime" ? { name: "realtime" } : { name: "home" }
+}
 
 export default function App() {
-  const [page, setPage] = useState<Page>({
-    name: "home",
-  })
+  const [page, setPage] = useState<Page>(initialPage)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -35,6 +41,17 @@ export default function App() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  function showHome() {
+    window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`)
+    setPage({ name: "home" })
+  }
+
+  function showRealtime() {
+    window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}#realtime`)
+    setPage({ name: "realtime" })
+  }
+
   async function handleAnalyze(input: unknown, observer: number) {
     setLoading(true)
     setError("")
@@ -52,17 +69,18 @@ export default function App() {
     return (
       <AnalysisPage
         analysis={page.analysis}
-        onBack={() => {
-          setPage({
-            name: "home",
-          })
-        }}
+        onBack={showHome}
+        onOpenRealtime={showRealtime}
       />
     )
+  }
+  if (page.name === "realtime") {
+    return <RealtimePage onBack={showHome} />
   }
   return (
     <HomePage
       onAnalyze={handleAnalyze}
+      onOpenRealtime={showRealtime}
       loading={loading}
       error={error}
     />

@@ -58,7 +58,16 @@ PYTHONPATH=python .venv/bin/python tools/register_mahjong_soul_replay.py \
 
 NAGAと同じ操作感にする場合はChrome拡張をビルドして読み込む。ブラウザ版雀魂で牌譜を開き、拡張の「RiYUで解析」を押すと、表示中の牌譜だけがloopbackのRiYUへ送られ解析画面が開く。詳細は [browser extension](docs/browser_extension.md) を参照。
 
-既存のローカルAI対局と単一GameState解析のReact/Tauri UIは `apps/reviewer` に残している。
+メインWeb UIの「リアルタイム」は、許諾済みの雀魂画面を読み取るVision Adapterだけを自動検出する。
+牌譜解析と同じ `apps/web` 内で切り替えられ、通信傍受や非公開API入力は表示対象にしない。
+旧ローカルAI対局と単一GameState解析のReact/Tauri UIは `apps/reviewer` に残している。
+
+画面キャプチャ、ローカルAPI、メインWeb UIをまとめて起動する場合:
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/run_majsoul_webapp.py \
+  local-data/majsoul-vision.json
+```
 
 ローカル解析サービス（HTTP `/analyze` とWebSocket `/ws/lab`）:
 
@@ -138,7 +147,7 @@ python tools/analyze_image.py saved.png \
 
 画像テンプレートやサービス固有素材は権利上の混同を避けるため同梱していません。
 
-macOS上の許諾済み雀魂画面を読み取り専用で追跡する実験用Adapterも追加しています。
+macOS上の許諾済み雀魂画面を読み取り専用で追跡するAdapterも追加しています。
 連続frame確認とRust `GameState`検証を通った差分だけを既存のrealtime viewerへ送ります。
 セットアップ、対応event、現時点の制限は
 [雀魂画面認識Adapter](docs/majsoul_vision_adapter.md)を参照してください。
@@ -153,7 +162,8 @@ python/mahjong_ai/data/       共通牌譜、Parquet
 python/mahjong_ai/training/   教師あり、自己対戦、Oracle
 python/mahjong_ai/perception/ 保存画像認識
 python/mahjong_ai/apps/       Reviewer / streaming API
-apps/reviewer/                React/Tauri UI
+apps/web/                     牌譜解析・画面キャプチャ型リアルタイム統合UI
+apps/reviewer/                旧React/TauriローカルUI
 evaluation/                   評価指標（Python package内）
 tools/                        CLIと参照テスト
 docs/                         契約・設計・安全境界

@@ -398,6 +398,7 @@ class VisionAdapterRuntime:
             "source_kind": "authorized_external_adapter" if live else "offline_replay",
             "source_service": MAJSOUL_SOURCE_SERVICE,
             "source_profile": MAJSOUL_EVENT_PROFILE,
+            "source_acquisition": "screen_capture" if live else "directory_replay",
         }
         if live:
             hello["authorization"] = EXTERNAL_AUTHORIZATION

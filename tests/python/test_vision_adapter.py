@@ -400,6 +400,10 @@ def test_config_rejects_remote_url_and_unauthorized_live_capture(tmp_path: Path)
         VisionAdapterConfig.load(config)
 
     base["authorization_reference"] = "operator-permission-record"
+    config.write_text(json.dumps(base), encoding="utf-8")
+    live_runtime = VisionAdapterRuntime(VisionAdapterConfig.load(config))
+    assert live_runtime._hello()["source_acquisition"] == "screen_capture"
+
     base["websocket_url"] = "ws://example.com/ws/realtime/events/source"
     config.write_text(json.dumps(base), encoding="utf-8")
     with pytest.raises(ValueError, match="loopback"):
@@ -433,6 +437,7 @@ def test_directory_replay_bootstrap_sends_checked_round_start(tmp_path: Path) ->
     )
     runtime = VisionAdapterRuntime(VisionAdapterConfig.load(config_path))
     assert runtime._hello()["source_kind"] == "offline_replay"
+    assert runtime._hello()["source_acquisition"] == "directory_replay"
 
     class Socket:
         def __init__(self) -> None:
