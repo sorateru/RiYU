@@ -2,7 +2,7 @@
 
 ## 境界
 
-`/ws/lab` は、別プロセスが生成した正規化済み観測 `GameState` を解析するloopback限定WebSocketである。画面取得、OCR、通信傍受、非公開API、ブラウザ拡張、対局操作は行わない。
+`/ws/lab` は、別プロセスが生成した正規化済み観測 `GameState` を解析するloopback限定WebSocketである。このendpoint自身は画面取得、OCR、通信傍受、非公開API、ブラウザ拡張、対局操作を行わない。別プロセスの読み取り専用画面認識sourceについては[雀魂画面認識Adapter](majsoul_vision_adapter.md)を参照する。
 
 連続的なsourceと閲覧UIを分離する場合は次を使う。
 

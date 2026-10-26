@@ -76,9 +76,9 @@ class ScreenshotParser:
                     raise ValueError(f"slot {region}[{index}] lies outside the image")
                 result = self.classifier.classify(frame[y : y + height, x : x + width])
                 scores.append(result.confidence)
-                if result.tile is None:
+                if result.tile is None and not result.empty:
                     unknown.append(f"{region}[{index}]:{result.reason}")
-                else:
+                elif result.tile is not None:
                     tiles.append(result.tile)
             recognized[region] = tuple(tiles)
             confidences[region] = tuple(scores)

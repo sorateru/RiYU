@@ -123,6 +123,11 @@ python tools/analyze_image.py saved.png \
 
 画像テンプレートやサービス固有素材は権利上の混同を避けるため同梱していません。
 
+macOS上の許諾済み雀魂画面を読み取り専用で追跡する実験用Adapterも追加しています。
+連続frame確認とRust `GameState`検証を通った差分だけを既存のrealtime viewerへ送ります。
+セットアップ、対応event、現時点の制限は
+[雀魂画面認識Adapter](docs/majsoul_vision_adapter.md)を参照してください。
+
 ## リポジトリ構成
 
 ```text
