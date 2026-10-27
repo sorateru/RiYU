@@ -163,6 +163,55 @@ class TesseractFieldRecognizer:
         if not self.fields:
             return {}, {}, ()
         composite, rows = self._composite(frame)
+        values, confidences, unknown = self._recognize_composite(
+            composite,
+            rows,
+            self.fields,
+            page_segmentation_mode=6,
+        )
+        score_names = [f"score_{player}" for player in range(4)]
+        if all(name in values for name in score_names):
+            least_confident = min(score_names, key=lambda name: confidences[name])
+            if confidences[least_confident] < 0.85:
+                # Vertical seat text can be read differently when Tesseract
+                # considers the surrounding rows as one paragraph.  Re-read
+                # only the uncertain score as a single line; this keeps the
+                # common path at one OCR process and prevents a low-confidence
+                # digit substitution from entering round metadata.
+                fallback = TesseractFieldRecognizer(
+                    {least_confident: self.fields[least_confident]},
+                    executable=self.executable,
+                    minimum_confidence=self.minimum_confidence,
+                )
+                fallback_composite, fallback_rows = fallback._composite(frame)
+                minimum_y, maximum_y = fallback_rows[least_confident]
+                line = fallback_composite[minimum_y:maximum_y]
+                line_width = max(320, line.shape[1])
+                single_line = np.full(
+                    (line.shape[0], line_width), 255, dtype=np.uint8
+                )
+                single_line[:, : line.shape[1]] = line
+                fallback_values, fallback_confidences, _ = (
+                    fallback._recognize_composite(
+                        single_line,
+                        {least_confident: (0, line.shape[0])},
+                        fallback.fields,
+                        page_segmentation_mode=7,
+                    )
+                )
+                if least_confident in fallback_values:
+                    values[least_confident] = fallback_values[least_confident]
+                    confidences[least_confident] = fallback_confidences[least_confident]
+        return values, confidences, unknown
+
+    def _recognize_composite(
+        self,
+        composite: np.ndarray,
+        rows: dict[str, tuple[int, int]],
+        fields: dict[str, TextFieldConfig],
+        *,
+        page_segmentation_mode: int,
+    ) -> tuple[dict[str, int | str], dict[str, float], tuple[str, ...]]:
         success, encoded = cv2.imencode(".png", composite)
         if not success:
             raise RuntimeError("could not encode OCR input")
@@ -172,7 +221,7 @@ class TesseractFieldRecognizer:
                 "stdin",
                 "stdout",
                 "--psm",
-                "6",
+                str(page_segmentation_mode),
                 "-l",
                 "eng",
                 "-c",
@@ -188,7 +237,7 @@ class TesseractFieldRecognizer:
             detail = process.stderr.decode("utf-8", errors="replace").strip()
             raise RuntimeError(f"tesseract failed: {detail or process.returncode}")
         tokens: dict[str, list[tuple[int, str, float]]] = {
-            name: [] for name in self.fields
+            name: [] for name in fields
         }
         reader = csv.DictReader(
             io.StringIO(process.stdout.decode("utf-8", errors="replace")),
@@ -214,7 +263,7 @@ class TesseractFieldRecognizer:
         values: dict[str, int | str] = {}
         confidences: dict[str, float] = {}
         unknown: list[str] = []
-        for name, config in self.fields.items():
+        for name, config in fields.items():
             pieces = sorted(tokens[name])
             raw = "".join(piece[1] for piece in pieces)
             confidence = min((piece[2] for piece in pieces), default=0.0)
@@ -251,6 +300,7 @@ class TesseractFieldRecognizer:
             )
             if float(np.median(border)) < 127:
                 binary = cv2.bitwise_not(binary)
+            binary = _remove_border_components(binary)
             prepared.append((name, binary))
         width = max(value.shape[1] for _, value in prepared) + 40
         height = sum(value.shape[0] + gap for _, value in prepared) + gap
@@ -349,3 +399,26 @@ def _rotate(image: np.ndarray, degrees: int) -> np.ndarray:
     if degrees == 180:
         return cv2.rotate(image, cv2.ROTATE_180)
     return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+
+def _remove_border_components(binary: np.ndarray) -> np.ndarray:
+    """Remove table-frame ornaments that touch an OCR crop boundary.
+
+    Mahjong Soul draws the score digits inside a decorative frame.  Those
+    border fragments are frequently interpreted as an extra ``2`` or minus
+    sign.  OCR crops intentionally leave padding around their glyphs, so a
+    connected dark component touching the crop edge is UI chrome rather than
+    text and can be discarded deterministically.
+    """
+
+    foreground = (binary < 128).astype(np.uint8)
+    component_count, labels = cv2.connectedComponents(foreground, connectivity=8)
+    output = binary.copy()
+    border_labels = set(int(value) for value in labels[0])
+    border_labels.update(int(value) for value in labels[-1])
+    border_labels.update(int(value) for value in labels[:, 0])
+    border_labels.update(int(value) for value in labels[:, -1])
+    border_labels.discard(0)
+    for label in border_labels:
+        output[labels == label] = 255
+    return output

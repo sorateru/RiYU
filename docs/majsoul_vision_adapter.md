@@ -53,6 +53,15 @@ PYTHONPATH=python .venv/bin/python tools/capture_vision_frame.py \
 雀魂のwindow、拡大率、themeに合わせて全slotを実画像に重ねて調整する必要がある。
 `observer=0`では`river_0`が自家、1が下家、2が対面、3が上家である。
 
+座標を確定する前にoverlayを出力し、手牌、ツモ牌、ドラ、河、中央表示の矩形を目視確認する。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/render_vision_layout.py \
+  local-data/calibration.png \
+  --layout local-data/perception_layout.json \
+  --output local-data/calibration-overlay.png
+```
+
 ## 2. 自分の画面からtemplateを作る
 
 権利上、雀魂の牌画像はrepositoryへ同梱しない。手元の許諾済み画像から、34種、赤5、空slotを
@@ -78,6 +87,8 @@ layoutの`text_fields`は、全項目を1回のTesseract processで読む。次�
 `wind_east..wind_north`、親は`dealer_0..dealer_3` markerから得る。終局には
 `delta_0..delta_3`を使い、差分表示を読めないthemeでは結果後の`score_0..score_3`との差から
 自動計算する。サンプル座標は形式例なので実画面に合わせて必ず修正する。
+装飾枠に接する連結成分はOCR前に除去し、縦向きscoreの低confidence結果はそのfieldだけを
+single-line modeで再認識する。
 
 ```json
 {

@@ -65,11 +65,25 @@ class TemplateTileClassifier:
 
     def classify(self, crop: np.ndarray) -> Classification:
         query = self._prepare(crop)
-        scores = sorted(
-            ((self._similarity(query, template), tile) for tile, template in self.templates),
-            key=lambda item: item[0],
-            reverse=True,
-        )
+        # Visual variants of the same semantic tile (seat, theme, animation
+        # frame, or empty-slot background) are alternatives, not competing
+        # labels.  Compare the best variant for each label so two near-identical
+        # variants cannot make an otherwise exact match look ambiguous.
+        best_by_label: dict[
+            tuple[str, bool] | None,
+            tuple[float, dict[str, object] | None],
+        ] = {}
+        for tile, template in self.templates:
+            label = (
+                None
+                if tile is None
+                else (str(tile["kind"]), bool(tile.get("red", False)))
+            )
+            score = self._similarity(query, template)
+            previous = best_by_label.get(label)
+            if previous is None or score > previous[0]:
+                best_by_label[label] = (score, tile)
+        scores = sorted(best_by_label.values(), key=lambda item: item[0], reverse=True)
         best_score, best_tile = scores[0]
         runner_up = scores[1][0] if len(scores) > 1 else 0.0
         if best_score < self.minimum_confidence:

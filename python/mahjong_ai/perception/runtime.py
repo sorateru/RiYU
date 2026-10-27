@@ -264,7 +264,7 @@ class VisionAdapterRuntime:
         if self.manager.round_id is None:
             bootstrap = self._round_metadata(observation, initial=True)
             self.current_round_id = bootstrap.round_id
-            events = [self._round_start(observation, bootstrap)]
+            events = self._bootstrap_events(observation, bootstrap)
             self.detector.prime(observation)
         elif self._fresh_round(observation) and self._new_round_visible(observation):
             bootstrap = self._round_metadata(observation, initial=False)
@@ -272,7 +272,7 @@ class VisionAdapterRuntime:
                 await self._restore_fresh_round(socket, observation, bootstrap)
                 return
             self.current_round_id = bootstrap.round_id
-            events = [self._round_start(observation, bootstrap)]
+            events = self._bootstrap_events(observation, bootstrap)
             self.detector.prime(observation)
         else:
             if self.desynced:
@@ -321,15 +321,18 @@ class VisionAdapterRuntime:
         bootstrap: VisionBootstrap,
     ) -> None:
         temporary = RealtimeStateManager(self.config.observer)
-        detected = self._round_start(observation, bootstrap)
-        initial = {
-            "event_id": f"vision-resync-{bootstrap.round_id}",
-            "sequence": 0,
-            "round_id": bootstrap.round_id,
-            "name": detected.name,
-            "data": detected.data,
-        }
-        temporary.apply(initial)
+        for sequence, detected in enumerate(
+            self._bootstrap_events(observation, bootstrap)
+        ):
+            temporary.apply(
+                {
+                    "event_id": f"vision-resync-{bootstrap.round_id}-{sequence}",
+                    "sequence": sequence,
+                    "round_id": bootstrap.round_id,
+                    "name": detected.name,
+                    "data": detected.data,
+                }
+            )
         next_sequence = self.manager.next_source_sequence
         request = {
             "type": "snapshot",
@@ -351,16 +354,44 @@ class VisionAdapterRuntime:
         self.detector.prime(observation)
         logger.info("vision resynchronized at fresh round=%s", bootstrap.round_id)
 
+    def _bootstrap_events(
+        self, observation: StableObservation, bootstrap: VisionBootstrap
+    ) -> list[DetectedEvent]:
+        events = [self._round_start(observation, bootstrap)]
+        drawn = observed_tiles(observation, "drawn_tile")
+        if drawn:
+            events.append(
+                DetectedEvent(
+                    "draw",
+                    {
+                        "player": self.config.observer,
+                        "tile": drawn[0],
+                        "rinshan": False,
+                    },
+                    "stable_visual_bootstrap",
+                    "dealer's initial drawn tile restored from the confirmed draw slot",
+                )
+            )
+        return events
+
     def _round_start(
         self, observation: StableObservation, bootstrap: VisionBootstrap
     ) -> DetectedEvent:
         hand = list(observed_tiles(observation, "hand"))
         drawn = observed_tiles(observation, "drawn_tile")
         dora = observed_tiles(observation, "dora_indicators")
-        if len(hand) != 13 or drawn or len(dora) != 1:
+        drawn_is_valid = not drawn or (
+            len(drawn) == 1 and bootstrap.dealer == self.config.observer
+        )
+        if len(hand) != 13 or not drawn_is_valid or len(dora) != 1:
             raise VisionRuntimeError(
-                "fresh round bootstrap requires exactly 13 hand tiles, no drawn tile, and one dora indicator"
+                "fresh round bootstrap requires exactly 13 hand tiles, one dora indicator, "
+                "and at most the observing dealer's initial drawn tile"
             )
+        remaining_tiles = min(
+            70,
+            bootstrap.remaining_tiles + (1 if drawn else 0),
+        )
         return DetectedEvent(
             "round_start",
             {
@@ -372,7 +403,7 @@ class VisionAdapterRuntime:
                 "scores": list(bootstrap.scores),
                 "initial_hand": hand,
                 "dora_indicator": dora[0],
-                "remaining_tiles": bootstrap.remaining_tiles,
+                "remaining_tiles": remaining_tiles,
             },
             "stable_visual_bootstrap",
             "new round initialized from confirmed hand and dora slots",
@@ -474,7 +505,7 @@ class VisionAdapterRuntime:
     def _fresh_round(observation: StableObservation) -> bool:
         if len(observed_tiles(observation, "hand")) != 13:
             return False
-        if observed_tiles(observation, "drawn_tile"):
+        if len(observed_tiles(observation, "drawn_tile")) > 1:
             return False
         if len(observed_tiles(observation, "dora_indicators")) != 1:
             return False

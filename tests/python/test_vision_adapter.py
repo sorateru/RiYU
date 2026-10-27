@@ -120,6 +120,21 @@ def test_capture_region_and_template_empty_slot(tmp_path: Path) -> None:
     assert result.unknown_slots == ()
 
 
+def test_same_semantic_template_variants_do_not_compete(tmp_path: Path) -> None:
+    templates = tmp_path / "templates"
+    make_templates(templates)
+    duplicate = cv2.imread(str(templates / "empty__bottom.png"), cv2.IMREAD_GRAYSCALE)
+    assert duplicate is not None
+    assert cv2.imwrite(str(templates / "empty__top.png"), duplicate)
+
+    classifier = TemplateTileClassifier(templates)
+    result = classifier.classify(duplicate)
+
+    assert result.empty is True
+    assert result.reason is None
+    assert result.confidence > result.runner_up_confidence
+
+
 def test_macos_capture_normalizes_retina_pixels_to_logical_layout(tmp_path: Path) -> None:
     from mahjong_ai.perception.capture import MacOSScreenCapture
 
@@ -280,6 +295,15 @@ def test_called_discard_may_disappear_from_river_with_the_new_meld() -> None:
 
 
 def test_marker_templates_and_ocr_value_validation(tmp_path: Path) -> None:
+    from mahjong_ai.perception.annotations import _remove_border_components
+
+    binary = np.full((20, 30), 255, dtype=np.uint8)
+    binary[0:8, 0:5] = 0
+    binary[6:15, 12:16] = 0
+    cleaned = _remove_border_components(binary)
+    assert np.all(cleaned[0:8, 0:5] == 255)
+    assert np.all(cleaned[6:15, 12:16] == 0)
+
     marker_root = tmp_path / "templates" / "markers"
     marker_root.mkdir(parents=True)
     on = np.zeros((12, 8), dtype=np.uint8)
@@ -485,6 +509,71 @@ def test_directory_replay_bootstrap_sends_checked_round_start(tmp_path: Path) ->
     assert runtime.manager.state["round"]["hand_number"] == 2
     assert runtime.desynced is False
     assert socket.sent[2]["type"] == "snapshot"
+
+
+def test_dealer_bootstrap_restores_initial_drawn_tile(tmp_path: Path) -> None:
+    templates = tmp_path / "templates"
+    make_templates(templates)
+    replay = tmp_path / "replay"
+    replay.mkdir()
+    assert cv2.imwrite(str(replay / "000.png"), np.zeros((12, 8, 3), dtype=np.uint8))
+    layout = tmp_path / "layout.json"
+    layout.write_text(
+        json.dumps({"image_width": 8, "image_height": 12, "slots": {"hand": []}}),
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "session_id": "dealer-bootstrap-test",
+                "observer": 0,
+                "layout": "layout.json",
+                "templates": "templates",
+                "capture": {"mode": "directory_replay", "directory": "replay"},
+                "bootstrap": {
+                    "dealer": 0,
+                    "scores": [25_000] * 4,
+                    "remaining_tiles": 69,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime = VisionAdapterRuntime(VisionAdapterConfig.load(config_path))
+
+    class Socket:
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+            self.responses = [
+                {"type": "state_update"},
+                {"type": "state_update"},
+                {"type": "state_check", "valid": True},
+            ]
+
+        async def send(self, value: str) -> None:
+            self.sent.append(json.loads(value))
+
+        async def recv(self) -> str:
+            return json.dumps(self.responses.pop(0))
+
+    socket = Socket()
+    initial = observation(tuple(_canonical_hand()), drawn=(tile("s1"),))
+    asyncio.run(runtime._process_stable(socket, initial))
+
+    assert [message["event"]["name"] for message in socket.sent[:2]] == [
+        "round_start",
+        "draw",
+    ]
+    assert socket.sent[0]["event"]["data"]["remaining_tiles"] == 70
+    assert socket.sent[1]["event"]["data"] == {
+        "player": 0,
+        "tile": tile("s1"),
+        "rinshan": False,
+    }
+    assert socket.sent[2]["type"] == "state_check"
+    assert runtime.manager.state["drawn_tile"] == tile("s1")
+    assert runtime.manager.state["phase"]["phase"] == "awaiting_discard"
 
 
 def _canonical_hand() -> list[dict[str, object]]:
