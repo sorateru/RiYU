@@ -135,6 +135,48 @@ def test_same_semantic_template_variants_do_not_compete(tmp_path: Path) -> None:
     assert result.confidence > result.runner_up_confidence
 
 
+def test_tile_ink_outweighs_shared_white_background(tmp_path: Path) -> None:
+    templates = tmp_path / "templates"
+    templates.mkdir()
+    three = np.full((60, 40), 240, dtype=np.uint8)
+    four = three.copy()
+    cv2.line(three, (10, 15), (30, 15), 0, 3)
+    cv2.line(three, (10, 25), (30, 25), 0, 3)
+    cv2.line(three, (10, 35), (30, 35), 0, 3)
+    cv2.line(four, (10, 12), (30, 12), 0, 3)
+    cv2.line(four, (10, 22), (30, 22), 0, 3)
+    cv2.line(four, (10, 32), (30, 32), 0, 3)
+    cv2.line(four, (10, 42), (30, 42), 0, 3)
+    assert cv2.imwrite(str(templates / "m3.png"), three)
+    assert cv2.imwrite(str(templates / "m4.png"), four)
+
+    result = TemplateTileClassifier(templates).classify(three)
+
+    assert result.tile == tile("m3")
+    assert result.confidence - result.runner_up_confidence >= 0.05
+
+
+def test_layout_rotates_side_seat_crop_before_classification(tmp_path: Path) -> None:
+    templates = tmp_path / "templates"
+    make_templates(templates)
+    upright = cv2.imread(str(templates / "m1__bottom.png"), cv2.IMREAD_COLOR)
+    assert upright is not None
+    sideways = cv2.rotate(upright, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    layout = LayoutConfig(
+        12,
+        8,
+        {"river_1": ((0, 0, 12, 8),)},
+        rotations={"river_1": 90},
+    )
+
+    result = ScreenshotParser(layout, TemplateTileClassifier(templates)).parse(sideways)
+
+    assert result.recognized["river_1"] == (tile("m1"),)
+
+    with pytest.raises(ValueError, match="does not name a slot region"):
+        LayoutConfig(12, 8, {}, rotations={"river_1": 90}).validate()
+
+
 def test_macos_capture_normalizes_retina_pixels_to_logical_layout(tmp_path: Path) -> None:
     from mahjong_ai.perception.capture import MacOSScreenCapture
 
@@ -155,14 +197,20 @@ def test_stability_filter_requires_repeated_confident_frames() -> None:
     result = PerceptionResult(None, recognized, {"hand": (0.99,)}, (), "frame")
     filter_ = StableObservationFilter(required_frames=3, minimum_confidence=0.8)
     assert filter_.push(result) is None
+    assert filter_.last_status["reason"] == "stabilizing"
+    assert filter_.last_status["candidate_frames"] == 1
     assert filter_.push(result) is None
     stable = filter_.push(result)
     assert stable is not None
     assert stable.confirmation_frames == 3
+    assert filter_.last_status["reason"] == "stable"
     assert filter_.push(result) is None
+    assert filter_.last_status["reason"] == "stable_unchanged"
 
     unknown = PerceptionResult(None, recognized, {"hand": (0.99,)}, ("hand[0]",), "frame")
     assert filter_.push(unknown) is None
+    assert filter_.last_status["reason"] == "unknown_slots"
+    assert filter_.last_status["unknown_slots"] == ["hand[0]"]
 
 
 def test_result_marker_can_stabilize_while_overlay_hides_tiles() -> None:
@@ -574,6 +622,65 @@ def test_dealer_bootstrap_restores_initial_drawn_tile(tmp_path: Path) -> None:
     assert socket.sent[2]["type"] == "state_check"
     assert runtime.manager.state["drawn_tile"] == tile("s1")
     assert runtime.manager.state["phase"]["phase"] == "awaiting_discard"
+
+
+def test_midround_self_turn_restores_visible_public_state(tmp_path: Path) -> None:
+    templates = tmp_path / "templates"
+    make_templates(templates)
+    replay = tmp_path / "replay"
+    replay.mkdir()
+    assert cv2.imwrite(str(replay / "000.png"), np.zeros((12, 8, 3), dtype=np.uint8))
+    layout = tmp_path / "layout.json"
+    layout.write_text(
+        json.dumps({"image_width": 8, "image_height": 12, "slots": {"hand": []}}),
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "session_id": "midround-test",
+                "observer": 0,
+                "layout": "layout.json",
+                "templates": "templates",
+                "capture": {"mode": "directory_replay", "directory": "replay"},
+                "bootstrap": {"dealer": 0, "scores": [25_000] * 4},
+            }
+        ),
+        encoding="utf-8",
+    )
+    runtime = VisionAdapterRuntime(VisionAdapterConfig.load(config_path))
+
+    class Socket:
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        async def send(self, value: str) -> None:
+            self.sent.append(json.loads(value))
+
+        async def recv(self) -> str:
+            return json.dumps({"type": "state_update"})
+
+    midround = observation(
+        tuple(_canonical_hand()),
+        drawn=(tile("p8"),),
+        rivers={
+            0: (tile("m9"),),
+            1: (tile("p9"),),
+            2: (tile("s9"),),
+        },
+        metadata={"remaining_tiles": 66},
+    )
+    socket = Socket()
+    asyncio.run(runtime._process_stable(socket, midround))
+
+    assert socket.sent[0]["type"] == "snapshot"
+    assert runtime.manager.round_id == "east-1-0"
+    assert runtime.manager.state["remaining_tiles"] == 66
+    assert runtime.manager.state["turn"] == 4
+    assert runtime.manager.state["phase"] == {"phase": "awaiting_discard", "player": 0}
+    assert runtime.manager.state["players"][1]["discards"][0]["tile"] == tile("p9")
+    assert runtime.manager.state["players"][1]["discards"][0]["tsumogiri_known"] is False
 
 
 def _canonical_hand() -> list[dict[str, object]]:

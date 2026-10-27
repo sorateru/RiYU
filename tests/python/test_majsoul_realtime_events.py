@@ -268,6 +268,27 @@ def test_event_websocket_updates_state_and_infers_only_at_decision() -> None:
         assert source.receive_json()["type"] == "ready"
         with client.websocket_connect("/ws/realtime/view/event-stream-test") as viewer:
             assert viewer.receive_json()["type"] == "subscribed"
+            source.send_json(
+                {
+                    "type": "perception_status",
+                    "status": {
+                        "reason": "unknown_slots",
+                        "candidate_frames": 0,
+                        "required_frames": 3,
+                        "minimum_confidence": 0.71,
+                        "unknown_slots": ["hand[4]:ambiguous_templates"],
+                        "recognized_counts": {"hand": 12, "drawn_tile": 1},
+                        "desynchronized": False,
+                        "round_initialized": False,
+                    },
+                }
+            )
+            assert source.receive_json()["type"] == "perception_status_ack"
+            perception = viewer.receive_json()
+            assert perception["type"] == "perception_status"
+            assert perception["status"]["unknown_slots"] == [
+                "hand[4]:ambiguous_templates"
+            ]
             source.send_json({"type": "event", "event": round_start()})
             state_update = source.receive_json()
             assert state_update["type"] == "state_update"

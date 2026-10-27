@@ -8,7 +8,7 @@ from pathlib import Path
 
 import cv2
 
-from mahjong_ai.perception import LayoutConfig
+from mahjong_ai.perception import LayoutConfig, rotate_slot_crop
 from mahjong_ai.schema import TILE_TO_INDEX
 
 HONOR_ALIASES = {f"z{value}" for value in range(1, 8)}
@@ -56,7 +56,10 @@ def main() -> None:
     if frame.shape[1] != layout.image_width or frame.shape[0] != layout.image_height:
         raise ValueError("image dimensions do not match the layout")
     x, y, width, height = slots[args.slot]
-    crop = frame[y : y + height, x : x + width]
+    crop = rotate_slot_crop(
+        frame[y : y + height, x : x + width],
+        layout.rotations.get(args.region, 0),
+    )
     suffix = "" if args.variant is None else f"__{args.variant}"
     destination = Path(args.templates).resolve() / f"{args.label}{suffix}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)

@@ -128,6 +128,9 @@ python tools/serve_analysis.py --port 8787
 
 event sourceは意思決定がない更新を`type=state_update`、意思決定がある更新を
 `type=analysis`として配信する。`state_update`は推論を実行せず、局面同期だけを通知する。
+画面認識sourceは`type=perception_status`で安定化待ち、未知slot、最低confidence、認識枚数、
+途中局復元待ちを送信できる。サーバーはサイズと型を検証してviewerへ転送し、GameStateや
+event sequenceは変更しない。
 
 ## 保存状態による結合試験
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 import secrets
 import threading
@@ -589,6 +590,21 @@ def create_app(
                             )
                         await websocket.send_json(payload)
                         continue
+                    if message_type == "perception_status":
+                        status = _validate_perception_status(message.get("status"))
+                        payload = {
+                            "type": "perception_status",
+                            "session_id": session.hello.session_id,
+                            "status": status,
+                        }
+                        stream_hub.publish(session.hello.session_id, payload)
+                        await websocket.send_json(
+                            {
+                                "type": "perception_status_ack",
+                                "session_id": session.hello.session_id,
+                            }
+                        )
+                        continue
                     if message_type == "snapshot":
                         result = manager.restore(
                             message.get("state"),
@@ -636,7 +652,7 @@ def create_app(
                     else:
                         raise RealtimeProtocolError(
                             "invalid_message_type",
-                            "expected event, snapshot, state_check, or ping",
+                            "expected event, snapshot, perception_status, state_check, or ping",
                         )
 
                     state_summary = manager.summary(result.decision)
@@ -749,6 +765,72 @@ def create_app(
 
 def _stream_error(code: str, message: str) -> dict[str, str]:
     return {"type": "error", "code": code, "message": message}
+
+
+def _validate_perception_status(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise RealtimeProtocolError(
+            "invalid_perception_status", "perception status must be an object"
+        )
+    allowed_reasons = {
+        "waiting_for_frame",
+        "unknown_slots",
+        "low_confidence",
+        "stabilizing",
+        "stable",
+        "stable_unchanged",
+        "midround_waiting_for_self_turn",
+        "midround_unsupported_melds",
+        "desynchronized_waiting_for_round",
+    }
+    reason = value.get("reason")
+    if reason not in allowed_reasons:
+        raise RealtimeProtocolError(
+            "invalid_perception_status", "unknown perception status reason"
+        )
+    unknown = value.get("unknown_slots", [])
+    counts = value.get("recognized_counts", {})
+    candidate_frames = value.get("candidate_frames", 0)
+    required_frames = value.get("required_frames", 3)
+    if (
+        not isinstance(unknown, list)
+        or len(unknown) > 32
+        or any(not isinstance(item, str) or len(item) > 160 for item in unknown)
+        or not isinstance(counts, dict)
+        or len(counts) > 32
+        or any(
+            not isinstance(name, str)
+            or len(name) > 64
+            or not isinstance(count, int)
+            or count < 0
+            or count > 64
+            for name, count in counts.items()
+        )
+        or not isinstance(candidate_frames, int)
+        or isinstance(candidate_frames, bool)
+        or not isinstance(required_frames, int)
+        or isinstance(required_frames, bool)
+    ):
+        raise RealtimeProtocolError(
+            "invalid_perception_status", "invalid perception status details"
+        )
+    result: dict[str, Any] = {
+        "reason": reason,
+        "candidate_frames": max(0, min(30, candidate_frames)),
+        "required_frames": max(2, min(30, required_frames)),
+        "unknown_slots": unknown,
+        "recognized_counts": counts,
+        "desynchronized": bool(value.get("desynchronized", False)),
+        "round_initialized": bool(value.get("round_initialized", False)),
+    }
+    confidence = value.get("minimum_confidence")
+    if (
+        isinstance(confidence, (int, float))
+        and not isinstance(confidence, bool)
+        and math.isfinite(float(confidence))
+    ):
+        result["minimum_confidence"] = max(0.0, min(1.0, float(confidence)))
+    return result
 
 
 def _origin_allowed(websocket: WebSocket) -> bool:

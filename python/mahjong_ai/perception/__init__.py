@@ -13,6 +13,7 @@ from .parser import (
     PerceptionResult,
     ScreenshotParser,
     TextFieldConfig,
+    rotate_slot_crop,
 )
 from .runtime import VisionAdapterConfig, VisionAdapterRuntime, VisionRuntimeError
 from .stability import (
@@ -53,4 +54,5 @@ __all__ = [
     "observed_marker",
     "observed_metadata",
     "observed_tiles",
+    "rotate_slot_crop",
 ]

@@ -36,7 +36,7 @@ class TemplateTileClassifier:
         template_directory: str | Path,
         image_size: tuple[int, int] = (40, 60),
         minimum_confidence: float = 0.72,
-        minimum_margin: float = 0.05,
+        minimum_margin: float = 0.03,
     ) -> None:
         self.image_size = image_size
         self.minimum_confidence = minimum_confidence
@@ -47,7 +47,7 @@ class TemplateTileClassifier:
             # without changing the semantic label used by the engine.
             stem = path.stem.split("__", 1)[0]
             if stem == "empty":
-                image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+                image = cv2.imread(str(path), cv2.IMREAD_COLOR)
                 if image is not None:
                     self.templates.append((None, self._prepare(image)))
                 continue
@@ -56,7 +56,7 @@ class TemplateTileClassifier:
             kind = _HONOR_ALIASES.get(kind, kind)
             if kind not in TILE_TO_INDEX:
                 continue
-            image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+            image = cv2.imread(str(path), cv2.IMREAD_COLOR)
             if image is None:
                 continue
             self.templates.append(({"kind": kind, "red": red}, self._prepare(image)))
@@ -88,20 +88,56 @@ class TemplateTileClassifier:
         runner_up = scores[1][0] if len(scores) > 1 else 0.0
         if best_score < self.minimum_confidence:
             return Classification(None, best_score, runner_up, "confidence_below_threshold")
-        if best_score - runner_up < self.minimum_margin:
+        required_margin = (
+            min(self.minimum_margin, 0.01)
+            if best_tile is None
+            else self.minimum_margin
+        )
+        if best_score - runner_up < required_margin:
             return Classification(None, best_score, runner_up, "ambiguous_templates")
         if best_tile is None:
             return Classification(None, best_score, runner_up, empty=True)
         return Classification(best_tile, best_score, runner_up)
 
     def _prepare(self, image: np.ndarray) -> np.ndarray:
-        if image.ndim == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        resized = cv2.resize(image, self.image_size, interpolation=cv2.INTER_AREA)
-        normalized = cv2.equalizeHist(resized)
-        return normalized.astype(np.float32) / 255.0
+        color = (
+            cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            if image.ndim == 2
+            else image
+        )
+        resized = cv2.resize(color, self.image_size, interpolation=cv2.INTER_AREA)
+        # Comparing the whole gray tile made the large, nearly identical white
+        # background dominate the score.  Work on the interior ink mask instead:
+        # this keeps 3m/4m, 6p/7p and 4s/6s well separated while remaining
+        # tolerant of small lighting changes in a live screen capture.
+        height, width = resized.shape[:2]
+        left = max(1, round(width * 0.10))
+        right = min(width, width - left)
+        top = max(1, round(height * 0.05))
+        bottom = min(height, height - max(1, round(height * 0.08)))
+        interior = resized[top:bottom, left:right]
+        gray = cv2.cvtColor(interior, cv2.COLOR_BGR2GRAY)
+        # A fixed screen-space threshold is intentional. Otsu becomes unstable
+        # on an empty, low-contrast board crop: a one-level grayscale rounding
+        # difference between color capture and PNG reload can flip most pixels.
+        # Mahjong Soul tile faces remain much brighter than both ink and board.
+        _threshold, ink = cv2.threshold(
+            gray,
+            180,
+            1,
+            cv2.THRESH_BINARY_INV,
+        )
+        hsv = cv2.cvtColor(interior, cv2.COLOR_BGR2HSV)
+        hue, saturation, value = cv2.split(hsv)
+        red = (
+            (((hue <= 10) | (hue >= 170)) & (saturation >= 80) & (value >= 60))
+            .astype(np.float32)
+        )
+        return np.stack((ink.astype(np.float32), red), axis=0)
 
     @staticmethod
     def _similarity(left: np.ndarray, right: np.ndarray) -> float:
-        mse = float(np.mean((left - right) ** 2))
-        return max(0.0, 1.0 - mse)
+        ink_difference = float(np.mean(np.abs(left[0] - right[0])))
+        red_difference = float(np.mean(np.abs(left[1] - right[1])))
+        difference = 0.75 * ink_difference + 0.25 * red_difference
+        return max(0.0, 1.0 - difference)

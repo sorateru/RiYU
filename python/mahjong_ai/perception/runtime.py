@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -68,6 +70,7 @@ class VisionAdapterConfig:
     marker_minimum_confidence: float = 0.72
     marker_minimum_margin: float = 0.05
     ocr_minimum_confidence: float = 0.55
+    tile_minimum_margin: float = 0.03
 
     @classmethod
     def load(cls, path: str | Path) -> "VisionAdapterConfig":
@@ -129,6 +132,7 @@ class VisionAdapterConfig:
             ocr_minimum_confidence=float(
                 annotation.get("ocr_minimum_confidence", 0.55)
             ),
+            tile_minimum_margin=float(raw.get("tile_minimum_margin", 0.03)),
         )
         result.validate()
         return result
@@ -175,6 +179,8 @@ class VisionAdapterConfig:
             raise ValueError("marker_minimum_margin must be in 0..=1")
         if not 0 <= self.ocr_minimum_confidence <= 1:
             raise ValueError("ocr_minimum_confidence must be in 0..=1")
+        if not 0 <= self.tile_minimum_margin <= 1:
+            raise ValueError("tile_minimum_margin must be in 0..=1")
         if self.capture_region is not None and (
             not isinstance(self.authorization_reference, str)
             or not self.authorization_reference.strip()
@@ -219,6 +225,7 @@ class VisionAdapterRuntime:
             TemplateTileClassifier(
                 config.template_directory,
                 minimum_confidence=config.minimum_confidence,
+                minimum_margin=config.tile_minimum_margin,
             ),
             annotation_parser,
         )
@@ -230,6 +237,9 @@ class VisionAdapterRuntime:
         self.source = config.frame_source()
         self.current_round_id = config.bootstrap.round_id
         self.desynced = False
+        self._last_status_payload: str | None = None
+        self._last_status_sent_at = 0.0
+        self._runtime_block_reason: str | None = None
 
     async def run(self, max_frames: int | None = None) -> None:
         if max_frames is not None and max_frames <= 0:
@@ -254,18 +264,63 @@ class VisionAdapterRuntime:
                 perception = await asyncio.to_thread(self.parser.parse, frame)
                 frames += 1
                 stable = self.filter.push(perception)
+                await self._send_perception_status(socket)
                 if stable is not None:
                     await self._process_stable(socket, stable)
                 remaining = interval - (asyncio.get_running_loop().time() - started)
                 if remaining > 0:
                     await asyncio.sleep(remaining)
 
+    async def _send_perception_status(self, socket: Any) -> None:
+        status = {
+            **self.filter.last_status,
+            "desynchronized": self.desynced,
+            "round_initialized": self.manager.round_id is not None,
+        }
+        if (
+            self._runtime_block_reason is not None
+            and status["reason"] in {"stable", "stable_unchanged"}
+        ):
+            status["reason"] = self._runtime_block_reason
+        encoded = json.dumps(status, sort_keys=True, separators=(",", ":"))
+        now = time.monotonic()
+        if encoded == self._last_status_payload and now - self._last_status_sent_at < 1.0:
+            return
+        await socket.send(json.dumps({"type": "perception_status", "status": status}))
+        response = json.loads(await socket.recv())
+        if response.get("type") == "error":
+            raise VisionRuntimeError(
+                f"realtime service rejected perception status: {response}"
+            )
+        if response.get("type") != "perception_status_ack":
+            raise VisionRuntimeError(
+                f"unexpected perception status response: {response}"
+            )
+        self._last_status_payload = encoded
+        self._last_status_sent_at = now
+
     async def _process_stable(self, socket: Any, observation: StableObservation) -> None:
         if self.manager.round_id is None:
             bootstrap = self._round_metadata(observation, initial=True)
             self.current_round_id = bootstrap.round_id
-            events = self._bootstrap_events(observation, bootstrap)
-            self.detector.prime(observation)
+            if self._fresh_round(observation):
+                self._runtime_block_reason = None
+                events = self._bootstrap_events(observation, bootstrap)
+                self.detector.prime(observation)
+            elif self._can_restore_midround(observation):
+                await self._restore_midround(socket, observation, bootstrap)
+                return
+            else:
+                self._runtime_block_reason = (
+                    "midround_waiting_for_self_turn"
+                    if not observed_tiles(observation, "drawn_tile")
+                    else "midround_unsupported_melds"
+                )
+                await self._send_perception_status(socket)
+                logger.info(
+                    "mid-round vision observed; waiting for a safely restorable self turn"
+                )
+                return
         elif self._fresh_round(observation) and self._new_round_visible(observation):
             bootstrap = self._round_metadata(observation, initial=False)
             if self.desynced or (self.manager.state.get("phase") or {}).get("phase") != "ended":
@@ -276,12 +331,14 @@ class VisionAdapterRuntime:
             self.detector.prime(observation)
         else:
             if self.desynced:
+                self._runtime_block_reason = "desynchronized_waiting_for_round"
                 logger.warning("vision remains desynchronized; waiting for a fresh round")
                 return
             try:
                 events = self.detector.detect(observation, self.manager.state)
             except VisionDeltaError as error:
                 self.desynced = True
+                self._runtime_block_reason = "desynchronized_waiting_for_round"
                 logger.error(
                     "vision delta rejected; waiting for next fresh round: %s", error
                 )
@@ -299,6 +356,108 @@ class VisionAdapterRuntime:
             check = json.loads(await socket.recv())
             if check.get("type") == "error" or check.get("valid") is not True:
                 raise VisionRuntimeError(f"vision/state inconsistency: {check}")
+
+    def _can_restore_midround(self, observation: StableObservation) -> bool:
+        if len(observed_tiles(observation, "hand")) != 13:
+            return False
+        if len(observed_tiles(observation, "drawn_tile")) != 1:
+            return False
+        if len(observed_tiles(observation, "dora_indicators")) != 1:
+            return False
+        return not any(
+            values for name, values in observation.recognized.items() if name.startswith("meld_")
+        )
+
+    async def _restore_midround(
+        self,
+        socket: Any,
+        observation: StableObservation,
+        bootstrap: VisionBootstrap,
+    ) -> None:
+        state = copy.deepcopy(self.manager.state)
+        rivers = [
+            list(observed_tiles(observation, f"river_{player}"))
+            for player in range(4)
+        ]
+        inferred_remaining = max(
+            0,
+            70 - sum(len(values) for values in rivers) - 1,
+        )
+        observed_remaining = observed_metadata(observation, "remaining_tiles")
+        remaining = (
+            int(observed_remaining)
+            if isinstance(observed_remaining, int)
+            else inferred_remaining
+        )
+        if remaining != inferred_remaining:
+            raise VisionRuntimeError(
+                "mid-round snapshot is inconsistent: wall count does not match visible rivers"
+            )
+        state.update(
+            {
+                "round": {
+                    "wind": bootstrap.wind,
+                    "hand_number": bootstrap.hand_number,
+                    "honba": bootstrap.honba,
+                    "riichi_sticks": bootstrap.riichi_sticks,
+                    "dealer": bootstrap.dealer,
+                },
+                "scores": list(bootstrap.scores),
+                "hand": list(observed_tiles(observation, "hand")),
+                "drawn_tile": observed_tiles(observation, "drawn_tile")[0],
+                "dora_indicators": list(observed_tiles(observation, "dora_indicators")),
+                "remaining_tiles": remaining,
+                "turn": 70 - remaining,
+                "current_actor": self.config.observer,
+                "phase": {
+                    "phase": "awaiting_discard",
+                    "player": self.config.observer,
+                },
+                "pending_kan": None,
+                "last_event": None,
+                "event_history": [],
+                "next_event_sequence": 0,
+            }
+        )
+        for player, values in enumerate(rivers):
+            state["players"][player] = {
+                "discards": [
+                    {
+                        "tile": tile,
+                        "tsumogiri": False,
+                        "tsumogiri_known": False,
+                        "riichi_declaration": False,
+                        "called_by": None,
+                    }
+                    for tile in values
+                ],
+                "melds": [],
+                "riichi": "none",
+            }
+        request = {
+            "type": "snapshot",
+            "round_id": bootstrap.round_id,
+            "next_source_sequence": self.manager.next_source_sequence,
+            "state": state,
+        }
+        await socket.send(json.dumps(request))
+        response = json.loads(await socket.recv())
+        if response.get("type") == "error":
+            raise VisionRuntimeError(f"mid-round snapshot was rejected: {response}")
+        self.manager.restore(
+            state,
+            next_source_sequence=self.manager.next_source_sequence,
+            round_id=bootstrap.round_id,
+        )
+        self.current_round_id = bootstrap.round_id
+        self.desynced = False
+        self._runtime_block_reason = None
+        self.detector.prime(observation)
+        logger.info(
+            "vision restored at mid-round self turn round=%s turn=%s",
+            bootstrap.round_id,
+            state["turn"],
+        )
 
     async def _send_event(self, socket: Any, detected: DetectedEvent) -> None:
         envelope = self._envelope(detected)
@@ -351,6 +510,7 @@ class VisionAdapterRuntime:
         )
         self.current_round_id = bootstrap.round_id
         self.desynced = False
+        self._runtime_block_reason = None
         self.detector.prime(observation)
         logger.info("vision resynchronized at fresh round=%s", bootstrap.round_id)
 
@@ -446,6 +606,16 @@ class VisionAdapterRuntime:
         riichi_sticks = observed_metadata(observation, "riichi_sticks")
         dealer = self._marked_player(observation, "dealer")
         scores = tuple(observed_metadata(observation, f"score_{player}") for player in range(4))
+        if (
+            fallback is not None
+            and all(isinstance(value, int) for value in scores)
+            and sum(int(value) for value in scores) > sum(fallback.scores)
+        ):
+            logger.warning(
+                "discarding impossible OCR score total=%s; using configured bootstrap scores",
+                sum(int(value) for value in scores),
+            )
+            scores = fallback.scores
         observed_identity = (
             wind in {"east", "south", "west", "north"}
             and isinstance(hand_number, int)

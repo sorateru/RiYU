@@ -43,6 +43,7 @@ class LayoutConfig:
     slots: dict[str, tuple[Rectangle, ...]]
     text_fields: dict[str, TextFieldConfig] = field(default_factory=dict)
     markers: dict[str, MarkerFieldConfig] = field(default_factory=dict)
+    rotations: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path) -> "LayoutConfig":
@@ -75,6 +76,7 @@ class LayoutConfig:
             slots,
             text_fields,
             markers,
+            {name: int(value) for name, value in (raw.get("rotations") or {}).items()},
         )
         result.validate()
         return result
@@ -115,6 +117,11 @@ class LayoutConfig:
                 and value.minimum > value.maximum
             ):
                 raise ValueError(f"text_fields.{name} has min greater than max")
+        for name, rotation in self.rotations.items():
+            if name not in self.slots:
+                raise ValueError(f"rotations.{name} does not name a slot region")
+            if rotation not in {0, 90, 180, 270}:
+                raise ValueError(f"rotations.{name} must be 0, 90, 180, or 270")
 
 
 @dataclass(frozen=True)
@@ -164,7 +171,11 @@ class ScreenshotParser:
             for index, (x, y, width, height) in enumerate(rectangles):
                 if min(x, y, width, height) < 0 or x + width > frame.shape[1] or y + height > frame.shape[0]:
                     raise ValueError(f"slot {region}[{index}] lies outside the image")
-                result = self.classifier.classify(frame[y : y + height, x : x + width])
+                crop = rotate_slot_crop(
+                    frame[y : y + height, x : x + width],
+                    self.layout.rotations.get(region, 0),
+                )
+                result = self.classifier.classify(crop)
                 scores.append(result.confidence)
                 if result.tile is None and not result.empty:
                     unknown.append(f"{region}[{index}]:{result.reason}")
@@ -215,3 +226,15 @@ def _rectangle(value: Any, name: str) -> Rectangle:
     if not isinstance(value, list) or len(value) != 4:
         raise ValueError(f"{name}.rect must contain x, y, width, height")
     return tuple(int(item) for item in value)  # type: ignore[return-value]
+
+
+def rotate_slot_crop(crop: np.ndarray, rotation: int) -> np.ndarray:
+    if rotation == 0:
+        return crop
+    if rotation == 90:
+        return cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
+    if rotation == 180:
+        return cv2.rotate(crop, cv2.ROTATE_180)
+    if rotation == 270:
+        return cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    raise ValueError("slot rotation must be 0, 90, 180, or 270")

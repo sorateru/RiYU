@@ -34,6 +34,11 @@ class StableObservationFilter:
         self._candidate: str | None = None
         self._candidate_count = 0
         self._last_emitted: str | None = None
+        self.last_status: dict[str, Any] = {
+            "reason": "waiting_for_frame",
+            "candidate_frames": 0,
+            "required_frames": required_frames,
+        }
 
     def push(self, result: PerceptionResult) -> StableObservation | None:
         terminal = any(
@@ -45,13 +50,34 @@ class StableObservationFilter:
             for value in result.unknown_slots
             if value.startswith("text_fields.") or value.startswith("markers.")
         )
-        if (
-            annotation_unknown
-            or (not terminal and result.unknown_slots)
-            or (not terminal and not self._confident(result.confidences))
-        ):
+        minimum_observed = self._minimum_confidence(result.confidences)
+        if annotation_unknown or (not terminal and result.unknown_slots):
             self._candidate = None
             self._candidate_count = 0
+            self.last_status = {
+                "reason": "unknown_slots",
+                "candidate_frames": 0,
+                "required_frames": self.required_frames,
+                "minimum_confidence": minimum_observed,
+                "unknown_slots": list(result.unknown_slots[:32]),
+                "recognized_counts": {
+                    name: len(values) for name, values in result.recognized.items()
+                },
+            }
+            return None
+        if not terminal and not self._confident(result.confidences):
+            self._candidate = None
+            self._candidate_count = 0
+            self.last_status = {
+                "reason": "low_confidence",
+                "candidate_frames": 0,
+                "required_frames": self.required_frames,
+                "minimum_confidence": minimum_observed,
+                "unknown_slots": [],
+                "recognized_counts": {
+                    name: len(values) for name, values in result.recognized.items()
+                },
+            }
             return None
         fresh_round = _looks_like_fresh_round(result.recognized)
         event_markers = {
@@ -70,9 +96,41 @@ class StableObservationFilter:
         else:
             self._candidate = fingerprint
             self._candidate_count = 1
-        if self._candidate_count < self.required_frames or fingerprint == self._last_emitted:
+        if self._candidate_count < self.required_frames:
+            self.last_status = {
+                "reason": "stabilizing",
+                "candidate_frames": self._candidate_count,
+                "required_frames": self.required_frames,
+                "minimum_confidence": minimum_observed,
+                "unknown_slots": [],
+                "recognized_counts": {
+                    name: len(values) for name, values in result.recognized.items()
+                },
+            }
+            return None
+        if fingerprint == self._last_emitted:
+            self.last_status = {
+                "reason": "stable_unchanged",
+                "candidate_frames": self._candidate_count,
+                "required_frames": self.required_frames,
+                "minimum_confidence": minimum_observed,
+                "unknown_slots": [],
+                "recognized_counts": {
+                    name: len(values) for name, values in result.recognized.items()
+                },
+            }
             return None
         self._last_emitted = fingerprint
+        self.last_status = {
+            "reason": "stable",
+            "candidate_frames": self._candidate_count,
+            "required_frames": self.required_frames,
+            "minimum_confidence": minimum_observed,
+            "unknown_slots": [],
+            "recognized_counts": {
+                name: len(values) for name, values in result.recognized.items()
+            },
+        }
         return StableObservation(
             result.recognized,
             result.confidences,
@@ -88,6 +146,11 @@ class StableObservationFilter:
     def _confident(self, values: dict[str, tuple[float, ...]]) -> bool:
         all_scores = [score for scores in values.values() for score in scores]
         return bool(all_scores) and min(all_scores) >= self.minimum_confidence
+
+    @staticmethod
+    def _minimum_confidence(values: dict[str, tuple[float, ...]]) -> float | None:
+        all_scores = [score for scores in values.values() for score in scores]
+        return min(all_scores) if all_scores else None
 
 
 def observed_tiles(

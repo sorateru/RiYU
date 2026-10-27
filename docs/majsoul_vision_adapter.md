@@ -27,7 +27,9 @@ OCRと視覚markerからリーチ、ロン・ツモ・流局、点数移動、�
 誤った状態で解析を継続しないことを優先している。未知牌、閾値未満、複数河の同時変化、
 slot飛び、非単調なドラ・河、現在のphaseと矛盾する差分ではイベントを送らず、その局を
 desync状態にする。次の13枚・ドラ1枚・空の河を認識すると、OCR済み局情報から検証済みsnapshotを
-生成して自動復旧する。イベント順を復元できない局途中で推測snapshotは作らない。
+生成して自動復旧する。起動時が局途中でも、13枚の手牌とツモ牌、ドラ1枚、全河、局情報、残り枚数が
+揃い、副露がない自分の打牌待ちなら公開情報snapshotを直接検証して復元する。それ以外はイベント順を
+推測せず、自分の安全に復元できる手番または次局を待つ。
 
 ## 1. 画面領域とlayoutの調整
 
@@ -52,6 +54,8 @@ PYTHONPATH=python .venv/bin/python tools/capture_vision_frame.py \
 [perception_layout.example.json](perception_layout.example.json)は座標形式の例であり、
 雀魂のwindow、拡大率、themeに合わせて全slotを実画像に重ねて調整する必要がある。
 `observer=0`では`river_0`が自家、1が下家、2が対面、3が上家である。
+`rotations`には分類前に牌cropを時計回りに回す角度を指定できる。標準配置では
+`river_1=90`、`river_2=180`、`river_3=270`とし、上下左右で同じ牌templateを共有する。
 
 座標を確定する前にoverlayを出力し、手牌、ツモ牌、ドラ、河、中央表示の矩形を目視確認する。
 
@@ -188,6 +192,9 @@ WebアプリはVision設定の`websocket_url`と同じポートで配信され�
 `source_kind=authorized_external_adapter`、許諾記録ありの雀魂Vision Adapterだけを表示する。
 バックエンドとAdapterは`Ctrl+C`でまとめて終了できる。
 設定した画面座標は、Safariの実際の表示位置と一致している必要がある。
+Safariのwindow名ではなく固定された画面矩形を取得するため、雀魂タブがその矩形内で前面に見えて
+いる必要がある。全画面表示は必須ではない。Web UIには未知slot、最低confidence、連続frame数、
+認識済みの手牌・ツモ牌・ドラ枚数が表示され、別タブや座標ずれを接続不良と区別できる。
 
 個別起動して問題を切り分ける場合は、serverとAdapterを別Terminalで実行する。
 

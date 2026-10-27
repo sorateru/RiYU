@@ -41,4 +41,16 @@ export type RealtimeMessage = {
   state?: RealtimeStreamState
   result?: Record<string, any>
   message?: string
+  status?: PerceptionStatus
+}
+
+export type PerceptionStatus = {
+  reason: "waiting_for_frame" | "unknown_slots" | "low_confidence" | "stabilizing" | "stable" | "stable_unchanged" | "midround_waiting_for_self_turn" | "midround_unsupported_melds" | "desynchronized_waiting_for_round"
+  candidate_frames: number
+  required_frames: number
+  minimum_confidence?: number
+  unknown_slots: string[]
+  recognized_counts: Record<string, number>
+  desynchronized: boolean
+  round_initialized: boolean
 }

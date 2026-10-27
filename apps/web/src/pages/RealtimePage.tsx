@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { loadScreenCaptureSessions, realtimeViewerURL } from "../api"
 import type {
   RealtimeMessage,
+  PerceptionStatus,
   RealtimeSession,
   RealtimeStreamState,
 } from "../types/realtime"
@@ -60,6 +61,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
   const [activeSession, setActiveSession] = useState<string | null>(null)
   const [message, setMessage] = useState<RealtimeMessage | null>(null)
   const [streamState, setStreamState] = useState<RealtimeStreamState | null>(null)
+  const [perceptionStatus, setPerceptionStatus] = useState<PerceptionStatus | null>(null)
   const [error, setError] = useState("")
   const socketRef = useRef<WebSocket | null>(null)
   const activeSessionRef = useRef<string | null>(null)
@@ -70,6 +72,8 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
       if (payload.state) setStreamState(payload.state)
     } else if (payload.type === "state_update" && payload.state) {
       setStreamState(payload.state)
+    } else if (payload.type === "perception_status" && payload.status) {
+      setPerceptionStatus(payload.status)
     }
   }
 
@@ -88,6 +92,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
     setError("")
     setMessage(null)
     setStreamState(null)
+    setPerceptionStatus(null)
     setActiveSession(session.session_id)
     activeSessionRef.current = session.session_id
     const socket = new WebSocket(realtimeViewerURL(session.session_id))
@@ -97,7 +102,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
       if (payload.type === "subscribed") {
         setStatus("connected")
         if (payload.latest) acceptMessage(payload.latest)
-      } else if (payload.type === "analysis" || payload.type === "state_update") {
+      } else if (payload.type === "analysis" || payload.type === "state_update" || payload.type === "perception_status") {
         setStatus("connected")
         acceptMessage(payload)
       } else if (payload.type === "source_offline") {
@@ -163,6 +168,19 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
     connected: "画面解析中",
     offline: "キャプチャ終了",
   }[status]
+  const perceptionLabel = !perceptionStatus ? "認識結果待ち"
+    : perceptionStatus.desynchronized ? "局面同期を再待機中"
+    : ({
+        waiting_for_frame: "最初の画面を待機中",
+        unknown_slots: "未認識の領域があります",
+        low_confidence: "認識信頼度が不足しています",
+        stabilizing: `画面を確認中 ${perceptionStatus.candidate_frames}/${perceptionStatus.required_frames}`,
+        stable: "局面を認識しました",
+        stable_unchanged: "同じ局面を追跡中",
+        midround_waiting_for_self_turn: "途中局：自分のツモ番を待っています",
+        midround_unsupported_melds: "途中局：副露のない次局を待っています",
+        desynchronized_waiting_for_round: "同期ずれ：次局開始を待っています",
+      } as const)[perceptionStatus.reason]
 
   return (
     <div className="realtime-page">
@@ -225,6 +243,24 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
                 </div>
               )}
               {error && <p className="capture-error" role="alert">{error}</p>}
+              {currentSession && (
+                <div className="capture-diagnostic" aria-live="polite">
+                  <strong>{perceptionLabel}</strong>
+                  {perceptionStatus?.minimum_confidence != null && (
+                    <small>最低信頼度 {(perceptionStatus.minimum_confidence * 100).toFixed(1)}%</small>
+                  )}
+                  {perceptionStatus && (
+                    <small>
+                      手牌 {perceptionStatus.recognized_counts.hand ?? 0} · ツモ牌 {perceptionStatus.recognized_counts.drawn_tile ?? 0} · ドラ {perceptionStatus.recognized_counts.dora_indicators ?? 0}
+                    </small>
+                  )}
+                  {perceptionStatus?.unknown_slots.length ? (
+                    <details><summary>未認識 {perceptionStatus.unknown_slots.length}箇所</summary>
+                      <code>{perceptionStatus.unknown_slots.join("\n")}</code>
+                    </details>
+                  ) : null}
+                </div>
+              )}
               <p className="capture-scope">通信傍受、ブラウザ注入、非公開API、対局操作は使用しません。</p>
             </section>
           </aside>
