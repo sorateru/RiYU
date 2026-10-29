@@ -374,6 +374,73 @@ def test_marker_templates_and_ocr_value_validation(tmp_path: Path) -> None:
     assert TesseractFieldRecognizer._parse_value("+12,300", integer) == 12_300
     assert TesseractFieldRecognizer._parse_value("99999", integer) is None
 
+    with pytest.raises(ValueError, match="ocr_psm"):
+        LayoutConfig(
+            10,
+            10,
+            {},
+            text_fields={
+                "round": TextFieldConfig((0, 0, 10, 10), ocr_psm=8),
+            },
+        ).validate()
+
+    with pytest.raises(ValueError, match="ocr_minimum_confidence"):
+        LayoutConfig(
+            10,
+            10,
+            {},
+            text_fields={
+                "round": TextFieldConfig(
+                    (0, 0, 10, 10), ocr_minimum_confidence=1.1
+                ),
+            },
+        ).validate()
+
+
+def test_isolated_ocr_field_overrides_composite_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = TextFieldConfig(
+        (0, 0, 8, 8),
+        "integer",
+        1,
+        4,
+        ocr_psm=7,
+        ocr_minimum_confidence=0.0,
+    )
+    recognizer = TesseractFieldRecognizer(
+        {"hand_number": config},
+        executable="/usr/bin/true",
+    )
+    monkeypatch.setattr(
+        recognizer,
+        "_composite",
+        lambda _frame: (np.zeros((8, 8), dtype=np.uint8), {"hand_number": (0, 8)}),
+    )
+    calls: list[tuple[int, float | None]] = []
+
+    def recognize(
+        _image: np.ndarray,
+        _rows: dict[str, tuple[int, int]],
+        _fields: dict[str, TextFieldConfig],
+        *,
+        page_segmentation_mode: int,
+        minimum_confidence: float | None = None,
+    ) -> tuple[dict[str, int], dict[str, float], tuple[str, ...]]:
+        calls.append((page_segmentation_mode, minimum_confidence))
+        if page_segmentation_mode == 7:
+            return {"hand_number": 2}, {"hand_number": 0.0}, ()
+        return {}, {}, ()
+
+    monkeypatch.setattr(recognizer, "_recognize_composite", recognize)
+
+    values, confidences, unknown = recognizer.recognize(
+        np.zeros((8, 8, 3), dtype=np.uint8)
+    )
+
+    assert values == {"hand_number": 2}
+    assert confidences == {"hand_number": 0.0}
+    assert unknown == ()
+    assert calls == [(6, None), (7, 0.0)]
+
 
 def test_riichi_is_declared_on_discard_and_accepted_on_later_frame() -> None:
     manager = RealtimeStateManager(observer=0)

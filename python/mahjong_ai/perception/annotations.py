@@ -169,6 +169,21 @@ class TesseractFieldRecognizer:
             self.fields,
             page_segmentation_mode=6,
         )
+        for name, config in self.fields.items():
+            if config.ocr_psm is None:
+                continue
+            x, y, width, height = config.rectangle
+            crop = _rotate(frame[y : y + height, x : x + width], config.rotation)
+            isolated_values, isolated_confidences, _ = self._recognize_composite(
+                crop,
+                {name: (0, crop.shape[0])},
+                {name: config},
+                page_segmentation_mode=config.ocr_psm,
+                minimum_confidence=config.ocr_minimum_confidence,
+            )
+            if name in isolated_values:
+                values[name] = isolated_values[name]
+                confidences[name] = isolated_confidences[name]
         score_names = [f"score_{player}" for player in range(4)]
         if all(name in values for name in score_names):
             least_confident = min(score_names, key=lambda name: confidences[name])
@@ -211,6 +226,7 @@ class TesseractFieldRecognizer:
         fields: dict[str, TextFieldConfig],
         *,
         page_segmentation_mode: int,
+        minimum_confidence: float | None = None,
     ) -> tuple[dict[str, int | str], dict[str, float], tuple[str, ...]]:
         success, encoded = cv2.imencode(".png", composite)
         if not success:
@@ -263,12 +279,17 @@ class TesseractFieldRecognizer:
         values: dict[str, int | str] = {}
         confidences: dict[str, float] = {}
         unknown: list[str] = []
+        threshold = (
+            self.minimum_confidence
+            if minimum_confidence is None
+            else minimum_confidence
+        )
         for name, config in fields.items():
             pieces = sorted(tokens[name])
             raw = "".join(piece[1] for piece in pieces)
             confidence = min((piece[2] for piece in pieces), default=0.0)
             value = self._parse_value(raw, config)
-            if value is None or confidence < self.minimum_confidence:
+            if value is None or confidence < threshold:
                 if config.required:
                     unknown.append(f"text_fields.{name}:unreadable")
                 continue

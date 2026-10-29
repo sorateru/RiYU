@@ -93,6 +93,9 @@ layoutの`text_fields`は、全項目を1回のTesseract processで読む。次�
 自動計算する。サンプル座標は形式例なので実画面に合わせて必ず修正する。
 装飾枠に接する連結成分はOCR前に除去し、縦向きscoreの低confidence結果はそのfieldだけを
 single-line modeで再認識する。
+小さい局番号など一括OCRで安定しないfieldは`ocr_psm`に`7`（1行）または`10`（1文字）を
+指定すると、そのfieldだけを元の色のcropから再認識する。`ocr_minimum_confidence`はfield固有の
+下限であり、許容値が狭く実画面で誤読試験を済ませたfieldにだけ設定する。
 
 ```json
 {

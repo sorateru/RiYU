@@ -52,7 +52,7 @@
   },
   "rotations": {"river_1": 90, "river_2": 180, "river_3": 270, "meld_3_0": 270},
   "text_fields": {
-    "hand_number": {"rect": [615, 335, 28, 22], "type": "integer", "min": 1, "max": 4},
+    "hand_number": {"rect": [615, 335, 28, 22], "type": "integer", "min": 1, "max": 4, "ocr_psm": 7, "ocr_minimum_confidence": 0.0},
     "honba": {"rect": [650, 335, 42, 22], "type": "integer", "min": 0, "max": 99},
     "riichi_sticks": {"rect": [700, 335, 42, 22], "type": "integer", "min": 0, "max": 9},
     "remaining_tiles": {"rect": [615, 365, 58, 24], "type": "integer", "min": 0, "max": 70},

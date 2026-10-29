@@ -28,6 +28,8 @@ class TextFieldConfig:
     maximum: int | None = None
     rotation: int = 0
     required: bool = False
+    ocr_psm: int | None = None
+    ocr_minimum_confidence: float | None = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,12 @@ class LayoutConfig:
                 None if value.get("max") is None else int(value["max"]),
                 int(value.get("rotation", 0)),
                 bool(value.get("required", False)),
+                None if value.get("ocr_psm") is None else int(value["ocr_psm"]),
+                (
+                    None
+                    if value.get("ocr_minimum_confidence") is None
+                    else float(value["ocr_minimum_confidence"])
+                ),
             )
             for name, value in (raw.get("text_fields") or {}).items()
         }
@@ -111,6 +119,17 @@ class LayoutConfig:
                 raise ValueError(f"text_fields.{name}.type must be integer or text")
             if value.rotation not in {0, 90, 180, 270}:
                 raise ValueError(f"text_fields.{name}.rotation must be 0, 90, 180, or 270")
+            if value.ocr_psm not in {None, 6, 7, 10, 13}:
+                raise ValueError(
+                    f"text_fields.{name}.ocr_psm must be 6, 7, 10, or 13"
+                )
+            if (
+                value.ocr_minimum_confidence is not None
+                and not 0 <= value.ocr_minimum_confidence <= 1
+            ):
+                raise ValueError(
+                    f"text_fields.{name}.ocr_minimum_confidence must be in 0..=1"
+                )
             if (
                 value.minimum is not None
                 and value.maximum is not None
