@@ -89,6 +89,8 @@ ALLOWED_BROWSER_ORIGINS = frozenset(
         "http://localhost:4173",
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "http://127.0.0.1:8787",
+        "http://localhost:8787",
     }
 )
 MAX_STREAM_MESSAGE_BYTES = 1_000_000

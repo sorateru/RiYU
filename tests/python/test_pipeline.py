@@ -284,7 +284,8 @@ def test_majsoul_realtime_source_broadcasts_normalized_analysis_to_viewer() -> N
         assert sessions[0]["source_acquisition"] == "screen_capture"
         assert "authorization_reference" not in sessions[0]
         with client.websocket_connect(
-            "/ws/realtime/view/majsoul-authorized-test"
+            "/ws/realtime/view/majsoul-authorized-test",
+            headers={"origin": "http://127.0.0.1:8787"},
         ) as viewer:
             subscribed = viewer.receive_json()
             assert subscribed == {
