@@ -280,6 +280,8 @@ def test_event_websocket_updates_state_and_infers_only_at_decision() -> None:
                         "recognized_counts": {"hand": 12, "drawn_tile": 1},
                         "desynchronized": False,
                         "round_initialized": False,
+                        "sync_status": "PARTIAL",
+                        "partial_unknown_fields": ["metadata.score_2:unknown"],
                     },
                 }
             )
@@ -288,6 +290,10 @@ def test_event_websocket_updates_state_and_infers_only_at_decision() -> None:
             assert perception["type"] == "perception_status"
             assert perception["status"]["unknown_slots"] == [
                 "hand[4]:ambiguous_templates"
+            ]
+            assert perception["status"]["sync_status"] == "PARTIAL"
+            assert perception["status"]["partial_unknown_fields"] == [
+                "metadata.score_2:unknown"
             ]
             source.send_json({"type": "event", "event": round_start()})
             state_update = source.receive_json()

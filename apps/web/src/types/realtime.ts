@@ -45,12 +45,18 @@ export type RealtimeMessage = {
 }
 
 export type PerceptionStatus = {
-  reason: "waiting_for_frame" | "unknown_slots" | "low_confidence" | "stabilizing" | "stable" | "stable_unchanged" | "midround_waiting_for_self_turn" | "midround_unsupported_melds" | "desynchronized_waiting_for_round"
+  reason: "waiting_for_frame" | "game_screen_not_found" | "unknown_slots" | "low_confidence" | "stabilizing" | "stable" | "stable_unchanged" | "midround_waiting_for_self_turn" | "midround_unsupported_melds" | "desynchronized_waiting_for_round" | "midround_partial" | "desynchronized_waiting_for_safe_snapshot"
   candidate_frames: number
   required_frames: number
   minimum_confidence?: number
   unknown_slots: string[]
   recognized_counts: Record<string, number>
   desynchronized: boolean
+  sync_status?: "SYNCED" | "PARTIAL" | "DESYNCHRONIZED"
+  partial_unknown_fields?: string[]
   round_initialized: boolean
+  alignment_confidence?: number
+  profile_complete?: boolean
+  profile_capabilities?: Record<string, boolean>
+  profile_issues?: Array<{ code: string; detail: string }>
 }

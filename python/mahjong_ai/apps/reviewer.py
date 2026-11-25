@@ -66,6 +66,11 @@ class LocalPlayActionRequest(BaseModel):
     action: dict[str, Any]
 
 
+class SelfPlayReplayRequest(BaseModel):
+    seed: int | None = None
+    policy: str = "imitation"
+
+
 class ReplayAnalysisRequest(BaseModel):
     log: dict[str, Any] | None = None
     logs: list[dict[str, Any]] | None = None
@@ -191,6 +196,17 @@ def create_app(
 
     @app.get("/health")
     def health() -> dict[str, Any]:
+        model_status = {
+            "loaded": engine is not None,
+            "trained": bool(engine and engine.metadata.trained),
+            "validated": bool(engine and engine.metadata.validated),
+            "policy_calibrated": bool(engine and engine.metadata.policy_calibrated),
+            "risk_calibrated": bool(engine and engine.metadata.risk_calibrated),
+            "model_id": engine.metadata.model_id if engine else None,
+            "belief_loaded": bool(
+                engine and engine.expected_value.rollout.belief_predictor is not None
+            ),
+        }
         return {
             "status": "ok",
             "mode": "offline_review_authorized_stream_and_separate_local_play",
@@ -212,6 +228,7 @@ def create_app(
             "realtime_event_source_endpoint": "/ws/realtime/events/source",
             "realtime_view_endpoint": "/ws/realtime/view/{session_id}",
             "webapp_available": ui_available,
+            "analysis_model": model_status,
         }
 
     @app.get("/realtime/sessions")
@@ -223,6 +240,16 @@ def create_app(
         try:
             seed = request.seed if request.seed is not None else secrets.randbits(63)
             return play_manager.start(seed=seed, human_seat=request.human_seat)
+        except LocalPlayUnavailable as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
+        except LocalPlayError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @app.post("/local-play/self-play-replay")
+    def generate_self_play_replay(request: SelfPlayReplayRequest) -> dict[str, Any]:
+        try:
+            seed = request.seed if request.seed is not None else secrets.randbits(53)
+            return play_manager.self_play_replay(seed=seed, policy=request.policy)
         except LocalPlayUnavailable as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
         except LocalPlayError as error:
@@ -781,9 +808,12 @@ def _validate_perception_status(value: Any) -> dict[str, Any]:
         "stabilizing",
         "stable",
         "stable_unchanged",
+        "game_screen_not_found",
         "midround_waiting_for_self_turn",
         "midround_unsupported_melds",
         "desynchronized_waiting_for_round",
+        "midround_partial",
+        "desynchronized_waiting_for_safe_snapshot",
     }
     reason = value.get("reason")
     if reason not in allowed_reasons:
@@ -825,6 +855,42 @@ def _validate_perception_status(value: Any) -> dict[str, Any]:
         "desynchronized": bool(value.get("desynchronized", False)),
         "round_initialized": bool(value.get("round_initialized", False)),
     }
+    sync_status = value.get("sync_status", "DESYNCHRONIZED")
+    partial_unknown = value.get("partial_unknown_fields", [])
+    if sync_status not in {"SYNCED", "PARTIAL", "DESYNCHRONIZED"}:
+        raise RealtimeProtocolError(
+            "invalid_perception_status", "invalid sync status"
+        )
+    if (
+        not isinstance(partial_unknown, list)
+        or len(partial_unknown) > 64
+        or any(
+            not isinstance(item, str) or len(item) > 240
+            for item in partial_unknown
+        )
+    ):
+        raise RealtimeProtocolError(
+            "invalid_perception_status", "invalid partial sync details"
+        )
+    result["sync_status"] = sync_status
+    result["partial_unknown_fields"] = partial_unknown
+    result["profile_complete"] = bool(value.get("profile_complete", False))
+    capabilities = value.get("profile_capabilities", {})
+    if isinstance(capabilities, dict) and all(
+        isinstance(name, str) and isinstance(enabled, bool)
+        for name, enabled in capabilities.items()
+    ):
+        result["profile_capabilities"] = capabilities
+    issues = value.get("profile_issues", [])
+    if isinstance(issues, list):
+        result["profile_issues"] = [
+            {
+                "code": str(issue.get("code", ""))[:64],
+                "detail": str(issue.get("detail", ""))[:512],
+            }
+            for issue in issues[:64]
+            if isinstance(issue, dict)
+        ]
     confidence = value.get("minimum_confidence")
     if (
         isinstance(confidence, (int, float))

@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Tile } from "../../../shared/mahjong-tiles/Tile"
 
 import type { ReplayAnalysis } from "../types/analysis"
 
@@ -203,11 +204,7 @@ export default function AnalysisPage({
                 <div className="discard-row">
                   {currentTurn.discards.opposite.map(
                     (tile, index) => (
-                      <span
-                        key={`${tile}-${index}`}
-                      >
-                        {tile}
-                      </span>
+                      <Tile tile={tile} small key={index} />
                     ),
                   )}
                 </div>
@@ -221,11 +218,7 @@ export default function AnalysisPage({
                 <div className="discard-row vertical">
                   {currentTurn.discards.left.map(
                     (tile, index) => (
-                      <span
-                        key={`${tile}-${index}`}
-                      >
-                        {tile}
-                      </span>
+                      <Tile tile={tile} small key={index} />
                     ),
                   )}
                 </div>
@@ -244,8 +237,11 @@ export default function AnalysisPage({
                   枚
                 </div>
 
-                <div>
-                  ドラ {currentTurn.dora}
+                <div className="replay-dora">
+                  <span>ドラ表示牌</span>
+                  {currentTurn.dora.trim().split(/\s+/).filter(Boolean).map((tile, index) => (
+                    <Tile tile={tile} small key={index} />
+                  ))}
                 </div>
               </div>
 
@@ -257,11 +253,7 @@ export default function AnalysisPage({
                 <div className="discard-row vertical">
                   {currentTurn.discards.right.map(
                     (tile, index) => (
-                      <span
-                        key={`${tile}-${index}`}
-                      >
-                        {tile}
-                      </span>
+                      <Tile tile={tile} small key={index} />
                     ),
                   )}
                 </div>
@@ -300,15 +292,7 @@ export default function AnalysisPage({
                           />
                         </div>
 
-                        <span
-                          className={`hand-tile ${
-                            item.drawn
-                              ? "drawn-tile"
-                              : ""
-                          }`}
-                        >
-                          {item.tile}
-                        </span>
+                        <Tile tile={item.tile} className={item.drawn ? "hand-tile drawn-tile" : "hand-tile"} />
                       </div>
                     ),
                   )}
@@ -372,9 +356,7 @@ export default function AnalysisPage({
               RiYU RECOMMEND
             </span>
 
-            <div className="recommended-tile">
-              {bestCandidate.tile}
-            </div>
+            <Tile tile={bestCandidate.tile} className="recommended-tile" />
 
             <div className="recommended-score">
               <span>{analysis.analysisMode === "model_estimate" ? "Recommendation" : "Tile efficiency"}</span>
@@ -415,9 +397,7 @@ export default function AnalysisPage({
                   >
                     <div className="candidate-title">
                       <div className="candidate-title-left">
-                        <span className="candidate-tile">
-                          {candidate.tile}
-                        </span>
+                        <Tile tile={candidate.tile} small />
 
                         {index === 0 && (
                           <span className="candidate-badge">

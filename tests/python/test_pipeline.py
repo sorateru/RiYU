@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 import pytest
 import torch
 
-from mahjong_ai import FourPlayerSimulator
+from mahjong_ai import FourPlayerSimulator, analyze_state_json
 from mahjong_ai.ai.encoder import ACTION_FEATURES, ENCODER_PLANES, FeatureEncoder
 from mahjong_ai.ai.inference import InferenceEngine, ModelMetadata, save_checkpoint
 from mahjong_ai.ai.model import MahjongNetwork, ModelConfig
@@ -23,7 +23,7 @@ from mahjong_ai.analysis import (
     SessionHello,
 )
 from mahjong_ai.apps.reviewer import create_app
-from mahjong_ai.apps.local_play import LocalPlayManager
+from mahjong_ai.apps.local_play import LocalPlayManager, _GreedyPolicy
 from mahjong_ai.data.dataset import build_decision_records, write_parquet
 from mahjong_ai.data.sequence_dataset import (
     build_sequence_decision_records,
@@ -114,9 +114,19 @@ def test_reviewer_api_returns_exact_ranked_discards() -> None:
     assert body["model_policy"]["status"] == "unavailable"
     assert body["safety_scope"] == "offline_saved_log_or_local_simulator_only"
 
-    capabilities = TestClient(create_app()).get("/api/health").json()["replay_import"]
+    health = TestClient(create_app()).get("/api/health").json()
+    capabilities = health["replay_import"]
     assert "mahjong-ai-replay-bundle/v1" in capabilities["formats"]
     assert capabilities["direct_mahjong_soul_fetch"] is False
+    assert health["analysis_model"] == {
+        "loaded": False,
+        "trained": False,
+        "validated": False,
+        "policy_calibrated": False,
+        "risk_calibrated": False,
+        "model_id": None,
+        "belief_loaded": False,
+    }
 
 
 def test_reviewer_serves_built_webapp_from_the_same_origin(tmp_path) -> None:
@@ -163,6 +173,20 @@ def test_local_hanchan_play_is_separate_from_analysis_and_hides_opponent_hands()
     advanced = acted.json()
     assert advanced["session_id"] == game["session_id"]
     assert advanced["analysis_attached"] is False
+    frames = advanced["discard_frames"]
+    discards = [
+        event for event in advanced["observation"]["event_history"]
+        if event["type"] == "discard"
+    ]
+    assert len(frames) >= 2
+    assert [frame["actor"] for frame in frames] == [event["player"] for event in discards]
+    for count, (frame, discard) in enumerate(zip(frames, discards), start=1):
+        public = frame["observation"]
+        assert sum(len(player["discards"]) for player in public["players"]) == count
+        assert public["players"][frame["actor"]]["discards"][-1]["tile"] == discard["tile"]
+        assert all(set(player) == {"discards", "melds", "riichi"} for player in public["players"])
+        assert set(public) == {"hand", "drawn_tile", "players", "remaining_tiles", "dora_indicators"}
+    assert client.get(f"/local-play/sessions/{game['session_id']}").json()["discard_frames"] == []
     for event in advanced["observation"]["event_history"]:
         if event["type"] == "draw" and event["player"] != 0:
             assert event["tile"] is None
@@ -170,6 +194,77 @@ def test_local_hanchan_play_is_separate_from_analysis_and_hides_opponent_hands()
     closed = client.delete(f"/local-play/sessions/{game['session_id']}")
     assert closed.status_code == 204
     assert client.get(f"/local-play/sessions/{game['session_id']}").status_code == 404
+
+
+def test_self_play_replay_shows_four_initial_hands_and_ordered_moves() -> None:
+    model = MahjongNetwork(
+        ModelConfig(channels=8, residual_blocks=1, representation_dim=16, action_dim=8)
+    )
+    client = TestClient(create_app(local_play=LocalPlayManager(model, model_id="fixture")))
+    response = client.post("/local-play/self-play-replay", json={"seed": 9, "policy": "imitation"})
+    assert response.status_code == 200
+    replay = response.json()
+    assert replay["model_id"] == "fixture"
+    frames = replay["frames"]
+    assert frames[0]["events"][0]["type"] == "round_start"
+    assert [len(hand["tiles"]) for hand in frames[0]["hands"]] == [13] * 4
+    assert all(hand["drawn"] is None for hand in frames[0]["hands"])
+    draw = frames[1]["events"][0]
+    assert draw["type"] == "draw"
+    assert draw["tile"] == frames[1]["hands"][draw["player"]]["drawn"]
+    first_discard = next(
+        (frame, event) for frame in frames for event in frame["events"] if event["type"] == "discard"
+    )
+    frame, discard = first_discard
+    assert frame["observation"]["players"][discard["player"]]["discards"][-1]["tile"] == discard["tile"]
+    events = [event for frame in frames for event in frame["events"]]
+    assert [event["sequence"] for event in events] == list(range(len(events)))
+    assert events[-1]["type"] == "round_end"
+    assert sum(frames[-1]["scores"]) + frames[-1]["round"]["riichi_sticks"] * 1000 == 100_000
+
+
+def test_local_play_ron_settles_scores_and_starts_next_hand(monkeypatch) -> None:
+    def choose_discard(state, legal):
+        discards = [action for action in legal if action["type"] == "discard"]
+        if not discards:
+            return next(action for action in legal if action["type"] == "pass")
+        ranked = json.loads(analyze_state_json(json.dumps(state)))["discard_efficiency"]["value"]
+        preferred_tile = ranked[0]["discard"] if ranked else None
+        return next((action for action in discards if action["tile"] == preferred_tile), discards[0])
+
+    monkeypatch.setattr(_GreedyPolicy, "choose", lambda self, state, legal: choose_discard(state, legal))
+    model = MahjongNetwork(
+        ModelConfig(channels=8, residual_blocks=1, representation_dim=16, action_dim=8)
+    )
+    client = TestClient(create_app(local_play=LocalPlayManager(model)))
+    response = client.post("/local-play/sessions", json={"human_seat": 0, "seed": 2})
+    assert response.status_code == 200
+    game = response.json()
+    path = f"/local-play/sessions/{game['session_id']}/actions"
+    for _ in range(40):
+        legal = game["legal_actions"]
+        ron = next((action for action in legal if action["type"] == "ron"), None)
+        if ron is not None:
+            break
+        response = client.post(path, json={"action": choose_discard(game["observation"], legal)})
+        assert response.status_code == 200
+        game = response.json()
+        assert game["hand_index"] == 0
+    else:
+        pytest.fail("seed 2 did not produce the expected legal ron")
+
+    response = client.post(path, json={"action": ron})
+    assert response.status_code == 200
+    game = response.json()
+    assert game["last_hand"]["result_type"] == "ron"
+    assert game["last_hand"]["winners"] == [0]
+    loser = game["last_hand"]["loser"]
+    assert loser == ron["target"]
+    assert game["scores"][0] > 25_000 > game["scores"][loser]
+    assert sum(game["scores"]) == 100_000
+    assert game["hand_index"] == 1
+    assert game["round"]["honba"] == 1
+    assert game["legal_actions"]
 
 
 def test_realtime_lab_requires_handshake_and_orders_snapshots() -> None:

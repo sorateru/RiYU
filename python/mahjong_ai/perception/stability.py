@@ -21,6 +21,8 @@ class StableObservation:
     metadata_confidences: dict[str, float] = field(default_factory=dict)
     markers: dict[str, bool | None] = field(default_factory=dict)
     marker_confidences: dict[str, float] = field(default_factory=dict)
+    slot_states: dict[str, tuple[dict[str, Any], ...]] = field(default_factory=dict)
+    melds: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 class StableObservationFilter:
@@ -41,9 +43,25 @@ class StableObservationFilter:
         }
 
     def push(self, result: PerceptionResult) -> StableObservation | None:
+        if not result.scene_found:
+            self._candidate = None
+            self._candidate_count = 0
+            self.last_status = {
+                "reason": "game_screen_not_found",
+                "candidate_frames": 0,
+                "required_frames": self.required_frames,
+                "minimum_confidence": result.alignment_confidence,
+                "unknown_slots": list(result.unknown_slots[:32]),
+                "recognized_counts": {},
+                "alignment_confidence": result.alignment_confidence,
+            }
+            return None
         terminal = any(
             value is True and name.startswith("result_")
             for name, value in result.markers.items()
+        ) or all(
+            isinstance(result.metadata.get(f"delta_{player}"), int)
+            for player in range(4)
         )
         annotation_unknown = tuple(
             value
@@ -79,16 +97,16 @@ class StableObservationFilter:
                 },
             }
             return None
-        fresh_round = _looks_like_fresh_round(result.recognized)
-        event_markers = {
-            name: value
-            for name, value in result.markers.items()
-            if name.startswith("riichi_") or name.startswith("tsumogiri_")
-        }
         payload = {
             "recognized": {} if terminal else result.recognized,
-            "metadata": result.metadata if terminal or fresh_round else {},
-            "markers": result.markers if terminal or fresh_round else event_markers,
+            # OCR and UI marker values participate in the same multi-frame
+            # confirmation as tiles. This is essential for safe mid-round
+            # restoration: a single plausible score or dealer OCR result must
+            # never be paired with an otherwise stable tile snapshot.
+            "metadata": result.metadata,
+            "markers": result.markers,
+            "slot_states": result.slot_states,
+            "melds": result.melds,
         }
         fingerprint = canonical_json(payload)
         if fingerprint == self._candidate:
@@ -141,6 +159,8 @@ class StableObservationFilter:
             result.metadata_confidences,
             result.markers,
             result.marker_confidences,
+            result.slot_states,
+            result.melds,
         )
 
     def _confident(self, values: dict[str, tuple[float, ...]]) -> bool:
@@ -185,6 +205,32 @@ def observed_marker(
     )
     value = markers.get(name)
     return value if isinstance(value, bool) else None
+
+
+def observed_slot_state(
+    observation: StableObservation | dict[str, Any], region: str, index: int
+) -> dict[str, Any] | None:
+    values = (
+        observation.slot_states
+        if isinstance(observation, StableObservation)
+        else observation
+    ).get(region, ())
+    if not isinstance(values, (list, tuple)) or not 0 <= index < len(values):
+        return None
+    value = values[index]
+    return value if isinstance(value, dict) else None
+
+
+def observed_meld(
+    observation: StableObservation | dict[str, Any], region: str
+) -> dict[str, Any] | None:
+    values = (
+        observation.melds
+        if isinstance(observation, StableObservation)
+        else observation
+    )
+    value = values.get(region)
+    return value if isinstance(value, dict) else None
 
 
 def _looks_like_fresh_round(

@@ -1,0 +1,24 @@
+.mahjong-tile {
+  display: inline-block;
+  vertical-align: middle;
+  width: var(--tile-width, 48px);
+  height: auto;
+  aspect-ratio: 128 / 176;
+  flex: none;
+  object-fit: contain;
+}
+
+.mahjong-tile-small {
+  width: var(--tile-small-width, 31px);
+}
+
+.mahjong-tile-unknown {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #b6b9bd;
+  border-radius: 5px;
+  color: #20252b;
+  background: #fff;
+  font-size: .7rem;
+  overflow: hidden;
+}

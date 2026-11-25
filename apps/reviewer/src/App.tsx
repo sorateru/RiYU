@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Tile, tileCode, tileLabel } from "../../shared/mahjong-tiles/Tile";
+import { ArenaPanel } from "./ArenaPanel";
 
 type Json = Record<string, any>;
-type Mode = "play" | "review" | "live";
+type Mode = "play" | "review" | "live" | "arena" | "spectate";
 
 const DEFAULT_API = ["http:", "https:"].includes(window.location.protocol)
   ? window.location.origin
@@ -9,28 +11,12 @@ const DEFAULT_API = ["http:", "https:"].includes(window.location.protocol)
 const API = import.meta.env.VITE_REVIEWER_API ?? DEFAULT_API;
 const WS_API = API.replace(/^http/, "ws");
 const WINDS: Record<string, string> = { east: "東", south: "南", west: "西", north: "北" };
-const HONORS: Record<string, string> = {
-  east: "東", south: "南", west: "西", north: "北", white: "白", green: "發", red: "中",
-};
 const TILE_ORDER = [
   ...Array.from({ length: 9 }, (_, index) => `m${index + 1}`),
   ...Array.from({ length: 9 }, (_, index) => `p${index + 1}`),
   ...Array.from({ length: 9 }, (_, index) => `s${index + 1}`),
   "east", "south", "west", "north", "white", "green", "red",
 ];
-
-function tileLabel(tile: Json | undefined): string {
-  if (!tile) return "?";
-  if (HONORS[tile.kind]) return HONORS[tile.kind];
-  const suit = tile.kind?.[0];
-  const number = tile.kind?.slice(1);
-  const suffix = suit === "m" ? "萬" : suit === "p" ? "筒" : "索";
-  return `${tile.red ? "赤" : ""}${number}${suffix}`;
-}
-
-function Tile({ tile, small = false }: { tile: Json; small?: boolean }) {
-  return <span className={`tile ${tile.red ? "red-tile" : ""} ${small ? "small-tile" : ""}`}>{tileLabel(tile)}</span>;
-}
 
 function statusLabel(value: Json | undefined): string {
   if (!value || value.status === "unavailable") return "N/A";
@@ -93,6 +79,9 @@ function ReviewPanel() {
       <section>
         <h2>手牌</h2>
         <div className="tiles">{state?.hand?.map((tile: Json, index: number) => <Tile tile={tile} key={index} />)}</div>
+        {!!state?.dora_indicators?.length && <div className="dora-tiles">ドラ表示牌
+          {state.dora_indicators.map((tile: Json, index: number) => <Tile tile={tile} small key={index} />)}
+        </div>}
       </section>
       <section>
         <div className="section-heading"><h2>候補打牌</h2><em>シャンテン・受け入れは厳密計算</em></div>
@@ -272,28 +261,172 @@ function LiveAnalysisPanel() {
   </div>;
 }
 
-function PlayerArea({ seat, game }: { seat: number; game: Json }) {
+function seatWind(seat: number, dealer: number): string {
+  return ["東", "南", "西", "北"][(seat - dealer + 4) % 4];
+}
+
+function seatPosition(seat: number, humanSeat: number): "bottom" | "right" | "top" | "left" {
+  return (["bottom", "right", "top", "left"] as const)[(seat - humanSeat + 4) % 4];
+}
+
+function PlayerRiver({ seat, game }: { seat: number; game: Json }) {
+  const observer = game.observation;
+  const position = seatPosition(seat, game.human_seat ?? 0);
+  const discards = observer.players[seat].discards.filter((discard: Json) => discard.called_by == null);
+  return <div className={`river river-${position}`} aria-label={`${seatWind(seat, game.round.dealer)}家の河`}>
+    {discards.map((discard: Json, index: number) => <Tile tile={discard.tile} small key={index}
+      className={`${discard.riichi_declaration ? "riichi-discard" : ""} ${game.discard_actor === seat && index === discards.length - 1 ? "latest-discard" : ""}`} />)}
+  </div>;
+}
+
+function PlayerArea({ seat, game, revealed }: { seat: number; game: Json; revealed?: Json }) {
   const observation = game.observation;
   const player = observation.players[seat];
   const isHuman = seat === game.human_seat;
-  const riverDiscards = player.discards.filter((discard: Json) => discard.called_by == null);
-  return <article className={`player-area ${isHuman ? "human-area" : ""}`}>
+  const position = seatPosition(seat, game.human_seat ?? 0);
+  const isDealer = seat === game.round.dealer;
+  return <article className={`player-area seat-${position} ${isHuman ? "human-area" : ""}`}>
     <div className="player-heading">
+      <span className={`seat-wind ${isDealer ? "dealer-wind" : ""}`}>{seatWind(seat, game.round.dealer)}</span>
+      <span className="player-avatar" aria-hidden="true">{isHuman ? "私" : `AI`}</span>
       <strong>{isHuman ? "あなた" : `AI ${seat + 1}`}</strong>
       <span>{game.scores[seat].toLocaleString()}点</span>
       {player.riichi !== "none" && <b>立直</b>}
     </div>
+    {revealed && <div className="spectator-hand" aria-label={`AI ${seat + 1}の手牌`}>
+      {[...revealed.tiles].sort((left: Json, right: Json) =>
+        TILE_ORDER.indexOf(left.kind) - TILE_ORDER.indexOf(right.kind)
+      ).map((tile: Json, index: number) => <Tile tile={tile} small key={index} />)}
+      {revealed.drawn && <Tile tile={revealed.drawn} small className="spectator-draw" />}
+    </div>}
     {player.melds.length > 0 && <div className="player-row">
       <span className="row-label">副露</span>
       <div className="melds">{player.melds.map((meld: Json, index: number) => <div className="meld" key={index}>
         {meld.tiles.map((tile: Json, tileIndex: number) => <Tile tile={tile} small key={tileIndex} />)}
       </div>)}</div>
     </div>}
-    <div className="player-row river-row">
-      <span className="row-label">河 <small>{riverDiscards.length}枚</small></span>
-      <div className="river">{riverDiscards.map((discard: Json, index: number) => <Tile tile={discard.tile} small key={index} />)}</div>
-    </div>
   </article>;
+}
+
+function TableCenter({ round, observation }: { round: Json; observation: Json }) {
+  return <div className="table-center" aria-label="局情報">
+    <span className="round-badge">{WINDS[round.wind]}{round.hand_number}局</span>
+    <strong>{observation.remaining_tiles}</strong>
+    <small>残り牌</small>
+    <div><span>{round.honba}本場</span><span>供託 {round.riichi_sticks}</span></div>
+    {!!observation.dora_indicators?.length && <div className="dora-tiles">
+      <span>ドラ表示牌</span>
+      {observation.dora_indicators.map((tile: Json, index: number) => <Tile tile={tile} small key={index} />)}
+    </div>}
+  </div>;
+}
+
+const SPECTATOR_POLICIES = { imitation: "模倣学習", hybrid_no_search: "期待値（探索なし）" };
+
+function SpectatePanel() {
+  const [replay, setReplay] = useState<Json | null>(null);
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [seed, setSeed] = useState("");
+  const [policy, setPolicy] = useState<keyof typeof SPECTATOR_POLICIES>("imitation");
+  const frames: Json[] = replay?.frames ?? [];
+  const frame = frames[frameIndex];
+  const lastIndex = frames.length - 1;
+
+  useEffect(() => {
+    if (!playing || frameIndex >= lastIndex) return;
+    const timer = window.setTimeout(() => {
+      setFrameIndex(frameIndex + 1);
+      if (frameIndex + 1 === lastIndex) setPlaying(false);
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [playing, frameIndex, lastIndex]);
+
+  function jump(index: number) {
+    setPlaying(false);
+    setFrameIndex(index);
+  }
+
+  async function generate(event: React.FormEvent) {
+    event.preventDefault();
+    const numericSeed = seed.trim() === "" ? undefined : Number(seed);
+    if (numericSeed !== undefined && (!Number.isSafeInteger(numericSeed) || numericSeed < 0)) {
+      setError("シードは0以上の整数にしてください。");
+      return;
+    }
+    setPlaying(false);
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/local-play/self-play-replay`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ seed: numericSeed, policy }),
+      });
+      if (!response.ok) {
+        const details = await response.json().catch(() => null);
+        throw new Error(details?.detail ?? "自己対戦を生成できませんでした。");
+      }
+      const result = await response.json();
+      setReplay(result);
+      setFrameIndex(0);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "自己対戦を生成できませんでした。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const event = frame?.events.filter((item: Json) => !["round_end", "pass"].includes(item.type)).at(-1);
+  const discard = frame?.events.find((item: Json) => item.type === "discard");
+  const table = frame && { ...frame, discard_actor: discard?.player };
+  function eventLabel(value: Json | undefined) {
+    if (!value || value.type === "round_start") return "配牌";
+    if (value.type === "draw") return `ツモ牌 ${tileLabel(value.tile)}`;
+    if (value.type === "draw_game") return value.reason === "exhaustive" ? "流局" : "途中流局";
+    if (value.type === "ron") return `${value.winners.map((seat: number) => `AI ${seat + 1}`).join("・")} ロン`;
+    if (value.type === "dora_reveal") return "ドラ表示牌追加";
+    return actionLabel(value);
+  }
+
+  return <div className="mode-panel">
+    <section className="intro-panel play-intro">
+      <div><h1>AI自己対戦の牌譜</h1><p>AI4人で東一局を打ち、配牌から局終了まで全員の手牌を見返せます。</p></div>
+      <form className="start-controls" onSubmit={generate}>
+        <label>方策<select value={policy} disabled={busy} onChange={(event) => setPolicy(event.target.value as typeof policy)}>
+          {Object.entries(SPECTATOR_POLICIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select></label>
+        <label>シード（任意）<input inputMode="numeric" value={seed} onChange={(event) => setSeed(event.target.value)} disabled={busy} /></label>
+        <button disabled={busy}>{busy ? "対局を生成中…" : "AI4人で対戦"}</button>
+      </form>
+      {error && <p className="error" role="alert">{error}</p>}
+    </section>
+    {table && replay && <>
+      <section className="table-shell spectator-table">
+        {[0, 1, 2, 3].map((seat) => <PlayerArea key={seat} seat={seat} game={table} revealed={frame.hands[seat]} />)}
+        {[0, 1, 2, 3].map((seat) => <PlayerRiver key={seat} seat={seat} game={table} />)}
+        <TableCenter round={frame.round} observation={frame.observation} />
+        <div className="hand-zone spectator-controls">
+          <strong role="status">{(event?.player ?? event?.winner) != null && `AI ${(event.player ?? event.winner) + 1} · `}{eventLabel(event)}</strong>
+          <div className="spectator-buttons">
+            <button type="button" onClick={() => jump(0)} disabled={frameIndex === 0}>配牌</button>
+            <button type="button" onClick={() => jump(frameIndex - 1)} disabled={frameIndex === 0}>前へ</button>
+            <button type="button" onClick={() => {
+              if (playing) setPlaying(false);
+              else { if (frameIndex === lastIndex) setFrameIndex(0); setPlaying(true); }
+            }}>{playing ? "一時停止" : "再生"}</button>
+            <button type="button" onClick={() => jump(frameIndex + 1)} disabled={frameIndex === lastIndex}>次へ</button>
+            <button type="button" onClick={() => jump(lastIndex)} disabled={frameIndex === lastIndex}>局終了</button>
+          </div>
+          <input type="range" aria-label="牌譜の再生位置" min="0" max={lastIndex} value={frameIndex}
+            onChange={(event) => jump(Number(event.target.value))} />
+          <small>{frameIndex + 1} / {frames.length} · {replay.model_id} · {SPECTATOR_POLICIES[replay.policy as typeof policy]} · シード {replay.seed}</small>
+        </div>
+      </section>
+    </>}
+  </div>;
 }
 
 function PlayPanel() {
@@ -302,56 +435,95 @@ function PlayPanel() {
   const [seed, setSeed] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const pending = useRef(false);
 
   async function request(path: string, options: RequestInit = {}) {
+    const response = await fetch(`${API}${path}`, options);
+    const body = response.status === 204 ? null : await response.json();
+    if (!response.ok) throw new Error(body?.detail ?? "対局処理に失敗しました。");
+    return body;
+  }
+
+  async function updateGame(load: () => Promise<Json>) {
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`${API}${path}`, options);
-      const body = response.status === 204 ? null : await response.json();
-      if (!response.ok) throw new Error(body?.detail ?? "対局処理に失敗しました。");
-      return body;
+      const { discard_frames: frames = [], ...next } = await load();
+      for (const { actor, ...frame } of frames) {
+        setGame({
+          ...next, ...frame, discard_actor: actor,
+          status: "playing_discards", legal_actions: [],
+        });
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 400));
+      }
+      setGame(next);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "対局処理に失敗しました。");
-      return null;
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
 
   async function startGame() {
-    if (game?.session_id) {
-      await request(`/local-play/sessions/${game.session_id}`, { method: "DELETE" });
-    }
+    if (pending.current) return;
     const numericSeed = seed.trim() ? Number(seed) : undefined;
     if (numericSeed !== undefined && (!Number.isSafeInteger(numericSeed) || numericSeed < 0)) {
       setError("シードは0以上の整数にしてください。");
       return;
     }
-    const body = await request("/local-play/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ human_seat: seat, seed: numericSeed }),
+    await updateGame(async () => {
+      if (game?.session_id) {
+        await request(`/local-play/sessions/${game.session_id}`, { method: "DELETE" });
+        setGame(null);
+      }
+      return request("/local-play/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ human_seat: seat, seed: numericSeed }),
+      });
     });
-    if (body) setGame(body);
   }
 
   async function playAction(action: Json) {
     if (!game || busy) return;
-    const body = await request(`/local-play/sessions/${game.session_id}/actions`, {
+    await updateGame(() => request(`/local-play/sessions/${game.session_id}/actions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action }),
-    });
-    if (body) setGame(body);
+    }));
   }
 
   const observation = game?.observation;
   const round = game?.round;
   const concealed = observation ? [...observation.hand].sort((left: Json, right: Json) => TILE_ORDER.indexOf(left.kind) - TILE_ORDER.indexOf(right.kind)) : [];
+  const actions: Json[] = game?.legal_actions ?? [];
+  const discardActions = actions.filter((action) => action.type === "discard");
+  const specialActions = actions.filter((action) => action.type !== "discard");
+  const canRon = specialActions.some((action) => action.type === "ron");
+  const lastHand = game?.last_hand;
+  const wonByRon = lastHand?.result_type === "ron";
+  const discardActor = game?.discard_actor;
+  const playStatus = discardActor != null
+    ? `${discardActor === game?.human_seat ? "あなた" : `AI ${discardActor + 1}`}が打牌`
+    : busy ? "対局進行中…" : canRon ? "ロンできます" : discardActions.length
+      ? "牌を押して打牌" : specialActions.length ? "鳴き・見送りを選択" : "";
+
+  function renderHandTile(tile: Json, drawn: boolean, key: number | string) {
+    const code = tileCode(tile);
+    const action = code && discardActions.find((candidate) =>
+      tileCode(candidate.tile) === code && candidate.tsumogiri === drawn);
+    return <button type="button" key={key} className={`hand-tile-button ${drawn ? "drawn-tile" : ""}`}
+      disabled={busy || !action} aria-label={`打牌 ${tileLabel(tile)}${drawn ? "（ツモ牌）" : ""}`}
+      onClick={() => { if (action) void playAction(action); }}>
+      <Tile tile={tile} />
+    </button>;
+  }
 
   return <div className="mode-panel play-mode">
-    <section className="intro-panel play-intro">
+    <section className={`intro-panel play-intro ${game ? "game-active" : ""}`}>
       <div>
         <p className="eyebrow">LOCAL HANCHAN</p>
         <h1>AI対局</h1>
@@ -370,52 +542,53 @@ function PlayPanel() {
     </section>
 
     {game && observation && <>
-      <section className="match-strip">
-        <div><small>局</small><strong>{WINDS[round.wind]}{round.hand_number}局</strong></div>
-        <div><small>本場</small><strong>{round.honba}</strong></div>
-        <div><small>供託</small><strong>{round.riichi_sticks}</strong></div>
-        <div><small>残り</small><strong>{observation.remaining_tiles}</strong></div>
-        <div><small>モデル</small><strong className="model-name">{game.opponent_model_id}</strong></div>
-      </section>
-
       <section className="table-shell">
-        <div className="opponents">
-          {[0, 1, 2, 3].filter((player) => player !== game.human_seat).map((player) => <PlayerArea seat={player} game={game} key={player} />)}
-        </div>
-        <PlayerArea seat={game.human_seat} game={game} />
+        {[0, 1, 2, 3].map((player) => <PlayerArea seat={player} game={game} key={player} />)}
+        {[0, 1, 2, 3].map((player) => <PlayerRiver seat={player} game={game} key={player} />)}
+        <TableCenter round={round} observation={observation} />
         <div className="hand-zone">
-          <div className="section-heading"><h2>あなたの手牌</h2><em>対局中は候補手を表示しません</em></div>
+          <div className="section-heading"><h2>あなたの手牌</h2><em role="status">{playStatus}</em></div>
+          {specialActions.length > 0 && <div className="action-buttons">
+            {specialActions.map((action, index) => <button type="button"
+              className={`action-${action.type}`} disabled={busy} onClick={() => playAction(action)} key={index}>
+              {actionLabel(action)}{Array.isArray(action.consume) && `（${action.consume.map(tileLabel).join("・")}）`}
+            </button>)}
+          </div>}
           <div className="tiles hand-tiles">
-            {concealed.map((tile: Json, index: number) => <Tile tile={tile} key={index} />)}
-            {observation.drawn_tile && <span className="drawn-tile"><Tile tile={observation.drawn_tile} /></span>}
+            {concealed.map((tile: Json, index: number) => renderHandTile(tile, false, index))}
+            {observation.drawn_tile && renderHandTile(observation.drawn_tile, true, "drawn")}
           </div>
         </div>
       </section>
+      {wonByRon && <p className="last-hand-result" role="status">
+        {WINDS[lastHand.round.wind]}{lastHand.round.hand_number}局・{lastHand.round.honba}本場　ロン和了：
+        {lastHand.winners.map((player: number) => player === game.human_seat ? "あなた" : `AI ${player + 1}`).join("・")}
+        {lastHand.loser != null && `（放銃：${lastHand.loser === game.human_seat ? "あなた" : `AI ${lastHand.loser + 1}`}）`}
+      </p>}
 
-      {game.status === "match_ended" ? <section className="result-panel">
+      {game.status === "match_ended" && <section className="result-panel">
         <p className="eyebrow">MATCH COMPLETE</p><h2>半荘終了</h2>
         <div className="final-ranking">{game.ranks.map((rank: number, player: number) => <div key={player}>
           <strong>{rank}位</strong><span>{player === game.human_seat ? "あなた" : `AI ${player + 1}`}</span><b>{game.scores[player].toLocaleString()}点</b>
         </div>)}</div>
-      </section> : <section className="action-panel">
-        <div className="section-heading"><h2>あなたの操作</h2><em>{busy ? "AIが思考中…" : `${game.legal_actions.length}個の合法手`}</em></div>
-        <div className="action-buttons">{game.legal_actions.map((action: Json, index: number) => <button
-          className={`action-${action.type}`} disabled={busy} onClick={() => playAction(action)} key={`${index}-${JSON.stringify(action)}`}
-        >{actionLabel(action)}</button>)}</div>
       </section>}
     </>}
   </div>;
 }
 
 export function App() {
-  const [mode, setMode] = useState<Mode>("live");
-  return <main>
+  const [mode, setMode] = useState<Mode>("play");
+  return <main className={mode === "play" || mode === "spectate" ? "play-page" : undefined}>
     <nav className="mode-tabs" aria-label="機能選択">
       <button className={mode === "play" ? "active" : ""} onClick={() => setMode("play")}>AI対局</button>
+      <button className={mode === "spectate" ? "active" : ""} onClick={() => setMode("spectate")}>AI自己対戦</button>
+      <button className={mode === "arena" ? "active" : ""} onClick={() => setMode("arena")}>AI対戦結果</button>
       <button className={mode === "review" ? "active" : ""} onClick={() => setMode("review")}>局面解析</button>
       <button className={mode === "live" ? "active" : ""} onClick={() => setMode("live")}>リアルタイム</button>
     </nav>
     <div hidden={mode !== "play"}><PlayPanel /></div>
+    <div hidden={mode !== "spectate"}><SpectatePanel /></div>
+    <div hidden={mode !== "arena"}><ArenaPanel /></div>
     <div hidden={mode !== "review"}><ReviewPanel /></div>
     <div hidden={mode !== "live"}><LiveAnalysisPanel /></div>
   </main>;

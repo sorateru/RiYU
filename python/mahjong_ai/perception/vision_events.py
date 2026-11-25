@@ -12,6 +12,7 @@ from .stability import (
     StableObservation,
     observed_marker,
     observed_metadata,
+    observed_slot_state,
     observed_tiles,
 )
 
@@ -121,27 +122,29 @@ class VisionEventDetector:
     def _detect_result(
         self, observation: StableObservation, state: dict[str, Any]
     ) -> list[DetectedEvent]:
+        if (state.get("phase") or {}).get("phase") == "ended":
+            return []
         kinds = [
             kind
             for kind in ("ron", "tsumo", "draw", "abortive_draw")
             if observed_marker(observation, f"result_{kind}") is True
         ]
-        if not kinds:
-            return []
-        if len(kinds) != 1:
+        explicit_result_marker = bool(kinds)
+        if len(kinds) > 1:
             raise VisionDeltaError("result screen has multiple active result markers")
-        if (state.get("phase") or {}).get("phase") == "ended":
-            return []
         deltas = [observed_metadata(observation, f"delta_{player}") for player in range(4)]
         scores = state.get("scores") or []
         if len(scores) != 4:
             raise VisionDeltaError("authoritative state has no four-player scores")
-        if any(not isinstance(value, int) for value in deltas):
+        direct_deltas = all(isinstance(value, int) for value in deltas)
+        if not direct_deltas:
             observed_scores = [
                 observed_metadata(observation, f"score_{player}")
                 for player in range(4)
             ]
             if any(not isinstance(value, int) for value in observed_scores):
+                if not kinds:
+                    return []
                 raise VisionDeltaError(
                     "result screen requires four score deltas or four resulting scores"
                 )
@@ -150,8 +153,28 @@ class VisionEventDetector:
                 for player, value in enumerate(observed_scores)
             ]
         score_deltas = [int(value) for value in deltas]
+        if not kinds:
+            # Normal table score OCR is present on every frame. It becomes
+            # terminal evidence only when scores changed, while four explicit
+            # delta fields are overlay-specific and may legitimately all be 0.
+            if not direct_deltas and not any(score_deltas):
+                return []
+            inferred = self._infer_result_kind(observation, state, score_deltas)
+            if inferred is None:
+                return []
+            kinds = [inferred]
         final_scores = [int(score) + delta for score, delta in zip(scores, score_deltas)]
         kind = kinds[0]
+        result_confidence = (
+            "result_overlay_confirmed"
+            if explicit_result_marker
+            else "score_delta_phase_inferred"
+        )
+        result_reason = (
+            "result overlay and score deltas recognized from stable frames"
+            if explicit_result_marker
+            else "result kind derived from stable score deltas and legal GameState phase"
+        )
         events: list[DetectedEvent] = []
         if kind == "ron":
             winners = [
@@ -159,6 +182,10 @@ class VisionEventDetector:
                 for player in range(4)
                 if observed_marker(observation, f"winner_{player}") is True
             ]
+            if not winners:
+                winners = [
+                    player for player, delta in enumerate(score_deltas) if delta > 0
+                ]
             losers = [
                 player
                 for player in range(4)
@@ -167,6 +194,14 @@ class VisionEventDetector:
             phase = state.get("phase") or {}
             if not losers and phase.get("phase") == "awaiting_response":
                 losers = [int(phase["discarder"])]
+            if not losers and phase.get("phase") == "awaiting_kan_response":
+                losers = [int(phase["declarer"])]
+            if not losers:
+                negative = [
+                    player for player, delta in enumerate(score_deltas) if delta < 0
+                ]
+                if len(negative) == 1:
+                    losers = negative
             if not winners or len(losers) != 1 or losers[0] in winners:
                 raise VisionDeltaError("ron result requires winners and exactly one loser")
             events.append(
@@ -177,8 +212,8 @@ class VisionEventDetector:
                         "loser": losers[0],
                         "score_deltas": score_deltas,
                     },
-                    "result_overlay_confirmed",
-                    "ron result and score deltas recognized from stable overlay",
+                    result_confidence,
+                    result_reason,
                 )
             )
             reason = "ron"
@@ -192,14 +227,18 @@ class VisionEventDetector:
                 actor = (state.get("phase") or {}).get("player")
                 if isinstance(actor, int):
                     winners = [actor]
+            if not winners:
+                winners = [
+                    player for player, delta in enumerate(score_deltas) if delta > 0
+                ]
             if len(winners) != 1:
                 raise VisionDeltaError("tsumo result requires exactly one winner")
             events.append(
                 DetectedEvent(
                     "tsumo",
                     {"winner": winners[0], "score_deltas": score_deltas},
-                    "result_overlay_confirmed",
-                    "tsumo result and score deltas recognized from stable overlay",
+                    result_confidence,
+                    result_reason,
                 )
             )
             reason = "tsumo"
@@ -208,6 +247,7 @@ class VisionEventDetector:
                 draw_reason = "exhaustive"
                 reason = "draw"
             else:
+                metadata_reason = observed_metadata(observation, "draw_reason")
                 abortive = [
                     value
                     for value in (
@@ -219,6 +259,15 @@ class VisionEventDetector:
                     )
                     if observed_marker(observation, f"draw_reason_{value}") is True
                 ]
+                if isinstance(metadata_reason, str) and metadata_reason in {
+                    "nine_terminals",
+                    "four_winds",
+                    "four_riichi",
+                    "four_kan",
+                    "triple_ron",
+                }:
+                    abortive.append(metadata_reason)
+                abortive = sorted(set(abortive))
                 if len(abortive) != 1:
                     raise VisionDeltaError(
                         "abortive draw requires exactly one draw_reason marker"
@@ -229,19 +278,52 @@ class VisionEventDetector:
                 DetectedEvent(
                     "draw_game",
                     {"reason": draw_reason, "score_deltas": score_deltas},
-                    "result_overlay_confirmed",
-                    "draw result and score deltas recognized from stable overlay",
+                    result_confidence,
+                    result_reason,
                 )
             )
         events.append(
             DetectedEvent(
                 "round_end",
                 {"reason": reason, "scores": final_scores},
-                "result_overlay_confirmed",
-                "round end follows the recognized result event",
+                result_confidence,
+                "round end follows the recognized or safely inferred result event",
             )
         )
         return events
+
+    @staticmethod
+    def _infer_result_kind(
+        observation: StableObservation,
+        state: dict[str, Any],
+        score_deltas: list[int],
+    ) -> str | None:
+        phase = state.get("phase") or {}
+        phase_name = phase.get("phase")
+        positive = [index for index, value in enumerate(score_deltas) if value > 0]
+        negative = [index for index, value in enumerate(score_deltas) if value < 0]
+        if phase_name in {"awaiting_response", "awaiting_kan_response"} and positive and negative:
+            return "ron"
+        if phase_name == "awaiting_discard":
+            actor = phase.get("player")
+            if isinstance(actor, int) and actor in positive and negative:
+                return "tsumo"
+        remaining = observed_metadata(observation, "remaining_tiles")
+        if not isinstance(remaining, int):
+            remaining = state.get("remaining_tiles")
+        if remaining == 0:
+            return "draw"
+        has_abortive_reason = any(
+            observed_marker(observation, f"draw_reason_{value}") is True
+            for value in (
+                "nine_terminals",
+                "four_winds",
+                "four_riichi",
+                "four_kan",
+                "triple_ron",
+            )
+        ) or isinstance(observed_metadata(observation, "draw_reason"), str)
+        return "abortive_draw" if has_abortive_reason else None
 
     def _detect_observer_hand(
         self, observation: StableObservation, state: dict[str, Any]
@@ -385,8 +467,20 @@ class VisionEventDetector:
             )
         players = state.get("players") or []
         riichi_state = players[player].get("riichi") if player < len(players) else None
+        river_state = (
+            observed_slot_state(observation, f"river_{player}", river_index)
+            if river_index is not None
+            else None
+        )
+        horizontal_declaration = (
+            river_state is not None
+            and river_state.get("orientation") == "horizontal"
+        )
         riichi_declaration = (
-            observed_marker(observation, f"riichi_{player}") is True
+            (
+                observed_marker(observation, f"riichi_{player}") is True
+                or horizontal_declaration
+            )
             and riichi_state == "none"
         )
         output: list[DetectedEvent] = []
@@ -395,8 +489,16 @@ class VisionEventDetector:
                 DetectedEvent(
                     "riichi",
                     {"player": player, "step": "declared"},
-                    "visual_riichi_marker",
-                    "riichi marker is active on the new discard",
+                    (
+                        "horizontal_riichi_discard"
+                        if horizontal_declaration
+                        else "visual_riichi_marker"
+                    ),
+                    (
+                        "the new river tile is stably horizontal"
+                        if horizontal_declaration
+                        else "riichi marker is active on the new discard"
+                    ),
                 )
             )
         output.append(

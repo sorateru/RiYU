@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import { Tile, tileLabel } from "../../../shared/mahjong-tiles/Tile"
 
-import { loadScreenCaptureSessions, realtimeViewerURL } from "../api"
+import { loadAnalysisHealth, loadScreenCaptureSessions, realtimeViewerURL } from "../api"
+import type { AnalysisHealth } from "../api"
 import type {
   RealtimeMessage,
   PerceptionStatus,
@@ -19,22 +21,6 @@ const WIND_LABELS: Record<string, string> = {
   south: "南",
   west: "西",
   north: "北",
-}
-
-function tileLabel(tile: RealtimeStreamState["hand"][number] | undefined): string {
-  if (!tile) return "?"
-  if (typeof tile === "string") return tile
-  const kind = tile.kind ?? "?"
-  const honors: Record<string, string> = {
-    east: "東", south: "南", west: "西", north: "北",
-    white: "白", green: "發", red: "中",
-  }
-  if (honors[kind]) return honors[kind]
-  if (/^[mps][1-9]$/.test(kind)) {
-    const suffix = kind[0] === "m" ? "萬" : kind[0] === "p" ? "筒" : "索"
-    return `${tile.red ? "赤" : ""}${kind[1]}${suffix}`
-  }
-  return kind
 }
 
 function actionLabel(action: Record<string, any> | undefined): string {
@@ -63,6 +49,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
   const [streamState, setStreamState] = useState<RealtimeStreamState | null>(null)
   const [perceptionStatus, setPerceptionStatus] = useState<PerceptionStatus | null>(null)
   const [error, setError] = useState("")
+  const [health, setHealth] = useState<AnalysisHealth | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const activeSessionRef = useRef<string | null>(null)
 
@@ -141,6 +128,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
   }
 
   useEffect(() => {
+    void loadAnalysisHealth().then(setHealth).catch(() => setHealth(null))
     void refreshSessions(true)
     const timer = window.setInterval(() => void refreshSessions(true), 2_000)
     return () => {
@@ -180,7 +168,16 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
         midround_waiting_for_self_turn: "途中局：自分のツモ番を待っています",
         midround_unsupported_melds: "途中局：副露のない次局を待っています",
         desynchronized_waiting_for_round: "同期ずれ：次局開始を待っています",
+        midround_partial: "部分同期：不足情報の確定を待っています",
+        desynchronized_waiting_for_safe_snapshot: "同期ずれ：安全に復元できる局面を待っています",
+        game_screen_not_found: "雀魂の対局画面が見つかりません",
       } as const)[perceptionStatus.reason]
+  const model = health?.analysis_model
+  const modelLabel = model?.validated
+    ? `AI ${model.model_id ?? "validated"}`
+    : model?.loaded
+      ? "AI未承認・厳密計算のみ"
+      : "厳密計算のみ（AI未読込）"
 
   return (
     <div className="realtime-page">
@@ -259,6 +256,16 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
                       <code>{perceptionStatus.unknown_slots.join("\n")}</code>
                     </details>
                   ) : null}
+                  {perceptionStatus?.partial_unknown_fields?.length ? (
+                    <details><summary>部分同期の不足 {perceptionStatus.partial_unknown_fields.length}項目</summary>
+                      <code>{perceptionStatus.partial_unknown_fields.join("\n")}</code>
+                    </details>
+                  ) : null}
+                  {perceptionStatus?.profile_complete === false && perceptionStatus.profile_issues?.length ? (
+                    <details><summary>未校正機能 {perceptionStatus.profile_issues.length}件</summary>
+                      <code>{perceptionStatus.profile_issues.map((issue) => issue.detail).join("\n")}</code>
+                    </details>
+                  ) : null}
                 </div>
               )}
               <p className="capture-scope">通信傍受、ブラウザ注入、非公開API、対局操作は使用しません。</p>
@@ -280,7 +287,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
               </div>
               {streamState?.hand?.length ? (
                 <div className="live-tiles">
-                  {streamState.hand.map((tile, index) => <span key={`${tileLabel(tile)}-${index}`}>{tileLabel(tile)}</span>)}
+                  {streamState.hand.map((tile, index) => <Tile key={index} tile={tile} />)}
                 </div>
               ) : (
                 <div className="live-placeholder">雀魂の対局画面が認識されると、ここに手牌が表示されます。</div>
@@ -290,7 +297,7 @@ export default function RealtimePage({ onBack }: RealtimePageProps) {
             <section className="live-candidates-card">
               <div className="live-section-heading">
                 <div><span>RIYU RECOMMEND</span><h2>候補手</h2></div>
-                <small>{analysis ? "公開情報のみで解析" : "意思決定局面を待機中"}</small>
+                <small>{analysis ? `${modelLabel} · 公開情報のみ` : `${modelLabel} · 意思決定局面を待機中`}</small>
               </div>
               {candidates.length > 0 ? (
                 <ol className="live-candidate-list">

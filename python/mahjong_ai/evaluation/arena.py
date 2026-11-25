@@ -6,6 +6,7 @@ import hashlib
 import json
 import multiprocessing
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -79,15 +80,19 @@ class GreedyModelPolicy:
         label: str,
         mode: str,
         belief_predictor: SequenceBeliefPredictor | None = None,
+        *,
+        device: str = "cpu",
     ) -> None:
         if mode not in _POLICY_MODES:
             raise ValueError(f"unknown arena policy mode: {mode}")
         self.model = model
         self.label = label
         self.mode = mode
+        self.device = device
         self.encoder = FeatureEncoder()
         self.expected_value = ExpectedValuePolicy(
             model,
+            device=device,
             enable_rollout=mode in {"hybrid_search", "hybrid_search_high_accuracy"},
             rollout_config=(
                 RolloutConfig.high_accuracy()
@@ -95,7 +100,7 @@ class GreedyModelPolicy:
                 else None
             ),
             belief_predictor=belief_predictor,
-            action_likelihood=ImitationDiscardLikelihood(model),
+            action_likelihood=ImitationDiscardLikelihood(model, device=device),
             risk_predictor=(
                 belief_predictor.action_risks if belief_predictor is not None else None
             ),
@@ -122,8 +127,8 @@ class GreedyModelPolicy:
             encoded = self.encoder.encode(state, legal)
             with torch.inference_mode():
                 output = self.model(
-                    torch.from_numpy(encoded.planes).unsqueeze(0),
-                    torch.from_numpy(encoded.action_features).unsqueeze(0),
+                    torch.from_numpy(encoded.planes).unsqueeze(0).to(self.device),
+                    torch.from_numpy(encoded.action_features).unsqueeze(0).to(self.device),
                 )
             return int(output["policy_logits"][0].argmax())
         return self.expected_value.choose(state, legal)
@@ -356,10 +361,14 @@ def _play_hand(
     pattern: tuple[str, str, str, str],
     policies: list[GreedyModelPolicy],
     action_counts: dict[str, Counter[str]],
+    *,
+    on_state: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> HandResult:
     simulator = FourPlayerSimulator(seed, canonical_json(round_state), list(scores))
     for _ in range(400):
         states = [json.loads(simulator.observation_json(player)) for player in range(4)]
+        if on_state is not None:
+            on_state(states)
         phase = states[0]["phase"]
         phase_type = phase["phase"]
         if phase_type == "ended":

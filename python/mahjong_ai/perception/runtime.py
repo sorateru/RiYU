@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import cv2
+
+from mahjong_ai import validate_state_json
 from mahjong_ai.adapters import MAJSOUL_EVENT_PROFILE
 from mahjong_ai.analysis import (
     EXTERNAL_AUTHORIZATION,
@@ -19,18 +22,30 @@ from mahjong_ai.analysis import (
     REALTIME_PROTOCOL,
     RealtimeStateManager,
 )
+from mahjong_ai.schema import TILE_TO_INDEX, canonical_json
 
 from .annotations import ScreenAnnotationParser
-from .capture import CaptureRegion, DirectoryFrameSource, FrameSource, MacOSScreenCapture
+from .alignment import SceneAligner
+from .capture import (
+    CaptureRegion,
+    DirectoryFrameSource,
+    FrameSource,
+    MacOSScreenCapture,
+    MacOSWindowCapture,
+    front_safari_window_id,
+)
 from .parser import LayoutConfig, ScreenshotParser
+from .profile import inspect_vision_profile
 from .stability import (
     StableObservation,
     StableObservationFilter,
     observed_marker,
+    observed_meld,
     observed_metadata,
+    observed_slot_state,
     observed_tiles,
 )
-from .templates import TemplateTileClassifier
+from .templates import TemplateTileClassifier, VisualTemplateClassifier
 from .vision_events import DetectedEvent, VisionDeltaError, VisionEventDetector
 
 logger = logging.getLogger(__name__)
@@ -53,6 +68,13 @@ class VisionBootstrap:
 
 
 @dataclass(frozen=True)
+class MidroundRestorePlan:
+    state: dict[str, Any] | None
+    bootstrap: VisionBootstrap | None
+    unknown_fields: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class VisionAdapterConfig:
     session_id: str
     observer: int
@@ -63,6 +85,9 @@ class VisionAdapterConfig:
     confirmation_frames: int
     minimum_confidence: float
     capture_region: CaptureRegion | None
+    capture_window_id: int | None
+    capture_window_owner: str | None
+    capture_window_crop: CaptureRegion | None
     replay_directory: Path | None
     authorization_reference: str | None
     bootstrap: VisionBootstrap
@@ -71,6 +96,8 @@ class VisionAdapterConfig:
     marker_minimum_margin: float = 0.05
     ocr_minimum_confidence: float = 0.55
     tile_minimum_margin: float = 0.03
+    latest_frame_path: Path | None = None
+    latest_frame_interval_seconds: float = 2.0
 
     @classmethod
     def load(cls, path: str | Path) -> "VisionAdapterConfig":
@@ -79,6 +106,9 @@ class VisionAdapterConfig:
         base = config_path.parent
         capture = raw.get("capture") or {}
         capture_region = None
+        capture_window_id = None
+        capture_window_owner = None
+        capture_window_crop = None
         replay_directory = None
         mode = capture.get("mode", "macos_region")
         if mode == "macos_region":
@@ -88,12 +118,33 @@ class VisionAdapterConfig:
                 int(capture["width"]),
                 int(capture["height"]),
             )
+        elif mode == "macos_window":
+            capture_region = CaptureRegion(
+                0,
+                0,
+                int(capture["width"]),
+                int(capture["height"]),
+            )
+            capture_window_id = (
+                None if capture.get("window_id") is None else int(capture["window_id"])
+            )
+            capture_window_owner = capture.get("window_owner")
+            content = capture["content_region"]
+            capture_window_crop = CaptureRegion(
+                int(content["left"]),
+                int(content["top"]),
+                int(content["width"]),
+                int(content["height"]),
+            )
         elif mode == "directory_replay":
             replay_directory = _resolve(base, capture["directory"])
         else:
-            raise ValueError("capture.mode must be macos_region or directory_replay")
+            raise ValueError(
+                "capture.mode must be macos_region, macos_window, or directory_replay"
+            )
         bootstrap = raw["bootstrap"]
         annotation = raw.get("annotation") or {}
+        diagnostics = raw.get("diagnostics") or {}
         scores = tuple(int(value) for value in bootstrap.get("scores", [25_000] * 4))
         if len(scores) != 4:
             raise ValueError("bootstrap.scores must contain four values")
@@ -112,6 +163,9 @@ class VisionAdapterConfig:
             confirmation_frames=int(raw.get("confirmation_frames", 3)),
             minimum_confidence=float(raw.get("minimum_confidence", 0.78)),
             capture_region=capture_region,
+            capture_window_id=capture_window_id,
+            capture_window_owner=capture_window_owner,
+            capture_window_crop=capture_window_crop,
             replay_directory=replay_directory,
             authorization_reference=raw.get("authorization_reference"),
             bootstrap=VisionBootstrap(
@@ -133,6 +187,14 @@ class VisionAdapterConfig:
                 annotation.get("ocr_minimum_confidence", 0.55)
             ),
             tile_minimum_margin=float(raw.get("tile_minimum_margin", 0.03)),
+            latest_frame_path=(
+                None
+                if not diagnostics.get("latest_frame")
+                else _resolve(base, diagnostics["latest_frame"])
+            ),
+            latest_frame_interval_seconds=float(
+                diagnostics.get("latest_frame_interval_seconds", 2.0)
+            ),
         )
         result.validate()
         return result
@@ -181,6 +243,8 @@ class VisionAdapterConfig:
             raise ValueError("ocr_minimum_confidence must be in 0..=1")
         if not 0 <= self.tile_minimum_margin <= 1:
             raise ValueError("tile_minimum_margin must be in 0..=1")
+        if not 0.5 <= self.latest_frame_interval_seconds <= 60:
+            raise ValueError("latest_frame_interval_seconds must be in 0.5..=60")
         if self.capture_region is not None and (
             not isinstance(self.authorization_reference, str)
             or not self.authorization_reference.strip()
@@ -189,6 +253,23 @@ class VisionAdapterConfig:
             raise ValueError(
                 "live screen capture requires authorization_reference; use directory_replay for offline tests"
             )
+        window_selected = (
+            self.capture_window_id is not None
+            or self.capture_window_owner is not None
+        )
+        if window_selected != (self.capture_window_crop is not None):
+            raise ValueError(
+                "macos_window requires window_id or window_owner plus content_region"
+            )
+        if (
+            self.capture_window_id is not None
+            and self.capture_window_owner is not None
+        ):
+            raise ValueError("macos_window accepts either window_id or window_owner, not both")
+        if self.capture_window_owner not in {None, "Safari"}:
+            raise ValueError("capture.window_owner currently supports only Safari")
+        if self.capture_window_id is not None and self.capture_window_id <= 0:
+            raise ValueError("capture.window_id must be positive")
         if self.capture_region is not None:
             layout = LayoutConfig.load(self.layout_path)
             if (
@@ -198,6 +279,19 @@ class VisionAdapterConfig:
                 raise ValueError("layout dimensions must match capture width and height")
 
     def frame_source(self) -> FrameSource:
+        if self.capture_window_id is not None or self.capture_window_owner is not None:
+            assert self.capture_region is not None
+            assert self.capture_window_crop is not None
+            window_id = (
+                self.capture_window_id
+                if self.capture_window_id is not None
+                else front_safari_window_id()
+            )
+            return MacOSWindowCapture(
+                window_id,
+                self.capture_window_crop,
+                (self.capture_region.width, self.capture_region.height),
+            )
         if self.capture_region is not None:
             return MacOSScreenCapture(self.capture_region)
         assert self.replay_directory is not None
@@ -228,6 +322,16 @@ class VisionAdapterRuntime:
                 minimum_margin=config.tile_minimum_margin,
             ),
             annotation_parser,
+            (
+                SceneAligner(layout, config.template_directory)
+                if layout.scene_anchors
+                else None
+            ),
+            VisualTemplateClassifier(
+                config.template_directory,
+                minimum_confidence=config.minimum_confidence,
+                minimum_margin=config.tile_minimum_margin,
+            ),
         )
         self.filter = StableObservationFilter(
             config.confirmation_frames, config.minimum_confidence
@@ -237,9 +341,16 @@ class VisionAdapterRuntime:
         self.source = config.frame_source()
         self.current_round_id = config.bootstrap.round_id
         self.desynced = False
+        self.sync_status = "PARTIAL"
+        self.partial_unknown_fields: tuple[str, ...] = ("stable_observation",)
+        self._partial_observation: StableObservation | None = None
         self._last_status_payload: str | None = None
         self._last_status_sent_at = 0.0
         self._runtime_block_reason: str | None = None
+        self._last_frame_saved_at = 0.0
+        self.profile_report = inspect_vision_profile(
+            config.layout_path, config.template_directory
+        )
 
     async def run(self, max_frames: int | None = None) -> None:
         if max_frames is not None and max_frames <= 0:
@@ -261,6 +372,7 @@ class VisionAdapterRuntime:
             while max_frames is None or frames < max_frames:
                 started = asyncio.get_running_loop().time()
                 frame = await asyncio.to_thread(self.source.capture)
+                await asyncio.to_thread(self._maybe_save_latest_frame, frame)
                 perception = await asyncio.to_thread(self.parser.parse, frame)
                 frames += 1
                 stable = self.filter.push(perception)
@@ -271,11 +383,33 @@ class VisionAdapterRuntime:
                 if remaining > 0:
                     await asyncio.sleep(remaining)
 
+    def _maybe_save_latest_frame(self, frame: Any) -> None:
+        destination = self.config.latest_frame_path
+        if destination is None:
+            return
+        now = time.monotonic()
+        if now - self._last_frame_saved_at < self.config.latest_frame_interval_seconds:
+            return
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(f".{destination.stem}.tmp{destination.suffix}")
+        if not cv2.imwrite(str(temporary), frame):
+            raise VisionRuntimeError(f"could not save diagnostic frame: {destination}")
+        temporary.replace(destination)
+        self._last_frame_saved_at = now
+
     async def _send_perception_status(self, socket: Any) -> None:
         status = {
             **self.filter.last_status,
             "desynchronized": self.desynced,
+            "sync_status": self.sync_status,
+            "partial_unknown_fields": list(self.partial_unknown_fields[:64]),
             "round_initialized": self.manager.round_id is not None,
+            "profile_complete": self.profile_report.complete,
+            "profile_capabilities": self.profile_report.capabilities,
+            "profile_issues": [
+                {"code": issue.code, "detail": issue.detail}
+                for issue in self.profile_report.issues
+            ],
         }
         if (
             self._runtime_block_reason is not None
@@ -301,24 +435,25 @@ class VisionAdapterRuntime:
 
     async def _process_stable(self, socket: Any, observation: StableObservation) -> None:
         if self.manager.round_id is None:
-            bootstrap = self._round_metadata(observation, initial=True)
-            self.current_round_id = bootstrap.round_id
             if self._fresh_round(observation):
+                bootstrap = self._round_metadata(observation, initial=True)
+                self.current_round_id = bootstrap.round_id
                 self._runtime_block_reason = None
                 events = self._bootstrap_events(observation, bootstrap)
                 self.detector.prime(observation)
-            elif self._can_restore_midround(observation):
-                await self._restore_midround(socket, observation, bootstrap)
-                return
             else:
-                self._runtime_block_reason = (
-                    "midround_waiting_for_self_turn"
-                    if not observed_tiles(observation, "drawn_tile")
-                    else "midround_unsupported_melds"
-                )
+                plan = self._build_midround_restore_plan(observation)
+                if plan.state is not None and plan.bootstrap is not None:
+                    await self._restore_midround(socket, observation, plan)
+                    return
+                self.sync_status = "PARTIAL"
+                self.partial_unknown_fields = plan.unknown_fields
+                self._partial_observation = observation
+                self._runtime_block_reason = "midround_partial"
                 await self._send_perception_status(socket)
                 logger.info(
-                    "mid-round vision observed; waiting for a safely restorable self turn"
+                    "mid-round vision is partial; missing=%s",
+                    ",".join(plan.unknown_fields),
                 )
                 return
         elif self._fresh_round(observation) and self._new_round_visible(observation):
@@ -331,20 +466,32 @@ class VisionAdapterRuntime:
             self.detector.prime(observation)
         else:
             if self.desynced:
-                self._runtime_block_reason = "desynchronized_waiting_for_round"
-                logger.warning("vision remains desynchronized; waiting for a fresh round")
+                plan = self._build_midround_restore_plan(observation)
+                if plan.state is not None and plan.bootstrap is not None:
+                    await self._restore_midround(socket, observation, plan)
+                    return
+                self.sync_status = "DESYNCHRONIZED"
+                self.partial_unknown_fields = plan.unknown_fields
+                self._runtime_block_reason = "desynchronized_waiting_for_safe_snapshot"
+                logger.warning("vision remains desynchronized; waiting for a safe snapshot")
                 return
             try:
                 events = self.detector.detect(observation, self.manager.state)
             except VisionDeltaError as error:
                 self.desynced = True
-                self._runtime_block_reason = "desynchronized_waiting_for_round"
+                self.sync_status = "DESYNCHRONIZED"
+                self.partial_unknown_fields = (f"event_delta:{error}",)
+                self._runtime_block_reason = "desynchronized_waiting_for_safe_snapshot"
                 logger.error(
-                    "vision delta rejected; waiting for next fresh round: %s", error
+                    "vision delta rejected; waiting for a safe resync snapshot: %s", error
                 )
                 return
         for detected in events:
             await self._send_event(socket, detected)
+        if events or self.manager.round_id is not None:
+            self.sync_status = "SYNCED"
+            self.partial_unknown_fields = ()
+            self._partial_observation = None
         if self.manager.round_id is not None and not self._terminal_visible(observation):
             assertion = {
                 "round_id": self.manager.round_id,
@@ -358,41 +505,137 @@ class VisionAdapterRuntime:
                 raise VisionRuntimeError(f"vision/state inconsistency: {check}")
 
     def _can_restore_midround(self, observation: StableObservation) -> bool:
-        if len(observed_tiles(observation, "hand")) != 13:
-            return False
-        if len(observed_tiles(observation, "drawn_tile")) != 1:
-            return False
-        if len(observed_tiles(observation, "dora_indicators")) != 1:
-            return False
-        return not any(
-            values for name, values in observation.recognized.items() if name.startswith("meld_")
-        )
+        return self._build_midround_restore_plan(observation).state is not None
 
-    async def _restore_midround(
-        self,
-        socket: Any,
-        observation: StableObservation,
-        bootstrap: VisionBootstrap,
-    ) -> None:
-        state = copy.deepcopy(self.manager.state)
-        rivers = [
-            list(observed_tiles(observation, f"river_{player}"))
-            for player in range(4)
-        ]
-        inferred_remaining = max(
-            0,
-            70 - sum(len(values) for values in rivers) - 1,
-        )
-        observed_remaining = observed_metadata(observation, "remaining_tiles")
-        remaining = (
-            int(observed_remaining)
-            if isinstance(observed_remaining, int)
-            else inferred_remaining
-        )
-        if remaining != inferred_remaining:
-            raise VisionRuntimeError(
-                "mid-round snapshot is inconsistent: wall count does not match visible rivers"
+    def _build_midround_restore_plan(
+        self, observation: StableObservation
+    ) -> MidroundRestorePlan:
+        """Build only a fully public, uniquely determined self-turn snapshot.
+
+        Opponent hands and wall order never enter ``GameState``. Ambiguous meld
+        provenance, riichi kind, OCR, or turn ownership remains explicit in the
+        returned unknown list instead of being guessed.
+        """
+
+        unknown: list[str] = []
+        hand = list(observed_tiles(observation, "hand"))
+        drawn = list(observed_tiles(observation, "drawn_tile"))
+        dora = list(observed_tiles(observation, "dora_indicators"))
+        if len(drawn) != 1:
+            unknown.append("current_turn:not_confirmed_self_discard")
+
+        melds, meld_unknown = self._restored_melds(observation)
+        unknown.extend(meld_unknown)
+        observer_meld_count = len(melds[self.config.observer])
+        expected_hand = 13 - 3 * observer_meld_count
+        if len(hand) != expected_hand:
+            unknown.append(
+                f"hand:expected_{expected_hand}_with_{observer_meld_count}_melds_got_{len(hand)}"
             )
+
+        kan_count = sum(
+            meld["kind"] in {"daiminkan", "ankan", "shouminkan"}
+            for player_melds in melds
+            for meld in player_melds
+        )
+        expected_dora = 1 + kan_count
+        if len(dora) != expected_dora:
+            unknown.append(f"dora_indicators:expected_{expected_dora}_got_{len(dora)}")
+
+        required_integers = (
+            "hand_number",
+            "honba",
+            "riichi_sticks",
+            "remaining_tiles",
+            "score_0",
+            "score_1",
+            "score_2",
+            "score_3",
+        )
+        metadata: dict[str, int] = {}
+        for name in required_integers:
+            value = observed_metadata(observation, name)
+            if isinstance(value, int) and not isinstance(value, bool):
+                metadata[name] = value
+            else:
+                unknown.append(f"metadata.{name}:unknown")
+        wind = self._wind(observation)
+        dealer = self._marked_player(observation, "dealer")
+        if wind is None:
+            unknown.append("metadata.wind:unknown")
+        if dealer is None:
+            unknown.append("metadata.dealer:unknown")
+
+        riichi_states: list[str] = []
+        any_meld = any(player_melds for player_melds in melds)
+        for player in range(4):
+            riichi = observed_marker(observation, f"riichi_{player}")
+            double = observed_marker(observation, f"double_riichi_{player}")
+            horizontal_indexes = [
+                index
+                for index in range(len(observed_tiles(observation, f"river_{player}")))
+                if (observed_slot_state(observation, f"river_{player}", index) or {}).get(
+                    "orientation"
+                )
+                == "horizontal"
+            ]
+            if len(horizontal_indexes) > 1:
+                unknown.append(f"river_{player}:multiple_horizontal_riichi_tiles")
+                riichi_states.append("none")
+                continue
+            horizontal_declaration = bool(horizontal_indexes)
+            if riichi is False and horizontal_declaration:
+                unknown.append(f"markers.riichi_{player}:inconsistent_with_river")
+                riichi_states.append("none")
+                continue
+            if riichi is None:
+                # A completed riichi always leaves its declaration discard
+                # sideways. If there is no sideways discard, the public state
+                # safely says "none" without a seat-specific UI marker.
+                riichi = horizontal_declaration
+            if not riichi:
+                if double is True:
+                    unknown.append(f"markers.double_riichi_{player}:inconsistent")
+                riichi_states.append("none")
+                continue
+            if double is None:
+                if not horizontal_indexes:
+                    unknown.append(f"riichi_{player}:declaration_tile_unknown")
+                    riichi_states.append("none")
+                    continue
+                declaration_index = horizontal_indexes[0]
+                if declaration_index > 0:
+                    double = False
+                elif not any_meld:
+                    # First discard and no call has occurred anywhere: double
+                    # riichi is uniquely determined from public information.
+                    double = True
+                else:
+                    unknown.append(f"riichi_{player}:double_status_ambiguous")
+                    riichi_states.append("none")
+                    continue
+            if double and not riichi:
+                unknown.append(f"markers.double_riichi_{player}:inconsistent")
+            riichi_states.append(
+                "double_accepted" if double else "accepted" if riichi else "none"
+            )
+
+        if unknown:
+            return MidroundRestorePlan(None, None, tuple(sorted(set(unknown))))
+
+        assert wind is not None and dealer is not None and len(drawn) == 1
+        remaining = metadata["remaining_tiles"]
+        bootstrap = VisionBootstrap(
+            f"{wind}-{metadata['hand_number']}-{metadata['honba']}",
+            wind,
+            metadata["hand_number"],
+            metadata["honba"],
+            metadata["riichi_sticks"],
+            dealer,
+            tuple(metadata[f"score_{player}"] for player in range(4)),  # type: ignore[arg-type]
+            remaining,
+        )
+        state = copy.deepcopy(self.manager.state)
         state.update(
             {
                 "round": {
@@ -403,9 +646,9 @@ class VisionAdapterRuntime:
                     "dealer": bootstrap.dealer,
                 },
                 "scores": list(bootstrap.scores),
-                "hand": list(observed_tiles(observation, "hand")),
-                "drawn_tile": observed_tiles(observation, "drawn_tile")[0],
-                "dora_indicators": list(observed_tiles(observation, "dora_indicators")),
+                "hand": hand,
+                "drawn_tile": drawn[0],
+                "dora_indicators": dora,
                 "remaining_tiles": remaining,
                 "turn": 70 - remaining,
                 "current_actor": self.config.observer,
@@ -419,6 +662,10 @@ class VisionAdapterRuntime:
                 "next_event_sequence": 0,
             }
         )
+        rivers = [
+            list(observed_tiles(observation, f"river_{player}"))
+            for player in range(4)
+        ]
         for player, values in enumerate(rivers):
             state["players"][player] = {
                 "discards": [
@@ -431,9 +678,157 @@ class VisionAdapterRuntime:
                     }
                     for tile in values
                 ],
-                "melds": [],
-                "riichi": "none",
+                "melds": melds[player],
+                "riichi": riichi_states[player],
             }
+        try:
+            state = json.loads(validate_state_json(canonical_json(state)))
+        except ValueError as error:
+            return MidroundRestorePlan(
+                None,
+                None,
+                (f"rust_state_validation:{error}",),
+            )
+        return MidroundRestorePlan(state, bootstrap, ())
+
+    def _restored_melds(
+        self, observation: StableObservation
+    ) -> tuple[list[list[dict[str, Any]]], list[str]]:
+        output: list[list[dict[str, Any]]] = [[] for _ in range(4)]
+        unknown: list[str] = []
+        for player in range(4):
+            seen_empty = False
+            for group in range(4):
+                region = f"meld_{player}_{group}"
+                if region not in observation.recognized:
+                    unknown.append(f"recognized.{region}:not_configured")
+                    continue
+                tiles = list(observed_tiles(observation, region))
+                if not tiles:
+                    seen_empty = True
+                    continue
+                if seen_empty:
+                    unknown.append(f"recognized.{region}:non_contiguous_group")
+                meld, reason = self._restored_meld(
+                    observation, player, group, tiles
+                )
+                if meld is None:
+                    unknown.append(f"recognized.{region}:{reason}")
+                else:
+                    output[player].append(meld)
+        return output, unknown
+
+    def _restored_meld(
+        self,
+        observation: StableObservation,
+        player: int,
+        group: int,
+        tiles: list[dict[str, object]],
+    ) -> tuple[dict[str, Any] | None, str]:
+        region = f"meld_{player}_{group}"
+        geometry = observed_meld(observation, region)
+        if geometry is not None:
+            return self._restored_geometry_meld(player, tiles, geometry)
+        kinds = [str(tile["kind"]) for tile in tiles]
+        if len(tiles) == 3 and len(set(kinds)) == 1:
+            kind = "pon"
+        elif len(tiles) == 3 and _is_chi(kinds):
+            kind = "chi"
+        elif len(tiles) == 4 and len(set(kinds)) == 1:
+            active = [
+                value
+                for value in ("ankan", "daiminkan", "shouminkan")
+                if observed_marker(observation, f"{region}_{value}") is True
+            ]
+            if len(active) != 1:
+                return None, "kan_kind_ambiguous"
+            kind = active[0]
+        else:
+            return None, "invalid_shape"
+
+        if kind == "ankan":
+            return {
+                "kind": kind,
+                "tiles": tiles,
+                "called_tile": None,
+                "from": None,
+            }, ""
+
+        if kind == "chi":
+            from_player = (player + 3) % 4
+        else:
+            sources = [
+                source
+                for source in range(4)
+                if observed_marker(observation, f"{region}_from_{source}") is True
+            ]
+            if len(sources) != 1 or sources[0] == player:
+                return None, "source_ambiguous"
+            from_player = sources[0]
+
+        if all(tile == tiles[0] for tile in tiles):
+            called_tile = tiles[0]
+        else:
+            indexes = [
+                index
+                for index in range(len(tiles))
+                if observed_marker(observation, f"{region}_called_{index}") is True
+            ]
+            if len(indexes) != 1:
+                return None, "called_tile_ambiguous"
+            called_tile = tiles[indexes[0]]
+        return {
+            "kind": kind,
+            "tiles": tiles,
+            "called_tile": called_tile,
+            "from": from_player,
+        }, ""
+
+    @staticmethod
+    def _restored_geometry_meld(
+        player: int,
+        tiles: list[dict[str, object]],
+        geometry: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, str]:
+        kind = geometry.get("kind")
+        if kind not in {"chi", "pon", "daiminkan", "ankan", "shouminkan"}:
+            return None, "geometry_kind_invalid"
+        geometry_tiles = geometry.get("tiles")
+        if not isinstance(geometry_tiles, (list, tuple)) or list(geometry_tiles) != tiles:
+            return None, "geometry_tiles_inconsistent"
+        if kind == "ankan":
+            if len(tiles) != 4 or len({str(tile["kind"]) for tile in tiles}) != 1:
+                return None, "invalid_shape"
+            return {
+                "kind": kind,
+                "tiles": tiles,
+                "called_tile": None,
+                "from": None,
+            }, ""
+        from_player = geometry.get("from")
+        called_index = geometry.get("called_index")
+        if not isinstance(from_player, int) or from_player == player or not 0 <= from_player <= 3:
+            return None, "source_ambiguous"
+        if kind == "chi" and from_player != (player + 3) % 4:
+            return None, "chi_source_invalid"
+        if not isinstance(called_index, int) or not 0 <= called_index < len(tiles):
+            return None, "called_tile_ambiguous"
+        return {
+            "kind": kind,
+            "tiles": tiles,
+            "called_tile": tiles[called_index],
+            "from": from_player,
+        }, ""
+
+    async def _restore_midround(
+        self,
+        socket: Any,
+        observation: StableObservation,
+        plan: MidroundRestorePlan,
+    ) -> None:
+        assert plan.state is not None and plan.bootstrap is not None
+        state = plan.state
+        bootstrap = plan.bootstrap
         request = {
             "type": "snapshot",
             "round_id": bootstrap.round_id,
@@ -451,6 +846,9 @@ class VisionAdapterRuntime:
         )
         self.current_round_id = bootstrap.round_id
         self.desynced = False
+        self.sync_status = "SYNCED"
+        self.partial_unknown_fields = ()
+        self._partial_observation = None
         self._runtime_block_reason = None
         self.detector.prime(observation)
         logger.info(
@@ -510,6 +908,9 @@ class VisionAdapterRuntime:
         )
         self.current_round_id = bootstrap.round_id
         self.desynced = False
+        self.sync_status = "SYNCED"
+        self.partial_unknown_fields = ()
+        self._partial_observation = None
         self._runtime_block_reason = None
         self.detector.prime(observation)
         logger.info("vision resynchronized at fresh round=%s", bootstrap.round_id)
@@ -692,6 +1093,9 @@ class VisionAdapterRuntime:
         return any(
             observed_marker(observation, f"result_{kind}") is True
             for kind in ("ron", "tsumo", "draw", "abortive_draw")
+        ) or all(
+            isinstance(observed_metadata(observation, f"delta_{player}"), int)
+            for player in range(4)
         )
 
     @staticmethod
@@ -734,3 +1138,14 @@ class VisionAdapterRuntime:
 def _resolve(base: Path, value: str) -> Path:
     path = Path(value)
     return path.resolve() if path.is_absolute() else (base / path).resolve()
+
+
+def _is_chi(kinds: list[str]) -> bool:
+    if len(kinds) != 3 or any(kind not in TILE_TO_INDEX for kind in kinds):
+        return False
+    indexes = sorted(TILE_TO_INDEX[kind] for kind in kinds)
+    return (
+        indexes[2] < 27
+        and indexes[0] // 9 == indexes[2] // 9
+        and indexes == list(range(indexes[0], indexes[0] + 3))
+    )

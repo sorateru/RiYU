@@ -5,25 +5,55 @@ from .annotations import (
     ScreenAnnotationParser,
     TesseractFieldRecognizer,
 )
-from .capture import CaptureRegion, DirectoryFrameSource, MacOSScreenCapture
+from .capture import (
+    CaptureRegion,
+    DirectoryFrameSource,
+    MacOSScreenCapture,
+    MacOSWindowCapture,
+    front_safari_window_id,
+)
 from .offline import OfflineFrameLab
+from .alignment import SceneAligner, SceneAlignment
 from .parser import (
     LayoutConfig,
+    MeldPatternConfig,
+    MeldScanConfig,
+    MeldSlotConfig,
     MarkerFieldConfig,
+    SceneAnchorConfig,
     PerceptionResult,
     ScreenshotParser,
+    SlotVariantConfig,
     TextFieldConfig,
     rotate_slot_crop,
 )
-from .runtime import VisionAdapterConfig, VisionAdapterRuntime, VisionRuntimeError
+from .runtime import (
+    MidroundRestorePlan,
+    VisionAdapterConfig,
+    VisionAdapterRuntime,
+    VisionRuntimeError,
+)
+from .profile import (
+    ProfileIssue,
+    VisionProfileReport,
+    inspect_vision_profile,
+    record_template_metadata,
+)
 from .stability import (
     StableObservation,
     StableObservationFilter,
     observed_marker,
+    observed_meld,
     observed_metadata,
+    observed_slot_state,
     observed_tiles,
 )
-from .templates import Classification, TemplateTileClassifier
+from .templates import (
+    Classification,
+    TemplateTileClassifier,
+    VisualClassification,
+    VisualTemplateClassifier,
+)
 from .vision_events import DetectedEvent, VisionDeltaError, VisionEventDetector
 
 __all__ = [
@@ -33,17 +63,30 @@ __all__ = [
     "DetectedEvent",
     "DirectoryFrameSource",
     "LayoutConfig",
+    "MeldPatternConfig",
+    "MeldScanConfig",
+    "MeldSlotConfig",
     "MacOSScreenCapture",
+    "MacOSWindowCapture",
+    "front_safari_window_id",
     "MarkerClassification",
+    "MidroundRestorePlan",
     "MarkerFieldConfig",
+    "SceneAnchorConfig",
+    "SceneAligner",
+    "SceneAlignment",
     "MarkerTemplateBank",
     "OfflineFrameLab",
     "PerceptionResult",
+    "ProfileIssue",
     "ScreenAnnotationParser",
     "ScreenshotParser",
+    "SlotVariantConfig",
     "StableObservation",
     "StableObservationFilter",
     "TemplateTileClassifier",
+    "VisualClassification",
+    "VisualTemplateClassifier",
     "TesseractFieldRecognizer",
     "TextFieldConfig",
     "VisionAdapterConfig",
@@ -51,8 +94,13 @@ __all__ = [
     "VisionDeltaError",
     "VisionEventDetector",
     "VisionRuntimeError",
+    "VisionProfileReport",
+    "inspect_vision_profile",
+    "record_template_metadata",
     "observed_marker",
+    "observed_meld",
     "observed_metadata",
+    "observed_slot_state",
     "observed_tiles",
     "rotate_slot_crop",
 ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -13,10 +14,12 @@ import torch
 from mahjong_ai import FourPlayerSimulator
 from mahjong_ai.ai import ExpectedValuePolicy, MahjongNetwork, ModelConfig
 from mahjong_ai.evaluation.arena import (
+    GreedyModelPolicy,
     HandResult,
     _derive_hand_seed,
     _is_tenpai,
     _next_round,
+    _play_hand,
     _ranks,
     _terminal_result,
 )
@@ -75,8 +78,9 @@ class LocalPlaySession:
         self.hand_index = 0
         self.match_ended = False
         self.last_hand: dict[str, Any] | None = None
+        self.opening_frames: list[dict[str, Any]] = []
         self.simulator = self._new_simulator()
-        self._advance_until_human()
+        self._advance_until_human(self.opening_frames)
 
     def act(self, action: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
@@ -89,8 +93,11 @@ class LocalPlaySession:
                 raise LocalPlayError("action is not legal in the current position")
 
             phase_type = state["phase"]["phase"]
+            frames: list[dict[str, Any]] = []
             if phase_type == "awaiting_discard":
                 self.simulator.act_json(self.human_seat, canonical_json(selected))
+                if selected["type"] in {"discard", "riichi"}:
+                    frames.append(self._discard_frame(self.human_seat))
             elif phase_type in {"awaiting_response", "awaiting_kan_response"}:
                 choices = self._ai_response_choices(state)
                 choices.append((self.human_seat, selected))
@@ -98,10 +105,10 @@ class LocalPlaySession:
                 self._draw_after_unclaimed_response()
             else:
                 raise LocalPlayError("the session is not waiting for a human action")
-            self._advance_until_human()
-            return self.snapshot()
+            self._advance_until_human(frames)
+            return self.snapshot(frames)
 
-    def snapshot(self) -> dict[str, Any]:
+    def snapshot(self, frames: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         with self.lock:
             observation = self._observation(self.human_seat)
             legal = [] if self.match_ended else self._human_legal_actions(observation)
@@ -121,9 +128,24 @@ class LocalPlaySession:
                 "observation": observation,
                 "legal_actions": legal,
                 "last_hand": self.last_hand,
+                "discard_frames": frames or [],
             }
 
-    def _advance_until_human(self) -> None:
+    def _discard_frame(self, actor: int) -> dict[str, Any]:
+        state = self._observation(self.human_seat)
+        return {
+            "actor": actor,
+            "hand_index": self.hand_index,
+            "round": state["round"],
+            "scores": state["scores"],
+            "last_hand": self.last_hand,
+            "observation": {
+                key: state[key]
+                for key in ("hand", "drawn_tile", "players", "remaining_tiles", "dora_indicators")
+            },
+        }
+
+    def _advance_until_human(self, frames: list[dict[str, Any]]) -> None:
         for _ in range(2_000):
             states = [self._observation(player) for player in range(4)]
             phase = states[0]["phase"]
@@ -145,6 +167,8 @@ class LocalPlaySession:
                 legal = json.loads(self.simulator.legal_actions_json(player))
                 action = self.policy.choose(states[player], legal)
                 self.simulator.act_json(player, canonical_json(action))
+                if action["type"] in {"discard", "riichi"}:
+                    frames.append(self._discard_frame(player))
                 continue
             if phase_type in {"awaiting_response", "awaiting_kan_response"}:
                 human_legal = self._human_legal_actions(states[self.human_seat])
@@ -193,6 +217,7 @@ class LocalPlaySession:
         result = HandResult(
             seed=_derive_hand_seed(self.seed, self.hand_index),
             round_state=dict(states[0]["round"]),
+            initial_scores=self.scores,
             final_scores=final_scores,  # type: ignore[arg-type]
             result_type=result_type,
             winners=winners,
@@ -248,6 +273,63 @@ class LocalPlayManager:
         self.maximum_sessions = maximum_sessions
         self.sessions: dict[str, LocalPlaySession] = {}
         self.lock = threading.RLock()
+        self.replay_lock = threading.Lock()
+
+    def self_play_replay(self, *, seed: int, policy: str) -> dict[str, Any]:
+        if self.model is None:
+            raise LocalPlayUnavailable("対戦用モデルが読み込まれていません。")
+        if not 0 <= seed < 2**64:
+            raise LocalPlayError("シードは0以上の整数にしてください。")
+        if policy not in {"imitation", "hybrid_no_search"}:
+            raise LocalPlayError("自己対戦の方策が正しくありません。")
+        if not self.replay_lock.acquire(blocking=False):
+            raise LocalPlayError("自己対戦の生成中です。")
+        try:
+            return self._record_self_play_hand(seed, policy)
+        finally:
+            self.replay_lock.release()
+
+    def _record_self_play_hand(self, seed: int, mode: str) -> dict[str, Any]:
+        assert self.model is not None
+        frames: list[dict[str, Any]] = []
+        event_count = 0
+
+        def record(states: list[dict[str, Any]]) -> None:
+            nonlocal event_count
+            state = states[0]
+            history = state["event_history"]
+            if len(history) == event_count:
+                return
+            events = [dict(event) for event in history[event_count:]]
+            for event in events:
+                if event["type"] == "draw":
+                    event["tile"] = states[int(event["player"])]["drawn_tile"]
+                elif event["type"] == "round_start":
+                    event.pop("initial_hand", None)
+            event_count = len(history)
+            frames.append({
+                "events": events,
+                "round": state["round"],
+                "scores": state["scores"],
+                "observation": {
+                    key: state[key] for key in ("players", "remaining_tiles", "dora_indicators")
+                },
+                "hands": [
+                    {"tiles": view["hand"], "drawn": view["drawn_tile"]}
+                    for view in states
+                ],
+            })
+
+        strategy = GreedyModelPolicy(self.model, "a", mode, device=self.device)
+        result = _play_hand(
+            seed, {"wind": "east", "hand_number": 1, "honba": 0, "riichi_sticks": 0, "dealer": 0},
+            (25_000,) * 4, ("a",) * 4, [strategy] * 4, {"a": Counter()}, on_state=record,
+        )
+        return {
+            "format": "riyu-self-play-replay/v1",
+            "seed": str(seed), "model_id": self.model_id, "policy": mode, "frames": frames,
+            "result": {"type": result.result_type, "winners": result.winners, "loser": result.loser},
+        }
 
     @classmethod
     def from_checkpoint(cls, path: str | Path, device: str = "cpu") -> "LocalPlayManager":
@@ -281,7 +363,9 @@ class LocalPlayManager:
                 device=self.device,
             )
             self.sessions[session.session_id] = session
-            return session.snapshot()
+            frames = session.opening_frames
+            session.opening_frames = []
+            return session.snapshot(frames)
 
     def get(self, session_id: str) -> LocalPlaySession:
         try:

@@ -9,6 +9,7 @@ from pathlib import Path
 import cv2
 
 from mahjong_ai.perception import LayoutConfig
+from mahjong_ai.perception.profile import record_template_metadata
 
 
 def main() -> None:
@@ -19,6 +20,7 @@ def main() -> None:
     parser.add_argument("--state", choices=("on", "off"), required=True)
     parser.add_argument("--variant")
     parser.add_argument("--templates", required=True)
+    parser.add_argument("--source-reference")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
     if args.variant is not None and (
@@ -49,6 +51,16 @@ def main() -> None:
         raise FileExistsError(f"marker template already exists: {destination}")
     if not cv2.imwrite(str(destination), crop):
         raise RuntimeError(f"could not write marker template: {destination}")
+    record_template_metadata(
+        args.templates,
+        destination,
+        label=f"{args.marker}:{args.state}",
+        orientation=0,
+        target_region=f"markers.{args.marker}",
+        source_image=args.source_reference or str(Path(args.image).resolve()),
+        crop=(x, y, width, height),
+        image_size=(crop.shape[1], crop.shape[0]),
+    )
     print(destination)
 
 

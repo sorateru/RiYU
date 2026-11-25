@@ -14,6 +14,9 @@ from mahjong_ai.perception import LayoutConfig
 SLOT_COLOR = (74, 193, 255)
 TEXT_COLOR = (112, 224, 112)
 MARKER_COLOR = (214, 125, 255)
+ANCHOR_COLOR = (255, 180, 70)
+VARIANT_COLOR = (255, 210, 90)
+MELD_COLOR = (80, 150, 255)
 
 
 def main() -> None:
@@ -37,10 +40,46 @@ def main() -> None:
     for region, rectangles in layout.slots.items():
         for index, rectangle in enumerate(rectangles):
             _draw(overlay, rectangle, f"{region}[{index}]", SLOT_COLOR)
+    for region, values in layout.slot_variants.items():
+        for index, candidates in enumerate(values):
+            for candidate_index, candidate in enumerate(candidates):
+                _draw(
+                    overlay,
+                    candidate.rectangle,
+                    f"{region}[{index}].{candidate.orientation}:{candidate_index}",
+                    VARIANT_COLOR,
+                )
+    for region, patterns in layout.meld_layouts.items():
+        for pattern in patterns:
+            for index, slot in enumerate(pattern.slots):
+                _draw(
+                    overlay,
+                    slot.rectangle,
+                    f"{region}.{pattern.name}[{index}]:{slot.role}",
+                    MELD_COLOR,
+                )
+    for region, scan in layout.meld_scans.items():
+        _draw(overlay, scan.rectangle, f"{region}:right-to-left-scan", MELD_COLOR)
+        if scan.rotation == 0:
+            scan_x, scan_y, scan_width, _scan_height = scan.rectangle
+            for name, relative in (
+                ("H", scan.horizontal_rect),
+                ("V", scan.vertical_rect),
+                ("H+", scan.upper_horizontal_rect),
+            ):
+                x_offset, y, width, height = relative
+                _draw(
+                    overlay,
+                    (scan_x + scan_width + x_offset, scan_y + y, width, height),
+                    f"{region}:{name}@start",
+                    MELD_COLOR,
+                )
     for name, config in layout.text_fields.items():
         _draw(overlay, config.rectangle, f"text:{name}", TEXT_COLOR)
     for name, config in layout.markers.items():
         _draw(overlay, config.rectangle, f"marker:{name}", MARKER_COLOR)
+    for name, config in layout.scene_anchors.items():
+        _draw(overlay, config.rectangle, f"anchor:{name}", ANCHOR_COLOR)
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

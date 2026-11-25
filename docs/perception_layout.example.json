@@ -1,6 +1,28 @@
 {
   "image_width": 1280,
   "image_height": 720,
+  "scene_anchors": {
+    "settings_button": {
+      "rect": [1150, 20, 56, 56],
+      "search_rect": [1000, 0, 260, 160],
+      "minimum_confidence": 0.82,
+      "required": true,
+      "minimum_scale": 0.9,
+      "maximum_scale": 1.1,
+      "scale_step": 0.025,
+      "align": true
+    },
+    "table_center": {
+      "rect": [596, 318, 88, 88],
+      "search_rect": [500, 240, 280, 250],
+      "minimum_confidence": 0.82,
+      "required": true,
+      "minimum_scale": 0.9,
+      "maximum_scale": 1.1,
+      "scale_step": 0.025,
+      "align": true
+    }
+  },
   "slots": {
     "hand": [
       [250, 640, 38, 56], [290, 640, 38, 56], [330, 640, 38, 56],
@@ -51,6 +73,19 @@
     ]
   },
   "rotations": {"river_1": 90, "river_2": 180, "river_3": 270, "meld_3_0": 270},
+  "meld_scans": {
+    "meld_0_0": {
+      "rect": [900, 600, 300, 100],
+      "perspective_destination": [[-5, -8], [0, 99], [299, 99], [305, -8]],
+      "horizontal_rect": [-60, 50, 60, 40],
+      "vertical_rect": [-40, 40, 40, 60],
+      "upper_horizontal_rect": [-60, 5, 60, 40],
+      "horizontal_step": 64,
+      "vertical_step": 42,
+      "max_tiles": 4,
+      "from_offsets": [3, 1, 2, 3]
+    }
+  },
   "text_fields": {
     "hand_number": {"rect": [615, 335, 28, 22], "type": "integer", "min": 1, "max": 4, "ocr_psm": 7, "ocr_minimum_confidence": 0.0},
     "honba": {"rect": [650, 335, 42, 22], "type": "integer", "min": 0, "max": 99},
@@ -74,26 +109,6 @@
     "dealer_1": {"rect": [895, 305, 24, 24]},
     "dealer_2": {"rect": [570, 65, 24, 24]},
     "dealer_3": {"rect": [355, 435, 24, 24]},
-    "riichi_0": {"rect": [560, 570, 160, 20]},
-    "riichi_1": {"rect": [860, 300, 20, 160]},
-    "riichi_2": {"rect": [560, 110, 160, 20]},
-    "riichi_3": {"rect": [395, 300, 20, 160]},
-    "tsumogiri_0_0": {"rect": [505, 465, 30, 42]},
-    "tsumogiri_1_0": {"rect": [750, 300, 42, 30]},
-    "tsumogiri_2_0": {"rect": [505, 220, 30, 42]},
-    "tsumogiri_3_0": {"rect": [400, 300, 42, 30]},
-    "result_ron": {"rect": [480, 210, 320, 70]},
-    "result_tsumo": {"rect": [480, 210, 320, 70]},
-    "result_draw": {"rect": [480, 210, 320, 70]},
-    "result_abortive_draw": {"rect": [480, 210, 320, 70]},
-    "winner_0": {"rect": [520, 530, 240, 70]},
-    "winner_1": {"rect": [780, 325, 100, 150]},
-    "winner_2": {"rect": [520, 100, 240, 70]},
-    "winner_3": {"rect": [400, 325, 100, 150]},
-    "loser_0": {"rect": [520, 530, 240, 70]},
-    "loser_1": {"rect": [780, 325, 100, 150]},
-    "loser_2": {"rect": [520, 100, 240, 70]},
-    "loser_3": {"rect": [400, 325, 100, 150]},
     "draw_reason_nine_terminals": {"rect": [480, 210, 320, 70]},
     "draw_reason_four_winds": {"rect": [480, 210, 320, 70]},
     "draw_reason_four_riichi": {"rect": [480, 210, 320, 70]},

@@ -1,0 +1,47 @@
+{
+  "format": "riyu-vision-benchmark/v1",
+  "initial_events": [
+    {
+      "event_id": "benchmark-round-start",
+      "sequence": 0,
+      "round_id": "east-1-0",
+      "name": "round_start",
+      "data": {
+        "wind": "east",
+        "hand_number": 1,
+        "honba": 0,
+        "riichi_sticks": 0,
+        "dealer": 0,
+        "scores": [25000, 25000, 25000, 25000],
+        "initial_hand": ["1m", "2m", "3m", "4m", "5m", "6m", "7m", "1p", "2p", "3p", "7s", "1z", "5z"],
+        "dora_indicator": "4z",
+        "remaining_tiles": 70
+      }
+    }
+  ],
+  "frames": [
+    {
+      "file": "000.png",
+      "game_id": "sample-hanchan",
+      "round_id": "east-1-0",
+      "tiles": {
+        "hand": ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "p1", "p2", "p3", "s7", "east", "white"],
+        "drawn_tile": ["empty"],
+        "dora_indicators": ["north", "empty", "empty", "empty", "empty"]
+      },
+      "metadata": {
+        "hand_number": 1,
+        "honba": 0,
+        "riichi_sticks": 0,
+        "remaining_tiles": 70
+      },
+      "markers": {
+        "wind_east": true,
+        "dealer_0": true
+      },
+      "slot_orientations": {},
+      "melds": {},
+      "events": []
+    }
+  ]
+}

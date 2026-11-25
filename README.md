@@ -3,7 +3,7 @@
 
 四人リーチ麻雀の厳密ルール、オフライン牌譜、深層学習、自己対戦、保存画像認識を一つの観測状態契約で扱う研究基盤です。Phase 1〜9の実行可能な基盤を実装していますが、強い学習済みモデルはまだ同梱しておらず、NAGA級性能を主張しません。
 
-対象は保存牌譜、保存スクリーンショット、自作Simulator、明示的に許諾された入力元での友人間研究です。雀魂連携は牌譜閲覧画面だけで動く任意導入のChrome拡張を用意しています。対局中の解析、非公開APIへの追加リクエスト、ログイン自動化、入力操作・自動打牌は実装しません。
+対象は保存牌譜、保存スクリーンショット、自作Simulator、明示的に許諾された入力元での友人間研究です。雀魂連携は牌譜閲覧画面だけで動く任意導入のChrome拡張に加え、利用者自身の友人戦画面を読み取るローカルVision Adapterを用意しています。通信傍受、非公開APIへの追加リクエスト、ログイン自動化、入力操作・自動打牌は実装しません。
 
 ## 主な実装
 
@@ -13,7 +13,7 @@
 - AI: 49×34 Encoder、動的Action、Residual Policy/Value、公開捨て牌順Transformer、他家聴牌・待ち・局収支Head
 - Training: Dataset/DataLoader、学習・validation、checkpoint、MLflow、Self Play、Replay Buffer、PPO部品
 - Oracle/Opponent: 完全情報Teacherの型分離、蒸留、テンパイ・待ち・打点Head、Brier/Log Loss
-- Perception: 保存PNG向けOpenCVテンプレート分類、レイアウト設定、確信度・不明値
+- Perception: 保存PNG/許諾済みmacOS画面向けOpenCVテンプレート分類、scene guard、window capture、レイアウト/profile検証、確信度・不明値
 - API/UI: FastAPI + WebSocket + React/Tauri。オフライン局面または許諾済みの正規化ストリームを解析し、厳密値・モデル推定・N/Aを区別
 
 詳細は [architecture](docs/architecture.md)、[roadmap](docs/roadmap.md)、[rule matrix](docs/rules_phase2.md)、[feature encoder](docs/feature_encoder.md)、[data format](docs/data_format.md)、[safety/distribution](docs/safety_distribution.md) を参照してください。
@@ -85,6 +85,18 @@ python tools/serve_analysis.py --port 8000 \
 cd apps/reviewer
 pnpm dev
 ```
+
+AIの強さを比較するには、座席を入れ替えるArenaを実行し、Reviewerの「AI対戦結果」で出力JSONを開きます。以下は模倣学習方策と牌効率ベースラインの比較です。1シードにつき4半荘を実行します。
+
+```bash
+PYTHONPATH=python .venv/bin/python tools/evaluate_arena.py \
+  artifacts/checkpoints/tenhou-phoenix-2020-200k.pt \
+  artifacts/checkpoints/tenhou-phoenix-2020-200k.pt \
+  --policy-a imitation --policy-b tile_efficiency \
+  --seed-blocks 16 --workers 2 --output artifacts/reports/arena-vs-efficiency.json
+```
+
+結果は指定した相手と方策に対する相対評価です。ローカルAI対局に近い方策を評価する場合は、A側を `hybrid_search` に変更できます。
 
 教師データと学習:
 

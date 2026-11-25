@@ -52,11 +52,15 @@ def main() -> None:
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    engine = (
-        InferenceEngine.load(args.checkpoint, args.device, args.belief_checkpoint)
-        if args.checkpoint
-        else None
-    )
+    engine = None
+    if args.checkpoint:
+        engine = InferenceEngine.load(
+            args.checkpoint, args.device, args.belief_checkpoint
+        )
+        if not engine.metadata.trained or not engine.metadata.validated:
+            parser.error(
+                "--checkpoint must be trained and validated; promote it after holdout/Arena evaluation"
+            )
     play_manager = (
         LocalPlayManager.from_checkpoint(args.play_checkpoint, args.device)
         if args.play_checkpoint

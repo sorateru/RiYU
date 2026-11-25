@@ -3,6 +3,25 @@ import type { RealtimeSession } from "./types/realtime"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ""
 
+export type AnalysisHealth = {
+  analysis_model: {
+    loaded: boolean
+    trained: boolean
+    validated: boolean
+    policy_calibrated: boolean
+    risk_calibrated: boolean
+    model_id: string | null
+    belief_loaded: boolean
+  }
+}
+
+export async function loadAnalysisHealth(): Promise<AnalysisHealth> {
+  const response = await fetch(`${API_BASE}/api/health`)
+  const body = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(body?.detail ?? `Health lookup failed (${response.status})`)
+  return body as AnalysisHealth
+}
+
 export async function loadScreenCaptureSessions(): Promise<RealtimeSession[]> {
   const response = await fetch(`${API_BASE}/realtime/sessions`)
   const body = await response.json().catch(() => null)

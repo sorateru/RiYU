@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+from dataclasses import replace
+from pathlib import Path
 
 from mahjong_ai.perception import VisionAdapterConfig, VisionAdapterRuntime
 
@@ -24,6 +26,10 @@ def main() -> None:
         help="stop after this many frames (primarily for saved-frame replay)",
     )
     parser.add_argument(
+        "--save-latest-frame",
+        help="local-only PNG overwritten periodically for capture diagnostics",
+    )
+    parser.add_argument(
         "--log-level",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
         default="INFO",
@@ -34,6 +40,8 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     config = VisionAdapterConfig.load(args.config)
+    if args.save_latest_frame:
+        config = replace(config, latest_frame_path=Path(args.save_latest_frame).resolve())
     try:
         asyncio.run(VisionAdapterRuntime(config).run(args.max_frames))
     except KeyboardInterrupt:
