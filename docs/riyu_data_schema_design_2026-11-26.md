@@ -1,8 +1,10 @@
 # RiYU Data Lake v1 詳細設計
 
 作成日: 2026-11-26  
-状態: 実装前設計案（コード・既存データ・学習artifactは未変更）  
+状態: 試験実装を反映した詳細設計
 基礎調査: [RiYU 牌譜データ基盤 調査・再設計報告](riyu_data_foundation_audit_2026-11-25.md)
+
+実装・検証版の差分は [RiYU Data Lake v1 試験実装報告](riyu_data_lake_pilot_2026-11-26.md) を参照。以下の30テーブルは長期設計であり、試験実装の契約名は `riyu-data-lake-pilot/1` とする。
 
 本書では記述を次の4区分で扱う。監査報告またはraw/source codeで確認した値は**事実**、v1が従うべき規約は**設計決定**、容量・時間帯は**推定**、一次資料やpilotが必要な事項は**未解決**である。推定をsource factとして保存せず、未解決値をdefaultで補完しない。
 
@@ -188,7 +190,7 @@ riyu-data-lake-v1/
   feature_cache/              # 非正本、encoder version別
 ```
 
-training processは`core/`と`restricted_oracle/`を入力featureとして読めないmount/ACLにする。教師として必要な列だけを、明示されたtraining viewへjoinする。
+公開用と自席用に投影済みのイベント列を、観測者にスコープされた入力経路から読む。試験版では4席の観測列を保管し、研究用復元時は `(match_id, round, seat)` で同じ席のみ取得する。運用時の学習プロセスには用途別の入力ビューをマウントし、`core/`・`restricted_oracle/`・他席の投影に直接アクセスする権限を与えない。複数視点を同時に展開するジョブは入力生成側の権限で動かし、モデル側に渡すバッチを意思決定IDで固定する。物理的なディレクトリ分割は試験版で実施し、別ユーザーやマウント単位の権限検証は運用導入時の合格条件とする。
 
 ---
 
@@ -722,7 +724,7 @@ Parquetでは1 action 1 rowにせず、1 decision 1 rowのnested listを採用�
 |---|---|---:|---|
 | `decision_id` | binary[16] | no | PK/FK |
 | `action_schema_version` | uint16 | no | v1 |
-| `action_set_hash` | binary[32] | no | ordered action IDs + execution payload |
+| `action_set_hash` | binary[32] | no | 正規化済みの意味的な合法手集合を規定順でハッシュ |
 | `actions` | list<ActionOccurrence> | no | canonical sort順 |
 | `action_count` | uint8 | no | list length、冗長検証列 |
 
@@ -742,6 +744,8 @@ struct<
 ```
 
 同じ`action_id`は1 decision内に一度だけ。物理的に等価な候補が複数あれば、execution payloadは最小lexicographic physical IDsを選ぶ。全合法手child viewが必要な分析時だけexplodeする。1.5〜2億decisionで20〜60GB想定、legal generationが主要計算負荷。
+
+モデル用ハッシュと入力から牌の物理コピー番号を除く。canonical判の実行情報は制限テーブルに保存する。機械的に等価な非赤コピーの置換で、本人手牌・赤・手出し／ツモ切り・意味的な候補の区別が変わらないことを golden test にする。
 
 ---
 
@@ -867,7 +871,7 @@ OpponentStateLabel = struct<
 >
 ```
 
-full `hand_type_counts[34]`は容量が大きいのでprofileで選ぶ。
+Belief Liteは牌数・シャンテン・待ち・振聴などを持つ。Belief Fullは試験版では伏せ手の34枚数を固定長34バイトに保存し、赤牌の3スートビットとツモ牌の意味コードを分離する。副露は観測イベントから参照できるため同じ手牌列に入れない。物理ID、牌種列、3ビット／牌種、差分は比較対象とし、物理牌は監査時にcanonical列から復元する。3ビット×34種は102ビット、パディングを含め13バイト。Parquet圧縮後の差と復号コストは実装報告を参照。
 
 - `belief-lite`: shanten/tenpai/wait/furitenだけを永続化（推奨初回）。
 - `belief-full`: 34 countも保存（他家手牌生成model用）。
@@ -1170,7 +1174,7 @@ PK=`(match_id,split_spec_id)`。半荘より下位のtableはmatch assignmentを
 | rollout counterfactual |  | 別job |  | simulator/policy依存 |
 | full wall |  | seed検証後 |  | 未検証を確定値にしない |
 
-feature生成がepoch時間の10%以上を占めることをprofilingで確認した場合だけ、`feature_cache/<encoder_id>/`へ保存する。cache keyは`observation_hash + action_set_hash + encoder_version`。teacherと同じfileへ入れず、入力列allowlistを維持する。
+特徴量の生成を計測し、キャッシュの効果を見て `feature_cache/<encoder_id>/` を作る。キーには可視状態の `state_hash`、意味的合法手の `action_set_hash`、Encoderの版と設定を含める。時系列Encoderは、観測範囲のイベント列の `history_hash` も必須とする。特徴量自体の版付きハッシュはキャッシュの結果検証に使う。状態への到達履歴が異なるサンプルは、状態ハッシュが一致しても時系列キャッシュを共有しない。
 
 ---
 
@@ -1297,7 +1301,7 @@ performance-criticalなmatch内処理をRustで完結し、Pythonへ1 decision�
 
 ### 14.4 TSUBAME batch
 
-SLURM job arrayを想定する。
+TSUBAME4.0はAltair Grid Engineを採用している。アレイジョブでは `qsub -g GROUP -t 1-N` で投入し、ワーカーは `SGE_TASK_ID` を承認済みの範囲表に対応させる。資源タイプと実行時間は投入時に指定する。[TSUBAME4.0公式利用の手引き](https://www.t4.cii.isct.ac.jp/docs/handbook.ja/jobs/#5218)
 
 ```text
 planner: source manifest -> match ID range tasks
@@ -1311,6 +1315,7 @@ teacher arrays: canonical shard manifestを入力に独立実行
 - IDは処理順に依存しない。
 - retryは同じtask ID/seedから同じlogical rowsを生成する。
 - 32 worker時のparallel efficiency 70%以上を目標とし、shared storage飽和を別metricにする。
+- SQLiteを行単位で複数ノードから再読込する前に、コンテナを共通ノードストレージに置く構成とローカル一時領域へ複製する構成を計測する。利用範囲はTSUBAME上での保管と処理が確認された許諾に従う。
 
 ---
 
