@@ -68,6 +68,19 @@ def feature_payload_hash(cache_key: str, payload: bytes) -> str:
     return hashlib.sha256(b"riyu-feature-payload-v1\0" + key + payload).hexdigest()
 
 
+def pilot_rules(rule: int) -> dict:
+    if rule not in (169, 225):
+        raise ValueError("unsupported pilot rule profile")
+    return {
+        "player_count": 4, "starting_score": 25000, "target_score": 30000,
+        "red_fives": [1, 1, 1], "open_tanyao": True, "double_wind_pair_fu": True,
+        "kiriage_mangan": False, "kazoe_limit": "yakuman", "allow_double_ron": True,
+        "triple_ron_is_draw": True, "double_yakuman": False,
+        "match_length": "east_south" if rule == 169 else "east_only",
+        "allow_kokushi_ankan_chankan": False,
+    }
+
+
 def restore_observation(input_root: Path, decision: dict, *, use_checkpoints: bool = True) -> dict:
     """Get the exact observation using only files in the input subtree."""
     import pyarrow.parquet as pq
@@ -104,17 +117,7 @@ def restore_observation(input_root: Path, decision: dict, *, use_checkpoints: bo
             event["sequence"] = sequence
             state_json = apply_event_json(state_json, json.dumps(event))
     else:
-        rule = decision["rule_code"]
-        if rule not in (169, 225):
-            raise ValueError("unsupported pilot rule profile")
-        rules = {
-            "player_count": 4, "starting_score": 25000, "target_score": 30000,
-            "red_fives": [1, 1, 1], "open_tanyao": True, "double_wind_pair_fu": True,
-            "kiriage_mangan": False, "kazoe_limit": "yakuman", "allow_double_ron": True,
-            "triple_ron_is_draw": True, "double_yakuman": False,
-            "match_length": "east_south" if rule == 169 else "east_only",
-            "allow_kokushi_ankan_chankan": False,
-        }
+        rules = pilot_rules(decision["rule_code"])
         state_json = replay_events_json(actor, "[" + ",".join(row["event"].decode() for row in rows) + "]",
                                         json.dumps(rules))
     state = json.loads(state_json)

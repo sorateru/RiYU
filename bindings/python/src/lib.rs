@@ -123,6 +123,27 @@ impl PyObservationReplayer {
         game_state_to_json(&self.inner).map_err(value_error)
     }
 
+    #[staticmethod]
+    fn from_state_json(state_json: &str) -> PyResult<Self> {
+        Ok(Self {
+            inner: game_state_from_json(state_json).map_err(value_error)?,
+        })
+    }
+
+    /// Compact RiYU player observation. History is supplied separately by the caller.
+    fn lake_snapshot_json(&self) -> PyResult<String> {
+        let s = &self.inner;
+        let mut hand = s.hand.clone();
+        hand.sort_by_key(|tile| (tile.kind.index(), tile.red));
+        serde_json::to_string(&serde_json::json!({
+            "seat": s.observer().get(), "round": s.round, "scores": s.scores, "hand": hand,
+            "drawn": s.drawn_tile, "players": s.players, "dora": s.dora_indicators,
+            "ippatsu": s.ippatsu_eligible, "phase": s.phase, "remaining": s.remaining_tiles,
+            "turn": s.turn, "pending_kan": s.pending_kan,
+        }))
+        .map_err(value_error)
+    }
+
     fn apply_event_json(&mut self, event_json: &str) -> PyResult<()> {
         let event: GameEvent = serde_json::from_str(event_json).map_err(value_error)?;
         self.inner.apply_event(event).map_err(value_error)

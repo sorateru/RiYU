@@ -22,7 +22,12 @@ TILES = tuple(f"{suit}{rank}" for suit in "mps" for rank in range(1, 10)) + (
 TILE_INDEX = {tile: i for i, tile in enumerate(TILES)}
 ENCODER = "riyu-observation-counts/1"
 INPUT_FIELDS = frozenset({"hand", "drawn", "dora", "scores", "remaining"})
-TABLES = frozenset({"governance/split", "inputs/decisions", "inputs/snapshots", "targets/policy"})
+TABLES = frozenset({
+    "governance/split", "inputs/decisions", "inputs/snapshots", "inputs/events",
+    "inputs/checkpoints", "targets/policy", "targets/attack", "targets/defense",
+    "targets/belief_lite", "targets/belief_full", "targets/round", "targets/match",
+    "targets/wins", "targets/local_actions",
+})
 
 
 @dataclass(frozen=True)
@@ -68,13 +73,14 @@ def model_features(snapshot: dict) -> np.ndarray:
     return out
 
 
-def release_shards(root: Path) -> list[tuple[str, bool]]:
+def release_shards(root: Path, *, require_snapshots=True) -> list[tuple[str, bool]]:
     manifest = json.loads((root / "manifest.json").read_text())
+    table = "snapshots" if require_snapshots else "decisions"
     if manifest.get("build", {}).get("format") == "parquet":
         return [(entry["file"], True) for entry in manifest["shards"]
-                if "inputs/snapshots" in entry["footer"]["files"]]
+                if f"inputs/{table}" in entry["footer"]["files"]]
     return [(f"part-{offset:08}", False) for offset, _ in manifest["ranges"]
-            if (root / "inputs" / "snapshots" / f"part-{offset:08}.parquet").is_file()]
+            if (root / "inputs" / table / f"part-{offset:08}.parquet").is_file()]
 
 
 def parquet_table(root, shard, table):

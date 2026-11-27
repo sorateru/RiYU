@@ -399,6 +399,18 @@ impl Shard<'_> {
             &[],
             &[key, axis, ("candidates", &d["defense"])],
         )?;
+        if let Some(local) = d.get("local_actions").filter(|v| !v.is_null()) {
+            let indices: Vec<_> = values(&local["candidates"])
+                .iter()
+                .map(|item| item["action_index"].as_u64().context("local action index"))
+                .collect::<Result<_>>()?;
+            ensure!(
+                indices.windows(2).all(|pair| pair[0] < pair[1])
+                    && indices.iter().all(|&i| (i as usize) < actions.len()),
+                "invalid local action axis"
+            );
+            self.add("targets/local_actions", &[local], &[key, axis])?;
+        }
         let next = values(&d["next_opponent_action"]).iter().map(|o| {
             if let Some(ordinal) = o.as_u64() {
                 let e = events.get(ordinal as usize).context("missing future event")?;

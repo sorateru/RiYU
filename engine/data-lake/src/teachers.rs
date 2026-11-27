@@ -2,8 +2,8 @@ use std::{collections::HashMap, time::Instant};
 
 use anyhow::Result;
 use mahjong_core::{
-    GameState, MeldKind, TileCounts, TileType, TurnPhase, WinMethod, calculate_shanten,
-    legal_actions, score_observer_win,
+    GameState, MeldKind, ShantenResult, TileCounts, TileType, TurnPhase, WinMethod,
+    calculate_shanten, legal_actions, score_observer_win,
 };
 use serde::Serialize;
 
@@ -12,7 +12,7 @@ use crate::{actions::Candidate, physical::Ledger, source::PhysicalTile};
 
 #[derive(Default)]
 pub struct HandAnalysis {
-    shanten: HashMap<(TileCounts, u8), i8>,
+    shanten: HashMap<(TileCounts, u8), ShantenResult>,
     use_cache: bool,
     suit_memo: SuitMemo,
     pub evaluations: u64,
@@ -28,6 +28,14 @@ impl HandAnalysis {
     }
 
     pub fn shanten(&mut self, counts: TileCounts, fixed: u8) -> mahjong_core::Result<i8> {
+        Ok(self.shanten_families(counts, fixed)?.minimum)
+    }
+
+    pub fn shanten_families(
+        &mut self,
+        counts: TileCounts,
+        fixed: u8,
+    ) -> mahjong_core::Result<ShantenResult> {
         if self.use_cache {
             if let Some(&result) = self.shanten.get(&(counts, fixed)) {
                 self.hits += 1;
@@ -36,9 +44,9 @@ impl HandAnalysis {
         }
         self.evaluations += 1;
         let result = if self.use_cache {
-            self.suit_memo.minimum(&counts, fixed)
+            self.suit_memo.analyze(&counts, fixed)
         } else {
-            calculate_shanten(&counts, fixed)?.minimum
+            calculate_shanten(&counts, fixed)?
         };
         if self.use_cache && self.shanten.len() < 65_536 {
             self.shanten.insert((counts, fixed), result);
@@ -58,7 +66,7 @@ impl HandAnalysis {
         Ok((counts, fixed, shanten, waiting))
     }
 
-    fn improvements(&mut self, counts: TileCounts, fixed: u8, shanten: i8) -> Result<u64> {
+    pub fn improvements(&mut self, counts: TileCounts, fixed: u8, shanten: i8) -> Result<u64> {
         let mut mask = 0;
         for tile in TileType::ALL {
             if counts[tile] < 4 {
@@ -148,13 +156,8 @@ pub struct AttackCandidate {
     pub tenpai_after: bool,
 }
 
-pub fn attack(
-    state: &GameState,
-    candidates: &[Candidate],
-    cache: &mut HandAnalysis,
-) -> Result<Attack> {
-    let (hand, fixed, shanten, wait_mask) = cache.hand(state)?;
-    let known = TileCounts::from_tiles(
+pub fn known_tiles(state: &GameState) -> Result<TileCounts> {
+    let mut known = TileCounts::from_tiles(
         state
             .hand
             .iter()
@@ -174,6 +177,32 @@ pub fn attack(
                     .flat_map(|s| s.melds.iter().flat_map(|m| m.tiles.iter().copied())),
             ),
     )?;
+    if let Some(pending) = &state.pending_kan {
+        let previous = pending
+            .replace_meld_index
+            .map(|index| &state.players[pending.player.index()].melds[index].tiles[..])
+            .unwrap_or(&[]);
+        let mut added = pending.meld.tiles.clone();
+        for tile in previous {
+            let index = added
+                .iter()
+                .position(|t| t == tile)
+                .expect("pending kan includes previous pon");
+            added.swap_remove(index);
+        }
+        for tile in added {
+            known.add(tile.kind)?;
+        }
+    }
+    Ok(known)
+}
+
+pub fn attack(
+    state: &GameState,
+    candidates: &[Candidate],
+    cache: &mut HandAnalysis,
+) -> Result<Attack> {
+    let (hand, fixed, shanten, wait_mask) = cache.hand(state)?;
     let mut per_kind = HashMap::<TileType, AttackCandidate>::new();
     let mut output = Attack {
         shanten,
@@ -183,6 +212,7 @@ pub fn attack(
     if !candidates.iter().any(|c| c.semantic[1] <= 1) {
         return Ok(output);
     }
+    let known = known_tiles(state)?;
     for (index, c) in candidates.iter().enumerate() {
         let tile = match c.action {
             mahjong_core::Action::Discard { tile, .. } => tile,
@@ -236,7 +266,53 @@ pub struct DefenseCandidate {
     pub opponents: Vec<RonCell>,
 }
 
-fn pending_kan_dora(state: &GameState) -> bool {
+pub fn ron_cell(
+    seat: u8,
+    state: &GameState,
+    uncertain: FuritenUncertain,
+    pending_dora: bool,
+    checks_wait: bool,
+) -> Result<RonCell> {
+    let mut cell = RonCell {
+        seat,
+        ron_legal: Some(false),
+        legality_status: "valid",
+        conditional_loss: None,
+        no_ura_no_pao_loss: None,
+        loss_status: "not_applicable",
+    };
+    if !checks_wait
+        || !legal_actions(state)?
+            .actions
+            .iter()
+            .any(|a| matches!(a, mahjong_core::Action::Ron { .. }))
+    {
+        return Ok(cell);
+    }
+    let score = score_observer_win(state, WinMethod::Ron)?;
+    cell.no_ura_no_pao_loss = score.payment.ron_payment;
+    cell.ron_legal = (!uncertain.any()).then_some(true);
+    if uncertain.any() {
+        cell.legality_status = "unknown_furiten";
+    }
+    let pao_possible = score.yaku.iter().any(|entry| {
+        matches!(
+            entry.yaku,
+            mahjong_core::Yaku::Daisangen | mahjong_core::Yaku::Daisuushii
+        )
+    });
+    cell.loss_status = if pending_dora {
+        "pending_kan_dora"
+    } else if state.players[seat as usize].riichi.is_accepted() || pao_possible || uncertain.any() {
+        "conditional_only"
+    } else {
+        cell.conditional_loss = score.payment.ron_payment;
+        "valid_single_ron"
+    };
+    Ok(cell)
+}
+
+pub fn pending_kan_dora(state: &GameState) -> bool {
     let completed_kans = state
         .players
         .iter()
@@ -297,58 +373,25 @@ pub fn defense(
             let mut cells = Vec::new();
             for hand in opponents {
                 let i = hand.seat as usize;
-                let mut cell = RonCell {
-                    seat: hand.seat,
-                    ron_legal: Some(false),
-                    legality_status: "valid",
-                    conditional_loss: None,
-                    no_ura_no_pao_loss: None,
-                    loss_status: "not_applicable",
-                };
-                if hand
+                let waits_for_tile = hand
                     .wait_mask
-                    .is_some_and(|mask| mask & (1 << tile.kind.index()) != 0)
-                {
-                    let mut state = states[i].clone();
+                    .is_some_and(|mask| mask & (1 << tile.kind.index()) != 0);
+                let mut state;
+                let context = if waits_for_tile {
+                    state = states[i].clone();
                     state.phase = TurnPhase::AwaitingResponse { discarder, tile };
                     state.current_actor = None;
-                    // The candidate does not change any opponent hand or the existing visible dora.
-                    let can_ron = legal_actions(&state)?
-                        .actions
-                        .iter()
-                        .any(|a| matches!(a, mahjong_core::Action::Ron { .. }));
-                    if can_ron {
-                        let score = score_observer_win(&state, WinMethod::Ron)?;
-                        cell.no_ura_no_pao_loss = score.payment.ron_payment;
-                        if uncertain[i].any() {
-                            cell.ron_legal = None;
-                            cell.legality_status = "unknown_furiten";
-                        } else {
-                            cell.ron_legal = Some(true);
-                        }
-                        let pao_possible = score.yaku.iter().any(|e| {
-                            matches!(
-                                e.yaku,
-                                mahjong_core::Yaku::Daisangen | mahjong_core::Yaku::Daisuushii
-                            )
-                        });
-                        if pending_dora {
-                            // A delayed indicator can affect the score for
-                            // this discard. Retain the score under visible dora
-                            // as a separate assumption even when ron is legal.
-                            cell.loss_status = "pending_kan_dora";
-                        } else if state.players[i].riichi.is_accepted()
-                            || pao_possible
-                            || uncertain[i].any()
-                        {
-                            cell.loss_status = "conditional_only";
-                        } else {
-                            cell.loss_status = "valid_single_ron";
-                            cell.conditional_loss = score.payment.ron_payment;
-                        }
-                    }
-                }
-                cells.push(cell);
+                    &state
+                } else {
+                    &states[i]
+                };
+                cells.push(ron_cell(
+                    hand.seat,
+                    context,
+                    uncertain[i],
+                    pending_dora,
+                    waits_for_tile,
+                )?);
             }
             results.entry(tile).or_insert(cells)
         };
@@ -369,6 +412,7 @@ pub struct Timings {
     pub attack_us: u64,
     pub defense_us: u64,
     pub belief_us: u64,
+    pub local_us: u64,
     pub shanten_evaluations: u64,
     pub shanten_cache_hits: u64,
 }

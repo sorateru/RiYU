@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter, defaultdict
+from functools import lru_cache
 import json
 from pathlib import Path
 import sys
+import time
 
 from mahjong.shanten import Shanten
 import pyarrow as pa
@@ -19,6 +21,55 @@ from mahjong_ai.data.lake_loader import TILE_INDEX
 
 def tile_code(tile):
     return 2 * TILE_INDEX[tile["kind"]] + bool(tile["red"])
+
+
+@lru_cache(maxsize=32768)
+def structural_decompositions(counts):
+    """Partition a hand into melds, incomplete groups, and at most one pair."""
+    first = next((i for i, n in enumerate(counts) if n), None)
+    if first is None:
+        return frozenset({(0, 0, 0)})
+    blocks = [((0,), 0, 0, 0)]
+    if counts[first] >= 2:
+        blocks.extend([((0, 0), 0, 0, 1), ((0, 0), 0, 1, 0)])
+    if counts[first] >= 3:
+        blocks.append(((0, 0, 0), 1, 0, 0))
+    if first < 27:
+        adjacent = [delta for delta in (1, 2)
+                    if (first + delta) // 9 == first // 9 and counts[first + delta]]
+        blocks.extend(((0, delta), 0, 1, 0) for delta in adjacent)
+        if len(adjacent) == 2:
+            blocks.append(((0, 1, 2), 1, 0, 0))
+    results = set()
+    for points, meld, incomplete, pair in blocks:
+        remaining = list(counts)
+        for delta in points:
+            remaining[first + delta] -= 1
+        for m, t, p in structural_decompositions(tuple(remaining)):
+            if p + pair <= 1:
+                results.add((m + meld, t + incomplete, p + pair))
+    return frozenset(results)
+
+
+def structural_standard(reference, counts, fixed):
+    if max(counts) != 4:
+        return reference.calculate_shanten_for_regular_hand(counts)
+    # The stored structural convention permits a single stranded copy from
+    # a quadruple. Ukeire separately enforces the four-copy constraint.
+    return min(8 - 2 * (m + fixed) - p - min(t, 4 - m - fixed)
+               for m, t, p in structural_decompositions(tuple(counts)) if m + fixed <= 4)
+
+
+def has_source_turn_order_conflict(events):
+    previous = []
+    for e in events:
+        if e["type"] in ("players", "disconnect"):
+            continue
+        if (e["type"] == "call" and e["meld"]["kind"] in ("ankan", "shouminkan")
+                and [(p["type"], p["seat"]) for p in previous] == [("draw", e["seat"]), ("discard", e["seat"])]):
+            return True
+        previous = [*previous[-1:], e]
+    return False
 
 
 def winning_transfers(wins, dealer):
@@ -104,12 +155,56 @@ def hand_at(events, wanted, own):
     return result
 
 
-def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None):
+def committed_shards(root, max_shards=0, follow=False):
+    """Read immutable shards as they commit, then verify the final manifest."""
+    manifest = root / "manifest.json"
+    if not follow or manifest.is_file():
+        data = json.loads(manifest.read_bytes())
+        return data["build"], data["shards"][:max_shards or None]
+
+    def wait_for(path):
+        deadline = time.monotonic() + 600
+        while not path.is_file():
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"release did not commit {path}")
+            time.sleep(2)
+        return json.loads(path.read_bytes())
+
+    first = sorted(root.glob("shard-*/commit.json"))
+    if not first:
+        raise ValueError("--follow requires the first committed shard")
+    build = json.loads(first[0].read_bytes())["header"]["build"]
+
+    def available():
+        processed = []
+        for relative in range(0, build["limit"], build["shard_size"]):
+            length = min(build["shard_size"], build["limit"] - relative)
+            offset = build["offset"] + relative
+            name = f"shard-{offset:08}-{length:04}"
+            footer = wait_for(root / name / "commit.json")
+            statuses = footer["statuses"]
+            if sum(statuses.values()) != length or statuses.keys() - {"replayed", "replay_rejected"}:
+                raise ValueError(f"unexpected statuses in {name}: {footer['statuses']}")
+            shard = {
+                "file": name, "offset": offset, "footer": footer,
+                "bytes": sum(f["bytes"] for f in footer["files"].values()),
+            }
+            processed.append(shard)
+            yield shard
+            if max_shards and len(processed) == max_shards:
+                return
+        final = wait_for(manifest)
+        if final["build"] != build or final["shards"] != processed:
+            raise ValueError("committed shard list disagrees with the final manifest")
+
+    return build, available()
+
+
+def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None, follow=False):
     status, coverage, anomalies = Counter(), Counter(), Counter()
     loss_contexts = Counter()
-    manifest = json.loads((root / "manifest.json").read_text())
     shanten = Shanten()
-    selected_shards = manifest["shards"][:max_shards or None]
+    _, selected_shards = committed_shards(root, max_shards, follow)
     for shard_index, shard in enumerate(selected_shards):
         directory = root / shard["file"]
         status.update(shard["footer"]["statuses"])
@@ -126,13 +221,16 @@ def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None):
         canonical = defaultdict(list)
         for e in read("restricted/events", [
             "match_id", "round", "source_ordinal", "type", "attrs", "seat", "from", "hand_number",
-            "dealer", "step", "reason", "points", "responsibility", "ura", "score_change",
+            "dealer", "step", "reason", "points", "responsibility", "ura", "score_change", "meld",
         ]):
             canonical[e["match_id"]].append(e)
         match_headers = {m["match_id"]: m for m in read("restricted/matches")}
         for match in match_headers.values():
             if (error := match["diagnostic"]) is not None:
-                anomalies["replay: " + error.rsplit(": ", 1)[-1].split(" {")[0]] += 1
+                if "selected Kan" in error and has_source_turn_order_conflict(canonical[match["match_id"]]):
+                    coverage["source_turn_order_conflict_quarantined"] += 1
+                else:
+                    anomalies["replay: " + error.rsplit(": ", 1)[-1].split(" {")[0]] += 1
         targets = {r["decision_id"]: r for r in read("targets/policy")}
         decisions = read("inputs/decisions")
         picked = {d["decision_id"]: d for d in decisions[::belief_stride]} if belief_stride else {}
@@ -297,7 +395,12 @@ def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None):
                     if sum(counts) + 3 * auxiliary["meld_count"] not in (13, 14):
                         coverage["belief_pending_kan_shape"] += 1
                         continue
-                    expected_shanten = shanten.calculate_shanten(counts)
+                    fixed = auxiliary["meld_count"]
+                    standard = structural_standard(shanten, counts, fixed)
+                    expected_shanten = min(standard, shanten.calculate_shanten(
+                        counts, not fixed, not fixed))
+                    if expected_shanten != shanten.calculate_shanten(counts, not fixed, not fixed):
+                        coverage["belief_quad_convention_difference"] += 1
                     if expected_shanten != auxiliary["shanten"]:
                         anomalies["independent shanten mismatch"] += 1
                     if auxiliary["wait_mask"] is not None:
@@ -337,7 +440,7 @@ def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None):
                         ):
                             anomalies["positive ron contradicts reference wait or known furiten"] += 1
         if (shard_index + 1) % 10 == 0:
-            print(f"checked {shard_index+1}/{len(selected_shards)} audit shards", file=sys.stderr)
+            print(f"checked {shard_index+1} audit shards", file=sys.stderr)
     return {"status": status, "coverage": coverage, "anomalies": anomalies,
             "loss_mismatch_contexts": [
                 {"event": key[0], "paid": key[1], "predicted": key[2], "count": n}
@@ -351,9 +454,10 @@ if __name__ == "__main__":
     p.add_argument("--max-shards", type=int, default=0)
     p.add_argument("--belief-stride", type=int, default=101)
     p.add_argument("--private-mismatch-plan", type=Path)
+    p.add_argument("--follow", action="store_true")
     a = p.parse_args()
     locators = set() if a.private_mismatch_plan else None
-    result = audit(a.release, a.max_shards, a.belief_stride, locators)
+    result = audit(a.release, a.max_shards, a.belief_stride, locators, a.follow)
     if a.private_mismatch_plan:
         import os
         fd = os.open(a.private_mismatch_plan, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

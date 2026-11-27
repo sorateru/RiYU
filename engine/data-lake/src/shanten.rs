@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use mahjong_core::TileCounts;
+use mahjong_core::{ShantenResult, TileCounts};
 
 // For a single suit, store the maximum number of incomplete groups for each
 // (complete groups, used head) combination. Unused tiles are always permitted.
@@ -13,7 +13,7 @@ pub struct SuitMemo {
 }
 
 impl SuitMemo {
-    pub fn minimum(&mut self, counts: &TileCounts, fixed: u8) -> i8 {
+    pub fn analyze(&mut self, counts: &TileCounts, fixed: u8) -> ShantenResult {
         let raw = counts.as_array();
         let mut combined = EMPTY;
         let max = 4 - fixed as usize;
@@ -50,16 +50,27 @@ impl SuitMemo {
                 }
             }
         }
-        if fixed == 0 {
+        let (seven_pairs, thirteen_orphans) = if fixed == 0 {
             let pairs = raw.iter().filter(|&&n| n >= 2).count() as i8;
             let unique = counts.unique_count() as i8;
-            best = best.min(6 - pairs + (7 - unique).max(0));
             let terminals = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
             let distinct = terminals.iter().filter(|&&t| raw[t] > 0).count() as i8;
             let pair = terminals.iter().any(|&t| raw[t] >= 2);
-            best = best.min(13 - distinct - i8::from(pair));
+            (
+                Some(6 - pairs + (7 - unique).max(0)),
+                Some(13 - distinct - i8::from(pair)),
+            )
+        } else {
+            (None, None)
+        };
+        ShantenResult {
+            minimum: best
+                .min(seven_pairs.unwrap_or(best))
+                .min(thirteen_orphans.unwrap_or(best)),
+            standard: best,
+            seven_pairs,
+            thirteen_orphans,
         }
-        best
     }
 
     fn frontier(&mut self, honor: bool, key: u32) -> Frontier {
@@ -136,8 +147,8 @@ mod tests {
                     }
                 }
                 assert_eq!(
-                    memo.minimum(&counts, fixed),
-                    calculate_shanten(&counts, fixed).unwrap().minimum,
+                    memo.analyze(&counts, fixed),
+                    calculate_shanten(&counts, fixed).unwrap(),
                     "counts={counts:?} fixed={fixed}"
                 );
             }

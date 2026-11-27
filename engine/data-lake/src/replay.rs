@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 
 use crate::{
     actions::{Candidate, called_action, candidates, execution, semantic, tenhou_filter},
+    local::{self, LocalLabels},
     physical::Ledger,
     source::{CanonicalEvent, Kind, Match, Start, digest},
     teachers::{
@@ -36,8 +37,12 @@ pub struct Decision {
     choice: Option<u8>,
     choice_status: &'static str,
     evidence_ordinal: u32,
+    resolution: &'static str,
+    riichi_accepted: Option<bool>,
+    riichi_acceptance_ordinal: Option<u32>,
     attack: Attack,
     defense: Vec<DefenseCandidate>,
+    local_actions: Option<LocalLabels>,
     opponents: Vec<HiddenHand>,
     next_opponent_action: [Option<u32>; 4],
 }
@@ -244,6 +249,24 @@ impl Round<'_> {
         let t = Instant::now();
         let defense = defense(&self.states, seat, &rows, &opponents, &self.uncertain)?;
         self.timing.defense_us += elapsed(t);
+        let t = Instant::now();
+        let local_actions = local::labels(
+            &self.states,
+            seat,
+            &rows,
+            &attack,
+            &opponents,
+            &self.uncertain,
+            &self.ledger,
+            self.cache,
+        )?;
+        self.timing.local_us += elapsed(t);
+        let resolution = match (status, legal_status) {
+            ("selected", "complete") => "selected",
+            (_, "unknown_furiten") => "incomplete_legal_set",
+            ("definite_pass", _) => "confirmed_pass",
+            _ => "priority_censored",
+        };
         self.decisions.push(Decision {
             id,
             actor: seat,
@@ -260,8 +283,12 @@ impl Round<'_> {
             choice,
             choice_status: status,
             evidence_ordinal: evidence,
+            resolution,
+            riichi_accepted: None,
+            riichi_acceptance_ordinal: None,
             attack,
             defense,
+            local_actions,
             opponents,
             next_opponent_action: [None; 4],
         });
@@ -823,6 +850,12 @@ fn finish(
         })
         .collect();
     let mut cursor = actions.len();
+    let mut accepted = [None; 4];
+    for event in events {
+        if let Kind::Riichi { seat, step: 2, .. } = event.kind {
+            accepted[seat as usize] = Some(event.source_ordinal);
+        }
+    }
     r.decisions.sort_by_key(|d| (d.source_ordinal, d.actor));
     for decision in r.decisions.iter_mut().rev() {
         while cursor > 0 && actions[cursor - 1].0 > decision.source_ordinal {
@@ -832,6 +865,15 @@ fn finish(
         }
         decision.next_opponent_action = next;
         decision.next_opponent_action[decision.actor as usize] = None;
+        if decision
+            .choice
+            .is_some_and(|i| matches!(decision.actions[i as usize].action, Action::Riichi { .. }))
+        {
+            let acceptance = accepted[decision.actor as usize]
+                .filter(|&ordinal| ordinal > decision.evidence_ordinal);
+            decision.riichi_accepted = Some(acceptance.is_some());
+            decision.riichi_acceptance_ordinal = acceptance;
+        }
     }
     Ok(RoundResult {
         round_index: r.index,

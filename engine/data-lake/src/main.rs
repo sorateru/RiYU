@@ -1,5 +1,6 @@
 mod actions;
 mod columnar;
+mod local;
 mod physical;
 mod replay;
 mod shanten;
@@ -149,6 +150,7 @@ fn main() -> Result<()> {
         "measure_restore": flags.contains("--measure-restore"),
         "normalize_only": flags.contains("--normalize-only"), "offset": offset, "limit": limit,
         "shard_size": shard_size, "redistribution_allowed": false,
+        "teacher_spec": "local-actions-v1",
         "format":config.format, "profile":config.profile, "checkpoint":config.checkpoint,
         "batch":config.batch, "row_group":config.row_group, "zstd":config.zstd,
         "plan_sha256":planned.as_ref().map(|s| source::digest(s.as_bytes()))});

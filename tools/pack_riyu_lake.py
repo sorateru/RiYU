@@ -67,6 +67,25 @@ def belief_full(hand):
     return {**semantic, "concealed_counts": bytes(counts)}
 
 
+def local_actions_arrow(local):
+    def hand(profile):
+        return {**profile, "concealed": bytes(profile["concealed"])} if profile is not None else None
+
+    candidates = []
+    for item in local["candidates"]:
+        axis = item["successor_set_hash"]
+        successors = [{
+            **child, "id": bytes.fromhex(child["id"]), "semantic": bytes(child["semantic"]),
+            "after_discard": hand(child["after_discard"]),
+        } for child in item["successors"]]
+        candidates.append({
+            **item, "after": hand(item["after"]), "successors": successors,
+            "successor_set_hash": bytes.fromhex(axis) if axis is not None else None,
+            "visible_win_score": encode(item["visible_win_score"]) if item["visible_win_score"] is not None else None,
+        })
+    return {"before": hand(local["before"]), "candidates": candidates}
+
+
 def convert_row(row, rows, seen, action_registry, profile, checkpoint_interval):
     match = row.get("canonical", {})
     match_id = bytes.fromhex(match["id"]) if match else None
@@ -166,6 +185,8 @@ def convert_row(row, rows, seen, action_registry, profile, checkpoint_interval):
             })
             rows["targets/attack"].append({**key, **axis, **d["attack"]})
             rows["targets/defense"].append({**key, **axis, "candidates": d["defense"]})
+            if d.get("local_actions") is not None:
+                rows["targets/local_actions"].append({**key, **axis, **local_actions_arrow(d["local_actions"])})
             rows["targets/belief_lite"].append({
                 **key, "opponents": d["opponents"],
                 "next_opponent_action": [opponent_action(a) for a in d["next_opponent_action"]],
