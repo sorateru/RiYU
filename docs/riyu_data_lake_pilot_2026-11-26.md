@@ -4,6 +4,8 @@
 
 元資料は[監査報告](riyu_data_foundation_audit_2026-11-25.md)と[更新した詳細設計](riyu_data_schema_design_2026-11-26.md)。以下の数値は試験加工の実測。全量の値は観測範囲からの外挿である。
 
+現行の直書き経路と新しい比較結果は[高速化・品質検証報告](riyu_data_lake_optimization_report.md)に記載。
+
 ## 結果と採用する構成
 
 SQLiteの先頭1,000対局を読み取り専用で処理した。四麻722対局を再現し、三麻278対局は完全イベントの正規化まで進めた。正規化・再現エラーは0件。四麻7,345局から452,444意思決定を生成した。四麻は東南戦647対局（GO 169）と東風戦75対局（GO 225）、三麻はGO 185だった。先頭の連続標本なので、年全体の卓・時期構成を代表する保証はない。
@@ -138,7 +140,7 @@ Mac M4、6ワーカー、16対局/シャード。Rustの壁時計は168.9秒、�
 ```sh
 cargo build --release -p riyu-data-lake --locked
 target/release/riyu-data-lake ARCHIVE.db PRIVATE_SPOOL \
-  --authorization-reference REFERENCE --limit 1000 --workers 6 --measure-restore
+  --authorization-reference REFERENCE --limit 1000 --workers 6 --measure-restore --format jsonl
 python tools/pack_riyu_lake.py PRIVATE_RELEASE PRIVATE_SPOOL --profile D --checkpoint-interval 32
 python tools/bench_riyu_lake.py PRIVATE_SPOOL --hand-matches 16 --release PRIVATE_RELEASE
 ```

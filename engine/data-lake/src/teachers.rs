@@ -2,8 +2,8 @@ use std::{collections::HashMap, time::Instant};
 
 use anyhow::Result;
 use mahjong_core::{
-    GameState, TileCounts, TileType, TurnPhase, WinMethod, calculate_shanten, legal_actions,
-    score_observer_win,
+    GameState, MeldKind, TileCounts, TileType, TurnPhase, WinMethod, calculate_shanten,
+    legal_actions, score_observer_win,
 };
 use serde::Serialize;
 
@@ -236,6 +236,44 @@ pub struct DefenseCandidate {
     pub opponents: Vec<RonCell>,
 }
 
+fn pending_kan_dora(state: &GameState) -> bool {
+    let completed_kans = state
+        .players
+        .iter()
+        .flat_map(|p| &p.melds)
+        .filter(|meld| {
+            matches!(
+                meld.kind,
+                MeldKind::Ankan | MeldKind::Daiminkan | MeldKind::Shouminkan
+            )
+        })
+        .count();
+    state.dora_indicators.len() <= completed_kans
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mahjong_core::{Meld, PlayerId, RuleConfig, Tile};
+
+    #[test]
+    fn completed_kan_remains_unpriced_until_its_indicator_is_visible() {
+        let actor = PlayerId::new(0).unwrap();
+        let mut state = GameState::new(actor, RuleConfig::default()).unwrap();
+        state.dora_indicators.push(Tile::normal(TileType::North));
+        assert!(!pending_kan_dora(&state));
+        state.players[0].melds.push(Meld {
+            kind: MeldKind::Ankan,
+            tiles: vec![Tile::normal(TileType::M1); 4],
+            from: None,
+            called_tile: None,
+        });
+        assert!(pending_kan_dora(&state));
+        state.dora_indicators.push(Tile::normal(TileType::West));
+        assert!(!pending_kan_dora(&state));
+    }
+}
+
 pub fn defense(
     states: &[GameState; 4],
     seat: u8,
@@ -246,6 +284,7 @@ pub fn defense(
     let mut output = Vec::new();
     let mut results = HashMap::new();
     let discarder = states[seat as usize].observer();
+    let pending_dora = pending_kan_dora(&states[seat as usize]);
     for (index, c) in candidates.iter().enumerate() {
         let tile = match c.action {
             mahjong_core::Action::Discard { tile, .. }
@@ -293,7 +332,12 @@ pub fn defense(
                                 mahjong_core::Yaku::Daisangen | mahjong_core::Yaku::Daisuushii
                             )
                         });
-                        if state.players[i].riichi.is_accepted()
+                        if pending_dora {
+                            // A delayed indicator can affect the score for
+                            // this discard. Retain the score under visible dora
+                            // as a separate assumption even when ron is legal.
+                            cell.loss_status = "pending_kan_dora";
+                        } else if state.players[i].riichi.is_accepted()
                             || pao_possible
                             || uncertain[i].any()
                         {

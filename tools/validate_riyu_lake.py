@@ -7,8 +7,11 @@ import argparse
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
+import sys
 
 from mahjong.shanten import Shanten
+import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from mahjong_ai.data.lake_loader import TILE_INDEX
@@ -101,30 +104,50 @@ def hand_at(events, wanted, own):
     return result
 
 
-def audit(root, max_shards=0, belief_stride=101):
+def audit(root, max_shards=0, belief_stride=101, mismatch_locators=None):
     status, coverage, anomalies = Counter(), Counter(), Counter()
+    loss_contexts = Counter()
     manifest = json.loads((root / "manifest.json").read_text())
     shanten = Shanten()
-    for shard in manifest["shards"][:max_shards or None]:
+    selected_shards = manifest["shards"][:max_shards or None]
+    for shard_index, shard in enumerate(selected_shards):
         directory = root / shard["file"]
         status.update(shard["footer"]["statuses"])
 
-        def read(table, columns=None):
+        def read(table, columns=None, decision_ids=None):
             if table not in shard["footer"]["files"]:
                 return []
-            return pq.ParquetFile(directory / (table + ".parquet")).read(columns=columns).to_pylist()
+            rows = pq.ParquetFile(directory / (table + ".parquet")).read(columns=columns)
+            if decision_ids is not None:
+                selected = pa.array(list(decision_ids), type=rows.schema.field("decision_id").type)
+                rows = rows.filter(pc.is_in(rows["decision_id"], value_set=selected))
+            return rows.to_pylist()
 
         canonical = defaultdict(list)
-        for e in read("restricted/events"):
+        for e in read("restricted/events", [
+            "match_id", "round", "source_ordinal", "type", "attrs", "seat", "from", "hand_number",
+            "dealer", "step", "reason", "points", "responsibility", "ura", "score_change",
+        ]):
             canonical[e["match_id"]].append(e)
         match_headers = {m["match_id"]: m for m in read("restricted/matches")}
         for match in match_headers.values():
             if (error := match["diagnostic"]) is not None:
                 anomalies["replay: " + error.rsplit(": ", 1)[-1].split(" {")[0]] += 1
         targets = {r["decision_id"]: r for r in read("targets/policy")}
-        defense = {r["decision_id"]: r["candidates"] for r in read("targets/defense")}
         decisions = read("inputs/decisions")
-        choices = {}
+        picked = {d["decision_id"]: d for d in decisions[::belief_stride]} if belief_stride else {}
+        factual_keys = set()
+        for match_id, events in canonical.items():
+            last = None
+            for event in events:
+                match event["type"]:
+                    case "discard":
+                        last = event["source_ordinal"]
+                    case "start" | "call" | "draw":
+                        last = None
+                    case "win" if last is not None and event["seat"] != event["from"]:
+                        factual_keys.add((match_id, last))
+        selected_choices = {}
         for d in decisions:
             p = targets[d["decision_id"]]
             if p["choice_status"] == "censored":
@@ -137,8 +160,17 @@ def audit(root, max_shards=0, belief_stride=101):
             if d["actions"][index]["semantic"][1] == 1:
                 seq = canonical[d["match_id"]]
                 ordinal = next(e["source_ordinal"] for e in seq[ordinal+1:] if e["type"] == "discard")
-            choices[(d["match_id"], ordinal)] = next(c for c in defense[d["decision_id"]]
-                                                      if c["action_index"] == index)["opponents"]
+            key = (d["match_id"], ordinal)
+            if key in factual_keys:
+                selected_choices[key] = d["decision_id"], index
+        needed_defense = set(picked)
+        needed_defense.update(decision for decision, _ in selected_choices.values())
+        defense = {r["decision_id"]: r["candidates"]
+                   for r in read("targets/defense", ["decision_id", "candidates"], needed_defense)}
+        choices = {
+            key: next(c for c in defense[decision] if c["action_index"] == index)["opponents"]
+            for key, (decision, index) in selected_choices.items()
+        }
         accepted = {row["match_id"] for row in read("targets/match")}
         for match in accepted:
             events = canonical[match]
@@ -207,8 +239,19 @@ def audit(root, max_shards=0, belief_stride=101):
                         paid = -win["score_change"]["delta"][win["from"]]
                         if paid != cell["conditional_loss"]:
                             anomalies["single factual ron loss mismatch"] += 1
+                            if mismatch_locators is not None:
+                                mismatch_locators.add(match_headers[match]["source_locator"])
+                            anchor = next((e["source_ordinal"] for e in reversed(events[:ordinal])
+                                           if e["type"] in ("draw", "call")), ordinal)
+                            has_new_dora = any(e["type"] == "dora"
+                                               for e in events[anchor+1:win["source_ordinal"]])
+                            key = ("new_dora" if has_new_dora else "no_new_dora",
+                                   paid, cell["conditional_loss"])
+                            loss_contexts[key] += 1
                         else:
                             coverage["factual_single_ron_loss"] += 1
+                    elif cell["loss_status"] == "pending_kan_dora":
+                        coverage["factual_ron_with_pending_kan_dora"] += 1
                     elif win["ura"]:
                         coverage["factual_ura_observations"] += 1
                         if (len(wins) == 1 and win["responsibility"] is None
@@ -222,11 +265,10 @@ def audit(root, max_shards=0, belief_stride=101):
                             else:
                                 anomalies["factual loss below no-ura candidate"] += 1
         if belief_stride:
-            picked = {d["decision_id"]: d for d in decisions[::belief_stride]}
             needed = defaultdict(set)
-            full = [b for b in read("targets/belief_full") if b["decision_id"] in picked]
-            lite = {b["decision_id"]: b["opponents"] for b in read("targets/belief_lite")
-                    if b["decision_id"] in picked}
+            full = read("targets/belief_full", ["decision_id", "hands"], picked)
+            lite = {b["decision_id"]: b["opponents"]
+                    for b in read("targets/belief_lite", ["decision_id", "opponents"], picked)}
             for b in full:
                 d = picked[b["decision_id"]]
                 for h in b["hands"]:
@@ -294,7 +336,13 @@ def audit(root, max_shards=0, belief_stride=101):
                             for f in ("temporary_furiten", "riichi_furiten", "discard_furiten")
                         ):
                             anomalies["positive ron contradicts reference wait or known furiten"] += 1
-    return {"status": status, "coverage": coverage, "anomalies": anomalies}
+        if (shard_index + 1) % 10 == 0:
+            print(f"checked {shard_index+1}/{len(selected_shards)} audit shards", file=sys.stderr)
+    return {"status": status, "coverage": coverage, "anomalies": anomalies,
+            "loss_mismatch_contexts": [
+                {"event": key[0], "paid": key[1], "predicted": key[2], "count": n}
+                for key, n in loss_contexts.items()
+            ]}
 
 
 if __name__ == "__main__":
@@ -302,5 +350,13 @@ if __name__ == "__main__":
     p.add_argument("release", type=Path)
     p.add_argument("--max-shards", type=int, default=0)
     p.add_argument("--belief-stride", type=int, default=101)
+    p.add_argument("--private-mismatch-plan", type=Path)
     a = p.parse_args()
-    print(json.dumps(audit(a.release, a.max_shards, a.belief_stride), indent=2))
+    locators = set() if a.private_mismatch_plan else None
+    result = audit(a.release, a.max_shards, a.belief_stride, locators)
+    if a.private_mismatch_plan:
+        import os
+        fd = os.open(a.private_mismatch_plan, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write("".join(locator + "\n" for locator in sorted(locators)).encode())
+    print(json.dumps(result, indent=2))
