@@ -1,5 +1,7 @@
 # RiYU Data Lake v1 高速化・品質検証報告
 
+年間分散1万対局の続報と、全行動向けの追加教師は[最終品質検証報告](riyu_data_lake_final_validation_report.md)を参照。
+
 2026-11-27 / macOS・Apple M4・24 GB
 
 ## 結果
