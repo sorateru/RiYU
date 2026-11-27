@@ -527,7 +527,7 @@ fn replay_round(mut r: Round<'_>, start: &Start, events: &[CanonicalEvent]) -> R
     let mut declared = None;
     let mut acceptance = None;
     let mut turn_dora = Vec::new();
-    let mut scheduled_call_discard = None;
+    let mut scheduled_call_discard: Option<(u8, bool)> = None;
     let mut i = 1;
     while i < events.len() {
         let event = &events[i];
@@ -555,12 +555,15 @@ fn replay_round(mut r: Round<'_>, start: &Start, events: &[CanonicalEvent]) -> R
                     r.ledger.discard(seat, tile)?;
                     r.apply(|_| EventKind::Discard { player: player(seat), tile: tile.semantic(), tsumogiri,
                         tsumogiri_known: true, riichi_declaration: riichi })?;
-                    // Chi/pon on the ordinary next turn replaces that seat's
-                    // draw. The following discard clears same-turn furiten;
-                    // a pon that jumped the turn order does not.
-                    if scheduled_call_discard.take() == Some(seat) {
-                        r.states[seat as usize].observer_furiten.temporary = false;
-                        r.uncertain[seat as usize].temporary = false;
+                    if let Some((caller, normal_order)) = scheduled_call_discard.take() {
+                        ensure!(caller == seat, "discard does not follow its open call");
+                        let i = seat as usize;
+                        let definite = std::mem::take(&mut r.states[i].observer_furiten.temporary);
+                        // On the ordinary next turn the discard ended the
+                        // missed-win window. Non-adjacent pon can also clear
+                        // it in Tenhou; until turn order is fully resolved,
+                        // preserve both possibilities for such calls.
+                        r.uncertain[i].temporary = !normal_order && (r.uncertain[i].temporary || definite);
                     }
                     response_trigger = seq;
                 }
@@ -604,7 +607,7 @@ fn replay_round(mut r: Round<'_>, start: &Start, events: &[CanonicalEvent]) -> R
                     })?;
                     if matches!(meld.kind, "chi" | "pon") {
                         turn_trigger = seq;
-                        scheduled_call_discard = meld.from.filter(|&from| (from + 1) % 4 == seat).map(|_| seat);
+                        scheduled_call_discard = meld.from.map(|from| (seat, (from + 1) % 4 == seat));
                     } else {
                         rinshan = Some(seat);
                         response_trigger = seq;

@@ -70,11 +70,14 @@ def run(args):
     for mode in ("parquet", "ipc", "jsonl"):
         root = args.output / mode
         print(f"running {mode}", flush=True)
-        phase = measure([
+        command = [
             str(args.binary), str(args.database), str(root), "--format", mode,
             "--limit", str(args.limit), "--shard-size", str(args.shard_size),
             "--workers", str(args.workers), "--authorization-reference", args.authorization_reference,
-        ])
+        ]
+        if args.plan is not None:
+            command.extend(("--plan", str(args.plan)))
+        phase = measure(command)
         raw = manifest(root)
         intermediate = sum(s["bytes"] for s in raw["shards"])
         stages = {}
@@ -106,6 +109,7 @@ def main():
     parser.add_argument("output", type=Path)
     parser.add_argument("--binary", type=Path, default=Path("target/release/riyu-data-lake"))
     parser.add_argument("--limit", type=int, default=1000)
+    parser.add_argument("--plan", type=Path)
     parser.add_argument("--shard-size", type=int, default=16)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--authorization-reference", required=True)
