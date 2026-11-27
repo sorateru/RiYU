@@ -18,13 +18,23 @@ pub struct LegalActionReport {
 }
 
 pub fn legal_actions(state: &GameState) -> Result<LegalActionReport> {
+    legal_actions_with_shanten(state, |counts, melds| {
+        Ok(calculate_shanten(counts, melds)?.minimum)
+    })
+}
+
+/// Enumerate the same actions with a caller-provided exact shanten evaluator.
+pub fn legal_actions_with_shanten(
+    state: &GameState,
+    mut shanten: impl FnMut(&TileCounts, u8) -> Result<i8>,
+) -> Result<LegalActionReport> {
     state.validate()?;
     let observer = state.observer();
     let fixed = &state.players[observer.index()].melds;
     let discard_furiten = is_discard_furiten(state)?;
     let mut actions = match state.phase {
         TurnPhase::AwaitingDiscard { player } if player == observer => {
-            legal_turn_actions(state, fixed)?
+            legal_turn_actions(state, fixed, &mut shanten)?
         }
         TurnPhase::AwaitingResponse { discarder, tile } if discarder != observer => {
             legal_response_actions(state, discarder, tile, discard_furiten)?
@@ -50,6 +60,15 @@ pub fn legal_actions(state: &GameState) -> Result<LegalActionReport> {
 
 /// Score the observer's currently legal ron/tsumo using only their observation.
 pub fn score_observer_win(state: &GameState, method: WinMethod) -> Result<crate::ScoreEvaluation> {
+    score_observer_win_with_ura(state, method, &[])
+}
+
+/// Replay-only scoring with explicitly observed ura indicators.
+pub fn score_observer_win_with_ura(
+    state: &GameState,
+    method: WinMethod,
+    ura: &[TileType],
+) -> Result<crate::ScoreEvaluation> {
     state.validate()?;
     let observer = state.observer();
     let winning_tile = match method {
@@ -72,11 +91,13 @@ pub fn score_observer_win(state: &GameState, method: WinMethod) -> Result<crate:
     } else {
         concealed.push(winning_tile);
     }
+    let mut context = win_context(state, method)?;
+    context.ura_dora_indicators = ura.to_vec();
     score_hand(
         &concealed,
         &state.players[observer.index()].melds,
         winning_tile,
-        &win_context(state, method)?,
+        &context,
         &state.rules,
     )
 }
@@ -118,7 +139,11 @@ fn legal_chankan_actions(
     Ok(actions)
 }
 
-fn legal_turn_actions(state: &GameState, fixed: &[crate::Meld]) -> Result<Vec<Action>> {
+fn legal_turn_actions(
+    state: &GameState,
+    fixed: &[crate::Meld],
+    shanten: &mut impl FnMut(&TileCounts, u8) -> Result<i8>,
+) -> Result<Vec<Action>> {
     let observer = state.observer();
     let riichi = state.players[observer.index()].riichi.is_accepted();
     let mut actions = Vec::new();
@@ -150,14 +175,23 @@ fn legal_turn_actions(state: &GameState, fixed: &[crate::Meld]) -> Result<Vec<Ac
     }
 
     if !riichi && can_declare_riichi(state, fixed) {
+        let base = TileCounts::from_tiles(all_tiles)?;
+        let mut by_kind = [None; 34];
         for action in &discard_actions {
             let Action::Discard { tile, tsumogiri } = action else {
                 continue;
             };
-            let mut after = all_tiles.clone();
-            remove_physical_tile(&mut after, *tile)?;
-            let counts = TileCounts::from_tiles(after)?;
-            if calculate_shanten(&counts, fixed.len() as u8)?.minimum == 0 {
+            let available = &mut by_kind[tile.kind.index()];
+            let tenpai = if let Some(value) = *available {
+                value
+            } else {
+                let mut next = base;
+                next.remove(tile.kind)?;
+                let value = shanten(&next, fixed.len() as u8)? == 0;
+                *available = Some(value);
+                value
+            };
+            if tenpai {
                 actions.push(Action::Riichi {
                     discard: *tile,
                     tsumogiri: *tsumogiri,
@@ -482,7 +516,10 @@ fn win_context(state: &GameState, method: WinMethod) -> Result<WinContext> {
     let first_own_turn = state.players[observer.index()].discards.is_empty();
     let rinshan = method == WinMethod::Tsumo
         && matches!(
-            state.last_event.as_ref().map(|event| &event.kind),
+            state.event_history.iter().rev().find_map(|event| match &event.kind {
+                EventKind::DoraReveal { .. } => None,
+                kind => Some(kind),
+            }),
             Some(EventKind::Draw { player, rinshan: true, .. }) if *player == observer
         );
     Ok(WinContext {
@@ -500,7 +537,7 @@ fn win_context(state: &GameState, method: WinMethod) -> Result<WinContext> {
         rinshan,
         chankan: method == WinMethod::Ron
             && matches!(state.phase, TurnPhase::AwaitingKanResponse { .. }),
-        haitei: method == WinMethod::Tsumo && state.remaining_tiles == 0,
+        haitei: method == WinMethod::Tsumo && state.remaining_tiles == 0 && !rinshan,
         houtei: method == WinMethod::Ron && state.remaining_tiles == 0,
         tenhou: method == WinMethod::Tsumo
             && seat_wind == TileType::East

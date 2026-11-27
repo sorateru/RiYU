@@ -1,6 +1,6 @@
 use mahjong_core::{
     Action, DiscardRecord, EventKind, GameEvent, PlayerId, RiichiState, RoundState, RoundWind,
-    RuleConfig, Tile, TileType, legal_actions, replay_events,
+    RuleConfig, Tile, TileType, WinMethod, Yaku, legal_actions, replay_events, score_observer_win,
 };
 
 fn player(id: u8) -> PlayerId {
@@ -210,6 +210,107 @@ fn passing_ron_sets_temporary_furiten_and_next_draw_clears_it() {
         })
         .unwrap();
     assert!(!state.observer_furiten.temporary);
+}
+
+#[test]
+fn riichi_pass_persists_after_the_observers_draw() {
+    let mut state = replay_events(
+        player(1),
+        RuleConfig::default(),
+        [
+            round_start(pinfu_tenpai(), 0),
+            GameEvent {
+                sequence: 1,
+                kind: EventKind::Draw {
+                    player: player(0),
+                    tile: None,
+                    rinshan: false,
+                },
+            },
+            GameEvent {
+                sequence: 2,
+                kind: EventKind::Discard {
+                    player: player(0),
+                    tile: tile(TileType::S4),
+                    tsumogiri: false,
+                    tsumogiri_known: true,
+                    riichi_declaration: false,
+                },
+            },
+        ],
+    )
+    .unwrap();
+    state.players[1].riichi = RiichiState::Accepted;
+    state
+        .apply_event(GameEvent {
+            sequence: 3,
+            kind: EventKind::Pass {
+                player: player(1),
+                ron_available: true,
+            },
+        })
+        .unwrap();
+    assert!(state.observer_furiten.riichi);
+    assert!(
+        !legal_actions(&state)
+            .unwrap()
+            .actions
+            .contains(&Action::Ron { target: player(0) })
+    );
+    state
+        .apply_event(GameEvent {
+            sequence: 4,
+            kind: EventKind::Draw {
+                player: player(1),
+                tile: Some(tile(TileType::East)),
+                rinshan: false,
+            },
+        })
+        .unwrap();
+    assert!(state.observer_furiten.riichi);
+}
+
+#[test]
+fn rinshan_on_the_last_available_tile_does_not_add_haitei() {
+    let mut start = round_start(pinfu_tenpai(), 0);
+    if let EventKind::RoundStart {
+        remaining_tiles, ..
+    } = &mut start.kind
+    {
+        *remaining_tiles = 1;
+    }
+    let mut state = replay_events(
+        player(0),
+        RuleConfig::default(),
+        [
+            start,
+            GameEvent {
+                sequence: 1,
+                kind: EventKind::Draw {
+                    player: player(0),
+                    tile: Some(tile(TileType::S4)),
+                    rinshan: false,
+                },
+            },
+        ],
+    )
+    .unwrap();
+    state.turn = 8;
+    let normal = score_observer_win(&state, WinMethod::Tsumo).unwrap();
+    assert!(normal.yaku.iter().any(|y| y.yaku == Yaku::Haitei));
+    let last = state.event_history.last_mut().unwrap();
+    if let EventKind::Draw { rinshan, .. } = &mut last.kind {
+        *rinshan = true;
+    }
+    state.last_event = Some(last.clone());
+    let replacement = score_observer_win(&state, WinMethod::Tsumo).unwrap();
+    assert!(
+        replacement
+            .yaku
+            .iter()
+            .any(|y| y.yaku == Yaku::RinshanKaihou)
+    );
+    assert!(!replacement.yaku.iter().any(|y| y.yaku == Yaku::Haitei));
 }
 
 #[test]

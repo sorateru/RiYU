@@ -1,0 +1,21 @@
+[package]
+name = "riyu-data-lake"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+mahjong-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow = "1.0"
+bzip2 = "0.5"
+quick-xml = "0.37"
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
+rayon = "1.10"
+arrow-array = "54.3.1"
+arrow-ipc = "54.3.1"
+arrow-schema = "54.3.1"
+parquet = { version = "54.3.1", default-features = false, features = ["arrow", "zstd"] }

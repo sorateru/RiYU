@@ -254,12 +254,21 @@ impl GameState {
                 actual: event.sequence,
             });
         }
+        let history = std::mem::take(&mut self.event_history);
         let mut candidate = self.clone();
-        candidate.apply_event_inner(&event.kind)?;
+        if let Err(error) = candidate.apply_event_inner(&event.kind) {
+            self.event_history = history;
+            return Err(error);
+        }
+        candidate.event_history = history;
         candidate.next_event_sequence += 1;
         candidate.last_event = Some(event.clone());
         candidate.event_history.push(event);
-        candidate.validate()?;
+        if let Err(error) = candidate.validate() {
+            candidate.event_history.pop();
+            self.event_history = candidate.event_history;
+            return Err(error);
+        }
         *self = candidate;
         Ok(())
     }
@@ -642,9 +651,11 @@ impl GameState {
                 ));
             }
         }
-        self.cancel_all_ippatsu();
         self.merge_drawn_tile_into_hand();
         if let Some((meld, replace_meld_index, tile, ankan)) = pending_kan {
+            if ankan {
+                self.cancel_all_ippatsu();
+            }
             self.pending_kan = Some(PendingKan {
                 player,
                 meld,
@@ -657,6 +668,7 @@ impl GameState {
                 ankan,
             };
         } else {
+            self.cancel_all_ippatsu();
             self.current_actor = Some(player);
             self.phase = TurnPhase::AwaitingRinshanDraw { player };
         }
@@ -667,6 +679,7 @@ impl GameState {
         let pending = self.pending_kan.take().ok_or_else(|| {
             MahjongError::InvalidState("kan response phase lacks pending kan".into())
         })?;
+        self.cancel_all_ippatsu();
         let melds = &mut self.players[pending.player.index()].melds;
         if let Some(position) = pending.replace_meld_index {
             let slot = melds.get_mut(position).ok_or_else(|| {

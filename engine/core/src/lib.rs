@@ -30,7 +30,10 @@ pub use analysis::{
 pub use counts::TileCounts;
 pub use error::{MahjongError, Result};
 pub use event::{DrawGameReason, EventKind, GameEvent, RiichiStep, RoundEndReason};
-pub use legal::{LegalActionReport, legal_actions, score_observer_win, winning_tile_types};
+pub use legal::{
+    LegalActionReport, legal_actions, legal_actions_with_shanten, score_observer_win,
+    score_observer_win_with_ura, winning_tile_types,
+};
 pub use player::PlayerId;
 pub use points::{Payment, ScoreLimit, WinMethod, calculate_points};
 pub use progression::{MatchLength, RoundOutcome, RoundTransition, next_round, noten_penalty};
